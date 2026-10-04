@@ -1,0 +1,50 @@
+=== 360 CAREER (CAREER_01) (Xbox 360, big-endian) ===
+file: E:/GitHub/NFSPS-360-PC-Career/Extracted/Career/CAREER_01
+payload at file 0xD000, total=0xB6838 extra=0x1C tree=0xB6800
+CRC hdr:   0x4F55387E OK
+CRC extra: 0x5A85BCDD OK
+CRC tree:  0xE13D8731 FAIL
+extra blob: 8209e9b0000aada400000001000000070000000000000064420dc9d6
+tree count field = 9; walked 7 top-level + 2 nested = 9 chunk objects
+records start tree 0x48 (file 0xD080); used_size=0xAADA4 -> used end tree 0xAADEC; last parsed record ends 0xAA6CC; buffer end 0xB6800
+TILING: PARTIAL - see caveat
+
+idx  tree_off  file_off  type       id         size     end
+0    0x000048  0x00D080  0x01310001  0x328C6431  0x0001D8  0x00022C
+1    0x00022C  0x00D264  0x00000000  0xDC6B027F  0x0001F4  0x00042C
+2    0x00042C  0x00D464  0xAEB1A850  0xB67F6CC6  0x0002B4  0x0006EC
+3    0x0006EC  0x00D724  0x19337626  0x3B309E09  0x014014  0x01470C  [container]
+4    0x01470C  0x021744  0x00000000  0x51A41B14  0x003A24  0x01813C
+5    0x01813C  0x025174  0x00000000  0x47A07113  0x0906A4  0x0A87EC  [container]
+6    0x0A87EC  0x0B5824  0x00000000  0x885B4DDC  0x001ED4  0x0AA6CC
+
+--- record details ---
+[0] tree_off=0x000048 file_off=0x00D080 type=0x01310001 id=0x328C6431 size=0x1D8 end=0x00022C
+  head: 014f4144494e4754455854550000000000000004000000000000000700000000
+  strings: @1:OADINGTEXTU
+[1] tree_off=0x00022C file_off=0x00D264 type=0x00000000 id=0xDC6B027F size=0x1F4 end=0x00042C
+  head: 016c8738001a93cf0000000000000004000040000000000f0000000000000008
+  strings: @77:ICON_SPEED | @177:ICON_JA | @289:TAR_SPOC | @492:N_STAR
+[2] tree_off=0x00042C file_off=0x00D464 type=0xAEB1A850 id=0xB67F6CC6 size=0x2B4 end=0x0006EC
+  head: 014d6639001a93cf000000000000000400004000000000250000000000000004
+[3] tree_off=0x0006EC file_off=0x00D724 type=0x19337626 id=0x3B309E09 size=0x14014 end=0x01470C
+  head: 01000000000000001fb48cf20001400400000000000000001776f8550f874b28
+  strings: @164:staging | @1183:5jlge | @2230:,Mm l | @2245:MV09_Nitrocide | @2277:MV03_BattleMachine
+  [3.0] tree_off=0x0006FC file_off=0x00D734 type=0x00000000 id=0x1FB48CF2 size=0x14004 end=0x01470C
+    head: 00000000000000001776f8550f874b285e2a07a5d73fb0c0656d61470000000c
+    strings: @148:staging | @1167:5jlge | @2214:,Mm l | @2229:MV09_Nitrocide | @2261:MV03_BattleMachine
+[4] tree_off=0x01470C file_off=0x021744 type=0x00000000 id=0x51A41B14 size=0x3A24 end=0x01813C
+  head: 01ffffff00000000000000000000000400ffffff00000212c6a10f17000039fc
+  strings: @50:&eBrF0 | @78: CC-<a | @2376:C.JqB | @3007:TD#7f | @4194:%8C,p | @4783:?BpFP | @5986:&XCj{hBZz@ | @6520:C&~ BS | @6927:14s"6 | @8284:Aci@>L
+[5] tree_off=0x01813C file_off=0x025174 type=0x00000000 id=0x47A07113 size=0x906A4 end=0x0A87EC
+  head: 010000000000000034b74942000906880000000000000000123456788e09c833
+  strings: @912:i>JJ5 | @1036:nzA3nzA3 | @1396:1=I61=I6bx` | @1666:~Npaq | @2212:nzA3nzA3 | @2411:3vWMZ | @2472:}0UhnzA3nzA3}0Uh | @3220:nzA3nzA3 | @3340:1=I61=I6 | @11812:?fff?
+  [5.0] tree_off=0x01814C file_off=0x025184 type=0x00000000 id=0x34B74942 size=0x90688 end=0x0A87E0
+    head: 0000000000000000123456788e09c8338e09c833d1d7cb0e000f0040ffff00aa
+    strings: @896:i>JJ5 | @1020:nzA3nzA3 | @1380:1=I61=I6bx` | @1650:~Npaq | @2196:nzA3nzA3 | @2395:3vWMZ | @2456:}0UhnzA3nzA3}0Uh | @3204:nzA3nzA3 | @3324:1=I61=I6 | @11796:?fff?
+[6] tree_off=0x0A87EC file_off=0x0B5824 type=0x00000000 id=0x885B4DDC size=0x1ED4 end=0x0AA6CC
+  head: 011f841f00000000000000000000000400ff83ff000000c30000000000000004
+  strings: @6227:UQV-P | @6796:Gt^99V-)v | @6860:Ynn.e | @7562:n-V#i | @7769:>|2b4lP
+
+--- post-records region ---
+length 0xC134 (tree 0xAA6CC..0xB6800)

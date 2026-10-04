@@ -1,0 +1,673 @@
+==============================================================================
+SAVE: E:\GitHub\NFSPS-360-PC-Career\Extracted\Career\CAREER_01
+==============================================================================
+container header : 53248 bytes (stripped)
+MC02 header      : magic=4d433032 total=0xb6838 extra=0x1c tree=0xb6800
+CRC header[0:24] : 4f55387e OK
+CRC extra        : 5a85bcdd OK
+CRC tree (full)  : e13d8731 FAIL
+extra blob       : 8209e9b0000aada400000001000000070000000000000064420dc9d6
+
+tree prefix      : junk16=007f10d4ac67b812fa50e7fb23acdc52
+                   count=9  pad44=0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                   root id=59f2d89b used=0xaada4 (records end at 0xaadec)
+tree slack       : 0xba14 bytes beyond used (CRC-covered)
+
+------------------------------------------------------------------------------
+record 1  slot@0x000048  junk=01310001  id=328c6431  size=0x1d8 (472 B)
+  payload: marker=0x01 prefix=12 junk bytes, then 29 entries:
+    kinds: prop x29
+    +0x000c prop    type=4          tag=000000 int 7 (0x7)
+    +0x001c prop    type=4          tag=646961 int 1 (0x1)
+    +0x002c prop    type=4          tag=616261 int 2 (0x2)
+    +0x003c prop    type=4          tag=6b5c4c int 16 (0x10)
+    +0x004c prop    type=4          tag=732e78 int 4 (0x4)
+    +0x005c prop    type=4          tag=000000 int 32 (0x20)
+    +0x006c prop    type=4          tag=000000 int 4 (0x4)
+    +0x007c prop    type=4          tag=000000 int 32 (0x20)
+    +0x008c prop    type=4          tag=000000 int 2 (0x2)
+    +0x009c prop    type=4          tag=000000 int 2 (0x2)
+    +0x00ac prop    type=4          tag=000000 int 16 (0x10)
+    +0x00bc prop    type=4          tag=000000 int 64 (0x40)
+    ... 17 more entries ...
+------------------------------------------------------------------------------
+record 2  slot@0x00022c  junk=00000000  id=dc6b027f  size=0x1f4 (500 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 16 entries:
+    kinds: prop x16
+    +0x0008 prop    type=4          tag=004000 int 15 (0xf)
+    +0x0018 prop    type=8          tag=072600 float 299268
+    +0x0038 prop    type=8          tag=1bcc00 float 2737
+    +0x0058 prop    type=8          tag=000000 float 748
+    +0x0078 prop    type=8          tag=400040 float 1501
+    +0x0098 prop    type=8          tag=000100 float 1371
+    +0x00b8 prop    type=8          tag=b1a7f0 float 858
+    +0x00d8 prop    type=8          tag=000000 float 336
+    +0x00f8 prop    type=8          tag=000000 float 200
+    +0x0118 prop    type=8          tag=544152 float 470
+    +0x0138 prop    type=8          tag=014000 float 348
+    +0x0158 prop    type=8          tag=050001 float 560
+    +0x0178 prop    type=8          tag=000000 float 95, name 'MB'
+    +0x0198 prop    type=8          tag=1a93cf float 1
+    +0x01b8 prop    type=8          tag=000100 float 1
+    +0x01d8 prop    type=8          tag=000000 float 0, name 'N_STAR'
+------------------------------------------------------------------------------
+record 3  slot@0x00042c  junk=aeb1a850  id=b67f6cc6  size=0x2b4 (692 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 43 entries:
+    kinds: prop x43
+    +0x0008 prop    type=4          tag=004000 int 37 (0x25)
+    +0x0018 prop    type=4          tag=072600 int 16 (0x10)
+    +0x0028 prop    type=4          tag=000000 int 16 (0x10)
+    +0x0038 prop    type=4          tag=1bcc00 int 15 (0xf)
+    +0x0048 prop    type=4          tag=46585f int 15 (0xf)
+    +0x0058 prop    type=4          tag=000000 int 15 (0xf)
+    +0x0068 prop    type=4          tag=ffffff int 16 (0x10)
+    +0x0078 prop    type=4          tag=800080 int 16 (0x10)
+    +0x0088 prop    type=4          tag=020100 int 16 (0x10)
+    +0x0098 prop    type=4          tag=000100 int 16 (0x10)
+    +0x00a8 prop    type=4          tag=464c49 int 15 (0xf)
+    +0x00b8 prop    type=4          tag=b1a890 int 15 (0xf)
+    ... 31 more entries ...
+------------------------------------------------------------------------------
+record 4  slot@0x0006ec  junk=19337626  id=3b309e09  size=0x14014 (81940 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 1 entries:
+    kinds: blob x1
+    +0x0008 blob    id=1fb48cf2 size= 81924 81924 B
+------------------------------------------------------------------------------
+record 5  slot@0x01470c  junk=00000000  id=51a41b14  size=0x3a24 (14884 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 3 entries:
+    kinds: blob x1, prop x1, tail x1
+    +0x0008 prop    type=4          tag=ffffff int 530 (0x212)
+    +0x0018 blob    id=c6a10f17 size= 14844 14844 B
+    +0x3a1c tail    8 B footer
+------------------------------------------------------------------------------
+record 6  slot@0x01813c  junk=00000000  id=47a07113  size=0x906a4 (591524 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 2 entries:
+    kinds: blob x1, tail x1
+    +0x0008 blob    id=34b74942 size=591496 591496 B
+    +0x90698 tail    12 B footer
+------------------------------------------------------------------------------
+record 7  slot@0x0a87ec  junk=00000000  id=885b4ddc  size=0x1ed4 (7892 B)
+  payload: NOT fully tileable (damaged/opaque beyond +0x1ecc of 0x1ed4)
+------------------------------------------------------------------------------
+NOTE: slot 8 @0xaa6cc has garbage header (id=945b300b size=7bfaf11c); 1824 unreadable bytes remain inside used region
+unreadable slot region: tree[0xaa6cc:0xaadec] (1824 B) -- contents:
+  f91ed2ed945b300b7bfaf11cd46aedffa8aae3fe5b54863edff932a594ba4370105dbf1ffda4fddbff9ca9207b50e598...
+
+SUMMARY: 6/9 record slots parsed, 94 entries total (see NOTEs)
+
+==============================================================================
+SAVE: E:\GitHub\NFSPS-360-PC-Career\Extracted\Alias\ALIAS_JOSHUA S 10
+==============================================================================
+container header : 53248 bytes (stripped)
+MC02 header      : magic=4d433032 total=0x505c extra=0x40 tree=0x5000
+CRC header[0:24] : 05af24e5 OK
+CRC extra        : 9742c501 OK
+CRC tree (full)  : 87219e2a OK
+extra blob       : 8209e9a8000032040000000100000007000000004a4f53485541205320313000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4248000041c80000
+
+tree prefix      : junk16=d13ca5cef77f4c06c5d68247d2a4449d
+                   count=14  pad44=0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                   root id=59f2d89b used=0x3204 (records end at 0x324c)
+tree slack       : 0x1db4 bytes beyond used (CRC-covered)
+
+------------------------------------------------------------------------------
+record 1  slot@0x000048  junk=01310001  id=8ffbe3e8  size=0x598 (1432 B)
+  payload: marker=0x01 prefix=12 junk bytes, then 45 entries:
+    kinds: prop x45
+    +0x000c prop    type=4          tag=000000 int 44 (0x2c)
+    +0x001c prop    type=8          tag=646961 float 1, name 'B\\Database\\T'
+    +0x003c prop    type=8          tag=6b5c4c float 1, name 'xtures.xml'
+    +0x005c prop    type=8          tag=000000 float 1
+    +0x007c prop    type=8          tag=000000 float 1
+    +0x009c prop    type=8          tag=000000 float 1
+    +0x00bc prop    type=8          tag=000000 float 1
+    +0x00dc prop    type=8          tag=000000 float 0
+    +0x00fc prop    type=8          tag=000000 float 0
+    +0x011c prop    type=8          tag=004000 float 1
+    +0x013c prop    type=8          tag=000000 float 0
+    +0x015c prop    type=8          tag=53484f float 1
+    ... 33 more entries ...
+------------------------------------------------------------------------------
+record 2  slot@0x0005ec  junk=00004000  id=4e8aa143  size=0x1594 (5524 B)
+  payload: marker=0x01 prefix=12 junk bytes, then 458 entries:
+    kinds: prop x457, str x1
+    +0x000c strslot cap=5508   tag=000000 string 12 B ('3;-1'...)
+    +0x0024 prop    type=0          tag=000000 0 B
+    +0x0030 prop    type=0          tag=000000 0 B
+    +0x003c prop    type=0          tag=000000 0 B
+    +0x0048 prop    type=0          tag=000000 0 B
+    +0x0054 prop    type=0          tag=000000 0 B
+    +0x0060 prop    type=0          tag=000000 0 B
+    +0x006c prop    type=0          tag=000000 0 B
+    +0x0078 prop    type=0          tag=000000 0 B
+    +0x0084 prop    type=0          tag=000000 0 B
+    +0x0090 prop    type=0          tag=000000 0 B
+    +0x009c prop    type=0          tag=000000 0 B
+    ... 446 more entries ...
+------------------------------------------------------------------------------
+record 3  slot@0x001b8c  junk=00000000  id=9f72f194  size=0x124 (292 B)
+  payload: marker=0x01 prefix=12 junk bytes, then 11 entries:
+    kinds: prop x5, str x6
+    +0x000c strslot cap=36     tag=ffffff 24 B
+    +0x0030 strslot cap=2863311530 tag=aaaaaa 36 B
+    +0x0060 strslot cap=2863311530 tag=aaaaaa 16 B
+    +0x007c strslot cap=3063618405 tag=ffffff 36 B
+    +0x00ac strslot cap=2858701538 tag=ffffff 12 B
+    +0x00c4 prop    type=0          tag=000001 0 B
+    +0x00d0 strslot cap=16777215 tag=000000 12 B
+    +0x00e8 prop    type=1          tag=ffffff 4 B
+    +0x00f8 prop    type=1          tag=ffffff 4 B
+    +0x0108 prop    type=4          tag=ffffff int 99 (0x63)
+    +0x0118 prop    type=1          tag=ffffff 0 B
+------------------------------------------------------------------------------
+record 4  slot@0x001cbc  junk=01000000  id=dc6b027f  size=0xb4 (180 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 6 entries:
+    kinds: prop x6
+    +0x0008 prop    type=4          tag=ffffff int 5 (0x5)
+    +0x0018 prop    type=8          tag=ffffff float 0
+    +0x0038 prop    type=8          tag=ffffff float 1
+    +0x0058 prop    type=8          tag=ffffff float 0
+    +0x0078 prop    type=8          tag=ffffff float 0
+    +0x0098 prop    type=8          tag=ffffff float 0
+------------------------------------------------------------------------------
+record 5  slot@0x001d7c  junk=00000000  id=6cc89c57  size=0x724 (1828 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 114 entries:
+    kinds: prop x114
+    +0x0008 prop    type=4          tag=ffffff int 0 (0x0)
+    +0x0018 prop    type=4          tag=ffffff int 2579221201 (0x99bbcad1)
+    +0x0028 prop    type=4          tag=ffffff int 2 (0x2)
+    +0x0038 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0048 prop    type=4          tag=ffffff int 1886306573 (0x706ec10d)
+    +0x0058 prop    type=4          tag=ffffff int 2 (0x2)
+    +0x0068 prop    type=4          tag=ffffff int 2 (0x2)
+    +0x0078 prop    type=4          tag=ffffff int 2057547103 (0x7aa3ad5f)
+    +0x0088 prop    type=4          tag=ffffff int 2 (0x2)
+    +0x0098 prop    type=4          tag=ffffff int 3 (0x3)
+    +0x00a8 prop    type=4          tag=ffffff int 1912485254 (0x71fe3586)
+    +0x00b8 prop    type=4          tag=ffffff int 2 (0x2)
+    ... 102 more entries ...
+------------------------------------------------------------------------------
+record 6  slot@0x0024ac  junk=00000000  id=c3ec4947  size=0xb4 (180 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 6 entries:
+    kinds: prop x6
+    +0x0008 prop    type=8          tag=ffffff float 1
+    +0x0028 prop    type=8          tag=ffffff float 0
+    +0x0048 prop    type=8          tag=ffffff float 0
+    +0x0068 prop    type=1          tag=ffffff 4 B
+    +0x0078 prop    type=8          tag=ffffff float 0.5
+    +0x0098 prop    type=8          tag=ffffff float 0
+------------------------------------------------------------------------------
+record 7  slot@0x00256c  junk=00000000  id=b74c1044  size=0x24 (36 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 1 entries:
+    kinds: prop x1
+    +0x0008 prop    type=8          tag=ffffff float 0
+------------------------------------------------------------------------------
+record 8  slot@0x00259c  junk=00000000  id=8c4a2dc0  size=0x134 (308 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 18 entries:
+    kinds: prop x18
+    +0x0008 prop    type=1          tag=ffffff 4 B
+    +0x0018 prop    type=1          tag=ffffff 4 B
+    +0x0028 prop    type=1          tag=ffffff 4 B
+    +0x0038 prop    type=1          tag=ffffff 4 B
+    +0x0048 prop    type=4          tag=ffffff int 0 (0x0)
+    +0x0058 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0068 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0078 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0088 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0098 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x00a8 prop    type=4          tag=ffffff int 4294967295 (0xffffffff)
+    +0x00b8 prop    type=4          tag=ffffff int 1 (0x1)
+    ... 6 more entries ...
+------------------------------------------------------------------------------
+record 9  slot@0x0026dc  junk=00000000  id=9cb326c2  size=0x184 (388 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 15 entries:
+    kinds: prop x15
+    +0x0008 prop    type=8          tag=ffffff float 1
+    +0x0028 prop    type=8          tag=ffffff float 1
+    +0x0048 prop    type=8          tag=ffffff float 1
+    +0x0068 prop    type=8          tag=ffffff float 1
+    +0x0088 prop    type=8          tag=ffffff float 1
+    +0x00a8 prop    type=8          tag=ffffff float 1
+    +0x00c8 prop    type=8          tag=ffffff float 0.5
+    +0x00e8 prop    type=8          tag=ffffff float 1
+    +0x0108 prop    type=8          tag=ffffff float -3.03165e-13
+    +0x0128 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0138 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0148 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0158 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0168 prop    type=4          tag=ffffff int 1 (0x1)
+    +0x0178 prop    type=4          tag=ffffff 0 B
+------------------------------------------------------------------------------
+record 10  slot@0x00286c  junk=00000003  id=8b7d0aad  size=0x254 (596 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 37 entries:
+    kinds: prop x37
+    +0x0008 prop    type=1          tag=ffffff 4 B
+    +0x0018 prop    type=1          tag=ffffff 4 B
+    +0x0028 prop    type=1          tag=ffffff 4 B
+    +0x0038 prop    type=1          tag=ffffff 4 B
+    +0x0048 prop    type=1          tag=ffffff 4 B
+    +0x0058 prop    type=1          tag=ffffff 4 B
+    +0x0068 prop    type=1          tag=ffffff 4 B
+    +0x0078 prop    type=1          tag=ffffff 4 B
+    +0x0088 prop    type=1          tag=ffffff 4 B
+    +0x0098 prop    type=1          tag=ffffff 4 B
+    +0x00a8 prop    type=4          tag=ffffff int 0 (0x0)
+    +0x00b8 prop    type=4          tag=ffffff int 3 (0x3)
+    ... 25 more entries ...
+------------------------------------------------------------------------------
+record 11  slot@0x002acc  junk=00000002  id=8b7d0aae  size=0x254 (596 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 37 entries:
+    kinds: prop x37
+    +0x0008 prop    type=1          tag=ffffff 4 B
+    +0x0018 prop    type=1          tag=ffffff 4 B
+    +0x0028 prop    type=1          tag=ffffff 4 B
+    +0x0038 prop    type=1          tag=ffffff 4 B
+    +0x0048 prop    type=1          tag=ffffff 4 B
+    +0x0058 prop    type=1          tag=ffffff 4 B
+    +0x0068 prop    type=1          tag=ffffff 4 B
+    +0x0078 prop    type=1          tag=ffffff 4 B
+    +0x0088 prop    type=1          tag=ffffff 4 B
+    +0x0098 prop    type=1          tag=ffffff 4 B
+    +0x00a8 prop    type=4          tag=ffffff int 0 (0x0)
+    +0x00b8 prop    type=4          tag=ffffff int 3 (0x3)
+    ... 25 more entries ...
+------------------------------------------------------------------------------
+record 12  slot@0x002d2c  junk=00000000  id=8b7d0aaf  size=0x254 (596 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 37 entries:
+    kinds: prop x37
+    +0x0008 prop    type=1          tag=ffffff 4 B
+    +0x0018 prop    type=1          tag=ffffff 4 B
+    +0x0028 prop    type=1          tag=ffffff 4 B
+    +0x0038 prop    type=1          tag=ffffff 4 B
+    +0x0048 prop    type=1          tag=ffffff 4 B
+    +0x0058 prop    type=1          tag=ffffff 4 B
+    +0x0068 prop    type=1          tag=ffffff 4 B
+    +0x0078 prop    type=1          tag=ffffff 4 B
+    +0x0088 prop    type=1          tag=ffffff 4 B
+    +0x0098 prop    type=1          tag=ffffff 4 B
+    +0x00a8 prop    type=4          tag=ffffff int 0 (0x0)
+    +0x00b8 prop    type=4          tag=ffffff int 3 (0x3)
+    ... 25 more entries ...
+------------------------------------------------------------------------------
+record 13  slot@0x002f8c  junk=00000000  id=8b7d0ab0  size=0x254 (596 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 37 entries:
+    kinds: prop x37
+    +0x0008 prop    type=1          tag=ffffff 4 B
+    +0x0018 prop    type=1          tag=ffffff 4 B
+    +0x0028 prop    type=1          tag=ffffff 4 B
+    +0x0038 prop    type=1          tag=ffffff 4 B
+    +0x0048 prop    type=1          tag=ffffff 4 B
+    +0x0058 prop    type=1          tag=ffffff 4 B
+    +0x0068 prop    type=1          tag=ffffff 4 B
+    +0x0078 prop    type=1          tag=ffffff 4 B
+    +0x0088 prop    type=1          tag=ffffff 4 B
+    +0x0098 prop    type=1          tag=ffffff 4 B
+    +0x00a8 prop    type=4          tag=ffffff int 0 (0x0)
+    +0x00b8 prop    type=4          tag=ffffff int 3 (0x3)
+    ... 25 more entries ...
+------------------------------------------------------------------------------
+record 14  slot@0x0031ec  junk=00000000  id=322ed42f  size=0x54 (84 B)
+  payload: marker=0x01 prefix=12 junk bytes, then 4 entries:
+    kinds: prop x3, str x1
+    +0x000c strslot cap=36     tag=ffffff string 12 B ('JOSHUA S 10'...)
+    +0x0024 prop    type=0          tag=000000 0 B
+    +0x0030 prop    type=0          tag=000000 12 B
+    +0x0048 prop    type=4          tag=ffffff 0 B
+------------------------------------------------------------------------------
+
+SUMMARY: 14/14 record slots parsed, 826 entries total
+
+==============================================================================
+SAVE: E:/GitHub/NFSPS360/user_data/B13EBABEBABEBABE/45410822/00000001/CAREER_01/CAREER_01
+==============================================================================
+container header : 0 bytes (stripped)
+MC02 header      : magic=4d433032 total=0xb6838 extra=0x1c tree=0xb6800
+CRC header[0:24] : 5fb5204c OK
+CRC extra        : 5a85bf5f OK
+CRC tree (full)  : e3b81b50 OK
+extra blob       : 8209e9b0000aada400000001000000070000000000000064420dca54
+
+tree prefix      : junk16=c8c790509fa9467693c9554e0ad5c94f
+                   count=9  pad44=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                   root id=59f2d89b used=0xaada4 (records end at 0xaadec)
+tree slack       : 0xba14 bytes beyond used (CRC-covered)
+
+------------------------------------------------------------------------------
+record 1  slot@0x000048  junk=01aaaaaa  id=328c6431  size=0x1d8 (472 B)
+  payload: marker=0x01 prefix=12 junk bytes, then 29 entries:
+    kinds: prop x29
+    +0x000c prop    type=4          tag=aaaaaa int 7 (0x7)
+    +0x001c prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x002c prop    type=4          tag=aaaaaa int 2 (0x2)
+    +0x003c prop    type=4          tag=aaaaaa int 16 (0x10)
+    +0x004c prop    type=4          tag=aaaaaa int 4 (0x4)
+    +0x005c prop    type=4          tag=aaaaaa int 32 (0x20)
+    +0x006c prop    type=4          tag=aaaaaa int 4 (0x4)
+    +0x007c prop    type=4          tag=aaaaaa int 32 (0x20)
+    +0x008c prop    type=4          tag=aaaaaa int 2 (0x2)
+    +0x009c prop    type=4          tag=aaaaaa int 2 (0x2)
+    +0x00ac prop    type=4          tag=aaaaaa int 16 (0x10)
+    +0x00bc prop    type=4          tag=aaaaaa int 64 (0x40)
+    ... 17 more entries ...
+------------------------------------------------------------------------------
+record 2  slot@0x00022c  junk=00000000  id=dc6b027f  size=0x1f4 (500 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 16 entries:
+    kinds: prop x16
+    +0x0008 prop    type=4          tag=aaaaaa int 15 (0xf)
+    +0x0018 prop    type=8          tag=aaaaaa float 300371
+    +0x0038 prop    type=8          tag=aaaaaa float 2743
+    +0x0058 prop    type=8          tag=aaaaaa float 748
+    +0x0078 prop    type=8          tag=aaaaaa float 1506
+    +0x0098 prop    type=8          tag=aaaaaa float 1375
+    +0x00b8 prop    type=8          tag=aaaaaa float 861
+    +0x00d8 prop    type=8          tag=aaaaaa float 337
+    +0x00f8 prop    type=8          tag=aaaaaa float 201
+    +0x0118 prop    type=8          tag=aaaaaa float 471
+    +0x0138 prop    type=8          tag=aaaaaa float 349
+    +0x0158 prop    type=8          tag=aaaaaa float 560
+    +0x0178 prop    type=8          tag=aaaaaa float 95
+    +0x0198 prop    type=8          tag=aaaaaa float 1
+    +0x01b8 prop    type=8          tag=aaaaaa float 1
+    +0x01d8 prop    type=8          tag=aaaaaa float 0
+------------------------------------------------------------------------------
+record 3  slot@0x00042c  junk=aaaaaaaa  id=b67f6cc6  size=0x2b4 (692 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 43 entries:
+    kinds: prop x43
+    +0x0008 prop    type=4          tag=aaaaaa int 37 (0x25)
+    +0x0018 prop    type=4          tag=aaaaaa int 16 (0x10)
+    +0x0028 prop    type=4          tag=aaaaaa int 16 (0x10)
+    +0x0038 prop    type=4          tag=aaaaaa int 15 (0xf)
+    +0x0048 prop    type=4          tag=aaaaaa int 15 (0xf)
+    +0x0058 prop    type=4          tag=aaaaaa int 15 (0xf)
+    +0x0068 prop    type=4          tag=aaaaaa int 16 (0x10)
+    +0x0078 prop    type=4          tag=aaaaaa int 16 (0x10)
+    +0x0088 prop    type=4          tag=aaaaaa int 16 (0x10)
+    +0x0098 prop    type=4          tag=aaaaaa int 16 (0x10)
+    +0x00a8 prop    type=4          tag=aaaaaa int 15 (0xf)
+    +0x00b8 prop    type=4          tag=aaaaaa int 15 (0xf)
+    ... 31 more entries ...
+------------------------------------------------------------------------------
+record 4  slot@0x0006ec  junk=00000000  id=3b309e09  size=0x14014 (81940 B)
+  payload: marker=0x01 prefix=12 junk bytes, then 6087 entries:
+    kinds: blob x1, prop x6078, str x8
+    +0x000c strslot cap=81924  tag=000000 16 B
+    +0x0028 strslot cap=1701667143 tag=00000c 12 B
+    +0x0040 prop    type=0          tag=000200 0 B
+    +0x004c prop    type=0          tag=000000 0 B
+    +0x0058 prop    type=0          tag=000000 0 B
+    +0x0064 prop    type=0          tag=000000 0 B
+    +0x0070 prop    type=0          tag=000000 0 B
+    +0x007c prop    type=0          tag=000000 0 B
+    +0x0088 prop    type=0          tag=000000 4 B
+    +0x0098 strslot cap=1092616192 tag=000000 string 12 B ('staging'...)
+    +0x00b0 prop    type=0          tag=800000 0 B
+    +0x00bc prop    type=0          tag=000000 0 B
+    ... 6075 more entries ...
+------------------------------------------------------------------------------
+record 5  slot@0x01470c  junk=00000000  id=51a41b14  size=0x3a24 (14884 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 3 entries:
+    kinds: blob x1, prop x1, tail x1
+    +0x0008 prop    type=4          tag=aaaaaa int 530 (0x212)
+    +0x0018 blob    id=c6a10f17 size= 14844 14844 B
+    +0x3a1c tail    8 B footer
+------------------------------------------------------------------------------
+record 6  slot@0x01813c  junk=aaaaaaaa  id=47a07113  size=0x906a4 (591524 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 2 entries:
+    kinds: blob x1, tail x1
+    +0x0008 blob    id=34b74942 size=591496 591496 B
+    +0x90698 tail    12 B footer
+------------------------------------------------------------------------------
+record 7  slot@0x0a87ec  junk=aaaaaaaa  id=885b4ddc  size=0x1ed4 (7892 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 485 entries:
+    kinds: prop x484, str x1
+    +0x0008 prop    type=4          tag=aaaaaa int 179 (0xb3)
+    +0x0018 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0028 prop    type=4          tag=aaaaaa int 2 (0x2)
+    +0x0038 prop    type=4          tag=aaaaaa int 3572049105 (0xd4e924d1)
+    +0x0048 prop    type=4          tag=aaaaaa int 1355950872 (0x50d22b18)
+    +0x0058 prop    type=4          tag=aaaaaa int 3273834801 (0xc322c131)
+    +0x0068 prop    type=8          tag=aaaaaa float 0
+    +0x0088 prop    type=4          tag=aaaaaa int 212088083 (0xca43513)
+    +0x0098 prop    type=4          tag=aaaaaa int 3706848556 (0xdcf2052c)
+    +0x00a8 prop    type=4          tag=aaaaaa int 609526668 (0x2454a38c)
+    +0x00b8 prop    type=8          tag=aaaaaa float 0
+    +0x00d8 prop    type=4          tag=aaaaaa int 747705288 (0x2c9113c8)
+    ... 473 more entries ...
+------------------------------------------------------------------------------
+record 8  slot@0x0aa6cc  junk=00002848  id=d548266c  size=0x6c4 (1732 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 94 entries:
+    kinds: prop x84, str x10
+    +0x0008 prop    type=4          tag=aaaaaa int 15 (0xf)
+    +0x0018 prop    type=4          tag=aaaaaa int 4 (0x4)
+    +0x0028 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x0038 prop    type=4          tag=aaaaaa int 859782385 (0x333f3cf1)
+    +0x0048 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0058 prop    type=4          tag=aaaaaa int 835280969 (0x31c96049)
+    +0x0068 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x0078 prop    type=4          tag=aaaaaa int 193303407 (0xb85936f)
+    +0x0088 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x0098 prop    type=4          tag=aaaaaa int 1720991335 (0x66943e67)
+    +0x00a8 prop    type=4          tag=aaaaaa int 2 (0x2)
+    +0x00b8 prop    type=4          tag=aaaaaa int 1 (0x1)
+    ... 82 more entries ...
+------------------------------------------------------------------------------
+record 9  slot@0x0aad9c  junk=00000001  id=ca269650  size=0x44 (68 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 4 entries:
+    kinds: prop x4
+    +0x0008 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x0018 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x0028 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x0038 prop    type=4          tag=aaaaaa 0 B
+------------------------------------------------------------------------------
+
+SUMMARY: 9/9 record slots parsed, 6763 entries total
+
+==============================================================================
+SAVE: E:/GitHub/NFSPS360/user_data/B13EBABEBABEBABE/45410822/00000001/ALIAS_JOSHUA S 10/ALIAS_JOSHUA S 10
+==============================================================================
+container header : 0 bytes (stripped)
+MC02 header      : magic=4d433032 total=0x505c extra=0x40 tree=0x5000
+CRC header[0:24] : 26044313 OK
+CRC extra        : 9742c501 OK
+CRC tree (full)  : a48af9dc OK
+extra blob       : 8209e9a8000032040000000100000007000000004a4f53485541205320313000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4248000041c80000
+
+tree prefix      : junk16=b759a3c98aaae626f3b379661d3f3c31
+                   count=14  pad44=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                   root id=59f2d89b used=0x3204 (records end at 0x324c)
+tree slack       : 0x1db4 bytes beyond used (CRC-covered)
+
+------------------------------------------------------------------------------
+record 1  slot@0x000048  junk=01aaaaaa  id=8ffbe3e8  size=0x598 (1432 B)
+  payload: marker=0x01 prefix=12 junk bytes, then 45 entries:
+    kinds: prop x45
+    +0x000c prop    type=4          tag=aaaaaa int 44 (0x2c)
+    +0x001c prop    type=8          tag=aaaaaa float 1
+    +0x003c prop    type=8          tag=aaaaaa float 1
+    +0x005c prop    type=8          tag=aaaaaa float 1
+    +0x007c prop    type=8          tag=aaaaaa float 1
+    +0x009c prop    type=8          tag=aaaaaa float 1
+    +0x00bc prop    type=8          tag=aaaaaa float 1
+    +0x00dc prop    type=8          tag=aaaaaa float 0
+    +0x00fc prop    type=8          tag=aaaaaa float 0
+    +0x011c prop    type=8          tag=aaaaaa float 1
+    +0x013c prop    type=8          tag=aaaaaa float 0
+    +0x015c prop    type=8          tag=aaaaaa float 1
+    ... 33 more entries ...
+------------------------------------------------------------------------------
+record 2  slot@0x0005ec  junk=aaaaaaaa  id=4e8aa143  size=0x1594 (5524 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 1 entries:
+    kinds: blob x1
+    +0x0008 blob    id=00000000 size=  5508 5508 B
+------------------------------------------------------------------------------
+record 3  slot@0x001b8c  junk=00000000  id=9f72f194  size=0x124 (292 B)
+  payload: marker=0x01 prefix=0 junk bytes, then 11 entries:
+    kinds: prop x6, str x5
+    +0x0000 strslot cap=27962026 tag=aaaaaa 36 B
+    +0x0030 strslot cap=2863311530 tag=aaaaaa 36 B
+    +0x0060 strslot cap=2863311530 tag=aaaaaa 20 B
+    +0x0080 strslot cap=2863311530 tag=aaaaaa 36 B
+    +0x00b0 strslot cap=2863311530 tag=aaaaaa 12 B
+    +0x00c8 prop    type=1          tag=aaaaaa 4 B
+    +0x00d8 prop    type=1          tag=aaaaaa 4 B
+    +0x00e8 prop    type=1          tag=aaaaaa 4 B
+    +0x00f8 prop    type=1          tag=aaaaaa 4 B
+    +0x0108 prop    type=4          tag=aaaaaa int 99 (0x63)
+    +0x0118 prop    type=1          tag=aaaaaa 0 B
+------------------------------------------------------------------------------
+record 4  slot@0x001cbc  junk=01aaaaaa  id=dc6b027f  size=0xb4 (180 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 6 entries:
+    kinds: prop x6
+    +0x0008 prop    type=4          tag=aaaaaa int 5 (0x5)
+    +0x0018 prop    type=8          tag=aaaaaa float 0
+    +0x0038 prop    type=8          tag=aaaaaa float 1
+    +0x0058 prop    type=8          tag=aaaaaa float 0
+    +0x0078 prop    type=8          tag=aaaaaa float 0
+    +0x0098 prop    type=8          tag=aaaaaa float 0
+------------------------------------------------------------------------------
+record 5  slot@0x001d7c  junk=aaaaaaaa  id=6cc89c57  size=0x724 (1828 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 114 entries:
+    kinds: prop x114
+    +0x0008 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x0018 prop    type=4          tag=aaaaaa int 2579221201 (0x99bbcad1)
+    +0x0028 prop    type=4          tag=aaaaaa int 2 (0x2)
+    +0x0038 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0048 prop    type=4          tag=aaaaaa int 1886306573 (0x706ec10d)
+    +0x0058 prop    type=4          tag=aaaaaa int 2 (0x2)
+    +0x0068 prop    type=4          tag=aaaaaa int 2 (0x2)
+    +0x0078 prop    type=4          tag=aaaaaa int 2057547103 (0x7aa3ad5f)
+    +0x0088 prop    type=4          tag=aaaaaa int 2 (0x2)
+    +0x0098 prop    type=4          tag=aaaaaa int 3 (0x3)
+    +0x00a8 prop    type=4          tag=aaaaaa int 1912485254 (0x71fe3586)
+    +0x00b8 prop    type=4          tag=aaaaaa int 2 (0x2)
+    ... 102 more entries ...
+------------------------------------------------------------------------------
+record 6  slot@0x0024ac  junk=00000000  id=c3ec4947  size=0xb4 (180 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 6 entries:
+    kinds: prop x6
+    +0x0008 prop    type=8          tag=aaaaaa float 1
+    +0x0028 prop    type=8          tag=aaaaaa float 0
+    +0x0048 prop    type=8          tag=aaaaaa float 0
+    +0x0068 prop    type=1          tag=aaaaaa 4 B
+    +0x0078 prop    type=8          tag=aaaaaa float 0.5
+    +0x0098 prop    type=8          tag=aaaaaa float 0
+------------------------------------------------------------------------------
+record 7  slot@0x00256c  junk=aaaaaaaa  id=b74c1044  size=0x24 (36 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 1 entries:
+    kinds: prop x1
+    +0x0008 prop    type=8          tag=aaaaaa float 0
+------------------------------------------------------------------------------
+record 8  slot@0x00259c  junk=aaaaaaaa  id=8c4a2dc0  size=0x134 (308 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 18 entries:
+    kinds: prop x18
+    +0x0008 prop    type=1          tag=aaaaaa 4 B
+    +0x0018 prop    type=1          tag=aaaaaa 4 B
+    +0x0028 prop    type=1          tag=aaaaaa 4 B
+    +0x0038 prop    type=1          tag=aaaaaa 4 B
+    +0x0048 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x0058 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0068 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0078 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0088 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0098 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x00a8 prop    type=4          tag=aaaaaa int 4294967295 (0xffffffff)
+    +0x00b8 prop    type=4          tag=aaaaaa int 1 (0x1)
+    ... 6 more entries ...
+------------------------------------------------------------------------------
+record 9  slot@0x0026dc  junk=aaaaaaaa  id=9cb326c2  size=0x184 (388 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 15 entries:
+    kinds: prop x15
+    +0x0008 prop    type=8          tag=aaaaaa float 1
+    +0x0028 prop    type=8          tag=aaaaaa float 1
+    +0x0048 prop    type=8          tag=aaaaaa float 1
+    +0x0068 prop    type=8          tag=aaaaaa float 1
+    +0x0088 prop    type=8          tag=aaaaaa float 1
+    +0x00a8 prop    type=8          tag=aaaaaa float 1
+    +0x00c8 prop    type=8          tag=aaaaaa float 0.5
+    +0x00e8 prop    type=8          tag=aaaaaa float 1
+    +0x0108 prop    type=8          tag=aaaaaa float -3.03165e-13
+    +0x0128 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0138 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0148 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0158 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0168 prop    type=4          tag=aaaaaa int 1 (0x1)
+    +0x0178 prop    type=4          tag=aaaaaa 0 B
+------------------------------------------------------------------------------
+record 10  slot@0x00286c  junk=00000003  id=8b7d0aad  size=0x254 (596 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 37 entries:
+    kinds: prop x37
+    +0x0008 prop    type=1          tag=aaaaaa 4 B
+    +0x0018 prop    type=1          tag=aaaaaa 4 B
+    +0x0028 prop    type=1          tag=aaaaaa 4 B
+    +0x0038 prop    type=1          tag=aaaaaa 4 B
+    +0x0048 prop    type=1          tag=aaaaaa 4 B
+    +0x0058 prop    type=1          tag=aaaaaa 4 B
+    +0x0068 prop    type=1          tag=aaaaaa 4 B
+    +0x0078 prop    type=1          tag=aaaaaa 4 B
+    +0x0088 prop    type=1          tag=aaaaaa 4 B
+    +0x0098 prop    type=1          tag=aaaaaa 4 B
+    +0x00a8 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x00b8 prop    type=4          tag=aaaaaa int 3 (0x3)
+    ... 25 more entries ...
+------------------------------------------------------------------------------
+record 11  slot@0x002acc  junk=00000002  id=8b7d0aae  size=0x254 (596 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 37 entries:
+    kinds: prop x37
+    +0x0008 prop    type=1          tag=aaaaaa 4 B
+    +0x0018 prop    type=1          tag=aaaaaa 4 B
+    +0x0028 prop    type=1          tag=aaaaaa 4 B
+    +0x0038 prop    type=1          tag=aaaaaa 4 B
+    +0x0048 prop    type=1          tag=aaaaaa 4 B
+    +0x0058 prop    type=1          tag=aaaaaa 4 B
+    +0x0068 prop    type=1          tag=aaaaaa 4 B
+    +0x0078 prop    type=1          tag=aaaaaa 4 B
+    +0x0088 prop    type=1          tag=aaaaaa 4 B
+    +0x0098 prop    type=1          tag=aaaaaa 4 B
+    +0x00a8 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x00b8 prop    type=4          tag=aaaaaa int 3 (0x3)
+    ... 25 more entries ...
+------------------------------------------------------------------------------
+record 12  slot@0x002d2c  junk=00000000  id=8b7d0aaf  size=0x254 (596 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 37 entries:
+    kinds: prop x37
+    +0x0008 prop    type=1          tag=aaaaaa 4 B
+    +0x0018 prop    type=1          tag=aaaaaa 4 B
+    +0x0028 prop    type=1          tag=aaaaaa 4 B
+    +0x0038 prop    type=1          tag=aaaaaa 4 B
+    +0x0048 prop    type=1          tag=aaaaaa 4 B
+    +0x0058 prop    type=1          tag=aaaaaa 4 B
+    +0x0068 prop    type=1          tag=aaaaaa 4 B
+    +0x0078 prop    type=1          tag=aaaaaa 4 B
+    +0x0088 prop    type=1          tag=aaaaaa 4 B
+    +0x0098 prop    type=1          tag=aaaaaa 4 B
+    +0x00a8 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x00b8 prop    type=4          tag=aaaaaa int 3 (0x3)
+    ... 25 more entries ...
+------------------------------------------------------------------------------
+record 13  slot@0x002f8c  junk=00000000  id=8b7d0ab0  size=0x254 (596 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 37 entries:
+    kinds: prop x37
+    +0x0008 prop    type=1          tag=aaaaaa 4 B
+    +0x0018 prop    type=1          tag=aaaaaa 4 B
+    +0x0028 prop    type=1          tag=aaaaaa 4 B
+    +0x0038 prop    type=1          tag=aaaaaa 4 B
+    +0x0048 prop    type=1          tag=aaaaaa 4 B
+    +0x0058 prop    type=1          tag=aaaaaa 4 B
+    +0x0068 prop    type=1          tag=aaaaaa 4 B
+    +0x0078 prop    type=1          tag=aaaaaa 4 B
+    +0x0088 prop    type=1          tag=aaaaaa 4 B
+    +0x0098 prop    type=1          tag=aaaaaa 4 B
+    +0x00a8 prop    type=4          tag=aaaaaa int 0 (0x0)
+    +0x00b8 prop    type=4          tag=aaaaaa int 3 (0x3)
+    ... 25 more entries ...
+------------------------------------------------------------------------------
+record 14  slot@0x0031ec  junk=00000000  id=322ed42f  size=0x54 (84 B)
+  payload: marker=0x01 prefix=8 junk bytes, then 3 entries:
+    kinds: blob x1, prop x2
+    +0x0008 blob    id=00000000 size=    36 36 B
+    +0x0034 prop    type=0          tag=000004 8 B
+    +0x0048 prop    type=4          tag=aaaaaa 0 B
+------------------------------------------------------------------------------
+
+SUMMARY: 14/14 record slots parsed, 368 entries total
+

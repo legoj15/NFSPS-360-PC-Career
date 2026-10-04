@@ -1,0 +1,42 @@
+=== NFS ProStreet 360<->PC chunk matching (by platform-independent id) ===
+
+--- ALIAS: 14 360 records, 15 PC records
+  360[ 0] id=0x8FFBE3E8 <-> PC[ 0]  size-equal, type 0x01310001 vs 0x10101001
+  360[ 1] id=0x4E8AA143 <-> PC[ 1]  size-equal, type 0x00004000 vs 0x0000000F
+  360[ 2] id=0x9F72F194 <-> PC[ 2]  sizes differ (0X124 vs 0X104), type-equal
+  360[ 3] id=0xDC6B027F <-> PC[ 3]  size-equal, type 0x01000000 vs 0x00000000
+  360[ 4] id=0x6CC89C57 <-> PC[ 4]  size-equal, type-equal
+  360[ 5] id=0xC3EC4947 <-> PC[ 5]  sizes differ (0XB4 vs 0X74), type-equal
+  360[ 6] id=0xB74C1044 <-> PC[ 6]  size-equal, type 0x00000000 vs 0xB39D3301
+  360[ 7] id=0x8C4A2DC0 <-> PC[ 7]  size-equal, type 0x00000000 vs 0xB42EBA35
+  360[ 8] id=0x9CB326C2 <-> PC[ 8]  size-equal, type-equal
+  360[ 9] id=0x8B7D0AAD <-> PC[10]  size-equal, type 0x00000003 vs 0x00000000
+  360[10] id=0x8B7D0AAE <-> PC[11]  size-equal, type-equal
+  360[11] id=0x8B7D0AAF <-> PC[12]  size-equal, type-equal
+  360[12] id=0x8B7D0AB0 <-> PC[13]  size-equal, type-equal
+  360[13] id=0x322ED42F <-> PC[14]  size-equal, type-equal
+  PC-only chunk: PC[ 9] id=0x39156567 size=0x684
+
+--- CAREER: 7 360 records, 9 PC records
+  360[ 0] id=0x328C6431 <-> PC[ 0]  size-equal, type 0x01310001 vs 0xFFFFFF01
+  360[ 1] id=0xDC6B027F <-> PC[ 1]  size-equal, type-equal
+  360[ 2] id=0xB67F6CC6 <-> PC[ 2]  sizes differ (0X2B4 vs 0X384), type 0xAEB1A850 vs 0xBF2383CA
+  360[ 3] id=0x3B309E09 <-> PC[ 3]  sizes differ (0X14014 vs 0X10014), type 0x19337626 vs 0x00000000 [container]
+  360[ 4] id=0x51A41B14 <-> PC[ 4]  size-equal, type-equal
+  360[ 5] id=0x47A07113 <-> PC[ 5]  size-equal, type 0x00000000 vs 0x3F39E000 [container]
+  360[ 6] id=0x885B4DDC <-> PC[ 6]  size-equal, type-equal
+  PC-only chunk: PC[ 7] id=0xD548266C size=0x24
+  PC-only chunk: PC[ 8] id=0xCA269650 size=0x44
+
+360 career tail chunks (stored in obfuscated gap 0xAA6CC..0xAADEC):
+  inferred from PC career order: 0xD548266C (PC size 0x24), 0xCA269650 (PC size 0x44)
+
+type-slot note: small types (0,2,3) match across platforms; other slots hold
+high-entropy values on their respective platform (timestamps or uninitialised
+heap on PC, e.g. 0x10101001 / 0xFFFFFF01 / 0x3F39E000). Converter should
+treat the type word as per-save volatile, not structural identity.
+
+string anchors:
+  360 alias name chunk 322ED42F: "JOSHUA S 10"     <-> PC: "PEIROKUNMANWSP" (same slot)
+  360 alias stats chunk 4E8AA143: "3;-1"           <-> PC: "3;-42885" (same slot, player values differ)
+  PC preambles (0x1AC bytes, uncounted) carry the 20-char codes: alias "LNA2PSNW8FZQ58FETRLD", career "Y4K3VZXH2ZE2J2ZC6RLD"
