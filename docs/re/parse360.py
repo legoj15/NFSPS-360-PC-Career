@@ -8,9 +8,9 @@ against a recomp-written twin of the same save session.  Everything below was
 verified against four real files:
 
     console : Extracted/Career/CAREER_01            (career, tree 0xB6800)
-    console : Extracted/Alias/ALIAS_JOSHUA S 10     (alias,   tree 0x5000)
+    console : Extracted/Alias/ALIAS_360     (alias,   tree 0x5000)
     recomp  : NFSPS360/user_data/.../CAREER_01      (same session re-saved)
-    recomp  : NFSPS360/user_data/.../ALIAS_JOSHUA S 10
+    recomp  : NFSPS360/user_data/.../ALIAS_360
 
 ===========================================================================
  GRAMMAR (all big-endian)
@@ -422,11 +422,11 @@ def main():
     base = os.path.dirname(os.path.dirname(here))  # repo root
     targets = [
         os.path.join(base, 'Extracted', 'Career', 'CAREER_01'),
-        os.path.join(base, 'Extracted', 'Alias', 'ALIAS_JOSHUA S 10'),
+        os.path.join(base, 'Extracted', 'Alias', 'ALIAS_360'),
     ]
     # corroboration: the recomp-written twins of the same save sessions
     for extra in ('E:/GitHub/NFSPS360/user_data/B13EBABEBABEBABE/45410822/00000001/CAREER_01/CAREER_01',
-                  'E:/GitHub/NFSPS360/user_data/B13EBABEBABEBABE/45410822/00000001/ALIAS_JOSHUA S 10/ALIAS_JOSHUA S 10'):
+                  'E:/GitHub/NFSPS360/user_data/B13EBABEBABEBABE/45410822/00000001/ALIAS_360/ALIAS_360'):
         if os.path.exists(extra):
             targets.append(extra)
     out_path = os.path.join(here, 'inventory_360.txt')

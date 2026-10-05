@@ -132,7 +132,7 @@ recomp.121/128/129 (magic lis 19779/ori 12338); collector sub_827BF770
 
 ## Sample files
 - 360: Extracted/Career/CAREER_01 + F:/.../CAREER_02, CAREER_03 (all ~93%);
-  Extracted/Alias/ALIAS_JOSHUA S 10 (fully CRC-valid)
+  Extracted/Alias/ALIAS_360 (fully CRC-valid)
 - PC reference: "100% Gamesave (OPTIONAL)" folder (CAREER_01 +
   ALIAS_PEIROKUNMANWSP); PC save root: E:\legoj\Documents\Need for Speed
   ProStreet\SAVE\NFS ProStreet (empty; game accepts third-party saves)
@@ -194,7 +194,7 @@ native PC file against the 360 twins and by in-game behavior:
 - Record ids are djb2(name) h=0xFFFFFFFF,h=h*33+c (e.g. 0x59F2D89B
   MEMCARD_ROOT, 0x3B309E09 career root). See CHUNK_NAMES in convert.py.
 
-VERIFIED IN-GAME 2026-10-04: converted JOSHUA S 10 alias + CAREER_01
+VERIFIED IN-GAME 2026-10-04: converted the author's alias + CAREER_01
 load on PC — CAREER HUB day 7, $1,345,600, 4 repair markers, correct
 race-day menu. Game exit save wrote no file changes (no dirty state), so
 no native re-save oracle was produced; fresh-native references archived

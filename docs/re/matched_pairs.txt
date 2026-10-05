@@ -37,6 +37,6 @@ heap on PC, e.g. 0x10101001 / 0xFFFFFF01 / 0x3F39E000). Converter should
 treat the type word as per-save volatile, not structural identity.
 
 string anchors:
-  360 alias name chunk 322ED42F: "JOSHUA S 10"     <-> PC: "PEIROKUNMANWSP" (same slot)
+  360 alias name chunk 322ED42F: "<alias>"     <-> PC: "PEIROKUNMANWSP" (same slot)
   360 alias stats chunk 4E8AA143: "3;-1"           <-> PC: "3;-42885" (same slot, player values differ)
   PC preambles (0x1AC bytes, uncounted) carry the 20-char codes: alias "LNA2PSNW8FZQ58FETRLD", career "Y4K3VZXH2ZE2J2ZC6RLD"

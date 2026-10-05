@@ -96,7 +96,7 @@ unreadable slot region: tree[0xaa6cc:0xaadec] (1824 B) -- contents:
 SUMMARY: 6/9 record slots parsed, 94 entries total (see NOTEs)
 
 ==============================================================================
-SAVE: E:\GitHub\NFSPS-360-PC-Career\Extracted\Alias\ALIAS_JOSHUA S 10
+SAVE: E:\GitHub\NFSPS-360-PC-Career\Extracted\Alias\ALIAS_360
 ==============================================================================
 container header : 53248 bytes (stripped)
 MC02 header      : magic=4d433032 total=0x505c extra=0x40 tree=0x5000
@@ -309,7 +309,7 @@ record 13  slot@0x002f8c  junk=00000000  id=8b7d0ab0  size=0x254 (596 B)
 record 14  slot@0x0031ec  junk=00000000  id=322ed42f  size=0x54 (84 B)
   payload: marker=0x01 prefix=12 junk bytes, then 4 entries:
     kinds: prop x3, str x1
-    +0x000c strslot cap=36     tag=ffffff string 12 B ('JOSHUA S 10'...)
+    +0x000c strslot cap=36     tag=ffffff string 12 B ('<alias>'...)
     +0x0024 prop    type=0          tag=000000 0 B
     +0x0030 prop    type=0          tag=000000 12 B
     +0x0048 prop    type=4          tag=ffffff 0 B
@@ -463,7 +463,7 @@ record 9  slot@0x0aad9c  junk=00000001  id=ca269650  size=0x44 (68 B)
 SUMMARY: 9/9 record slots parsed, 6763 entries total
 
 ==============================================================================
-SAVE: E:/GitHub/NFSPS360/user_data/B13EBABEBABEBABE/45410822/00000001/ALIAS_JOSHUA S 10/ALIAS_JOSHUA S 10
+SAVE: E:/GitHub/NFSPS360/user_data/B13EBABEBABEBABE/45410822/00000001/ALIAS_360/ALIAS_360
 ==============================================================================
 container header : 0 bytes (stripped)
 MC02 header      : magic=4d433032 total=0x505c extra=0x40 tree=0x5000

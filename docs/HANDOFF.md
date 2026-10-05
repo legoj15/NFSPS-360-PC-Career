@@ -118,7 +118,7 @@ Delegation log: no agents spawned this session (all orchestrator work).
   pair to locate the race-day-in-progress fields (likely RaceData 0x51A41B14,
   FECareer, or GameplayData), then check how the converter handles them.
   Also worth checking: alias-side career state (game loaded alias "Player",
-  not JOSHUA S 10).
+  not the author's alias).
 
 ## Round 5 (21:30) — mid-race-day pair
 - New oracle: docs/re/pair_raceday/ (CAREER_02 at the "Battle Machine"

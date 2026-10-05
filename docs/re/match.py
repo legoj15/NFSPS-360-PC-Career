@@ -28,7 +28,7 @@ FIELDMAPS = os.path.join(RESEARCH, 'fieldmaps')
 REPO = os.path.dirname(os.path.dirname(RESEARCH))  # repo root
 os.makedirs(FIELDMAPS, exist_ok=True)
 
-P360_ALIAS = os.path.join(REPO, 'Extracted', 'Alias', 'ALIAS_JOSHUA S 10')
+P360_ALIAS = os.path.join(REPO, 'Extracted', 'Alias', 'ALIAS_360')
 P360_CAREER = os.path.join(REPO, 'Extracted', 'Career', 'CAREER_01')
 PPC_ALIAS = 'E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - Place This in SAVE folder below/NFS Prostreet/ALIAS_PEIROKUNMANWSP/ALIAS_PEIROKUNMANWSP'
 PPC_CAREER = 'E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - Place This in SAVE folder below/NFS Prostreet/CAREER_01/CAREER_01'
@@ -233,7 +233,7 @@ def main():
     out.append('')
     # alias name anchors
     out.append('string anchors:')
-    out.append('  360 alias name chunk 322ED42F: "JOSHUA S 10"     <-> PC: "PEIROKUNMANWSP" (same slot)')
+    out.append('  360 alias name chunk 322ED42F: "<alias>"     <-> PC: "PEIROKUNMANWSP" (same slot)')
     out.append('  360 alias stats chunk 4E8AA143: "3;-1"           <-> PC: "3;-42885" (same slot, player values differ)')
     out.append('  PC preambles (0x1AC bytes, uncounted) carry the 20-char codes: alias "LNA2PSNW8FZQ58FETRLD", career "Y4K3VZXH2ZE2J2ZC6RLD"')
     txt = '\n'.join(out)

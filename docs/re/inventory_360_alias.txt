@@ -1,5 +1,5 @@
-=== 360 ALIAS (JOSHUA S 10) (Xbox 360, big-endian) ===
-file: E:/GitHub/NFSPS-360-PC-Career/Extracted/Alias/ALIAS_JOSHUA S 10
+=== 360 ALIAS (<alias>) (Xbox 360, big-endian) ===
+file: E:/GitHub/NFSPS-360-PC-Career/Extracted/Alias/ALIAS_360
 payload at file 0xD000, total=0x505C extra=0x40 tree=0x5000
 CRC hdr:   0x05AF24E5 OK
 CRC extra: 0x9742C501 OK
@@ -55,7 +55,7 @@ idx  tree_off  file_off  type       id         size     end
   head: 01ffffff00000000000000000000000100ffffff010000000000000000000001
 [13] tree_off=0x0031EC file_off=0x010248 type=0x00000000 id=0x322ED42F size=0x54 end=0x00324C
   head: 01ffffff00000000000000000000002400ffffff000000004a4f534855412053
-  strings: @24:JOSHUA S 10
+  strings: @24:<alias>
 
 --- post-records region ---
 length 0x1DB4 (tree 0x324C..0x5000)

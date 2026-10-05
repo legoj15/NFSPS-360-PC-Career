@@ -215,8 +215,8 @@ if __name__ == '__main__':
     import os
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.dirname(os.path.dirname(here))  # repo root
-    main(os.path.join(root, 'Extracted', 'Alias', 'ALIAS_JOSHUA S 10'),
-         0xD000, '360 ALIAS (JOSHUA S 10)',
+    main(os.path.join(root, 'Extracted', 'Alias', 'ALIAS_360'),
+         0xD000, '360 ALIAS (author)',
          os.path.join(here, 'inventory_360_alias.txt'))
     print()
     main(os.path.join(root, 'Extracted', 'Career', 'CAREER_01'),

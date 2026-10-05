@@ -1,6 +1,6 @@
-# NFSPS 360 → PC Career Converter
+# NFS ProStreet 360 → PC Career Converter
 
-Turns Xbox 360 Need for Speed ProStreet career saves into PC saves.
+Converts Xbox 360 Need for Speed ProStreet career saves into PC saves.
 
 ## How to use
 
@@ -12,7 +12,7 @@ Converted saves land in the game's save folder
 convert every save on the 360-formatted flash drive at once.
 
 After converting, launch the game and the career should appear in the
-load-menu under your profile name (e.g. `JOSHUA S 10`).
+load-menu after selecting your alias.
 
 ## What it does
 

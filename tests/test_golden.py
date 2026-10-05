@@ -26,7 +26,7 @@ CASES = [
     (ROOT / "Extracted/Career/CAREER_01", "7b7e1893047b01b00f7037ef54ceca44"),
     (PAIR_360, "8dd15c6cb5736cf14aa2694289d8480d"),
     (ROOT / "Extracted/Career/CAREER_03", "0dcfed80eab3dfcc246499b07ae54c37"),
-    (ROOT / "Extracted/Alias/ALIAS_JOSHUA S 10", "578a10cb583785bb6cb00fa64bc69439"),
+    (ROOT / "Extracted/Alias/ALIAS_360", "578a10cb583785bb6cb00fa64bc69439"),
     (ROOT / "docs/re/c1_latest/CAREER_01_360", "718b6b6b8494decde59eb6b1defcc01d"),
     (ROOT / "docs/re/pair_raceday/CAREER_02_360", "2bb7d00963509e71d6eaeccbed496b65"),
 ]
