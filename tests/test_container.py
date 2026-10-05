@@ -18,7 +18,7 @@ from nfssave.container360 import stfs_block_offset
 from nfssave.tree import Tree
 
 ROOT = Path(__file__).parent.parent
-FLASH = Path("F:/Content/E00001CFFAB204C4/45410822/00000001")
+FLASH = ROOT / "Extracted/Career"
 
 CAREERS = [
     ROOT / "Extracted/Career/CAREER_01",

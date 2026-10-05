@@ -16,13 +16,14 @@ Chunk ids are djb2(name) hashes (h=-1; h=h*33+c), identical across
 platforms — see CHUNK_NAMES.
 """
 
+import hashlib
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .container360 import read_container
 from .mc02 import MC02, Endian
-from .payload_rules import convert_record, convert_payload_auto, RULES_LOADED
+from .payload_rules import convert_record, convert_payload_auto, find_string_runs, RULES_LOADED
 from .tree import Tree, TREE_MAGIC, REC_START_PC
 
 PC_SAVE_ROOT = r"E:\legoj\Documents\Need for Speed ProStreet\SAVE\NFS ProStreet"
@@ -196,42 +197,106 @@ def fix_cardb_parts(src: bytes, out: bytearray) -> None:
         out[o:o + 4] = src[o:o + 4]
 
 
-RACEDAY_ACTIVE = 0x2D4      # GameplayData: u32 1 while a race day is in progress
+GAMEPLAY_U8_FIELDS = (0x1F4, 0x2D0)  # [u8][pad x3] words, natural order
+RACEDAY_STATE = 0x2D4       # GameplayData: race-day state (0 = none active)
+RACEDAY_START = 0x2E0       # variable-length race-day block starts here
 RACEDAY_PAD = 0x314         # 360-only 4-byte pad inside the race-day block
-RACEDAY_END = 0x3E70        # block end (event list follows on both platforms)
 RACEDAY_NAME = (0x300, 0x310)          # car/name C-string, natural order
-RACEDAY_FLAGS = (0x434, 0x784, 0x10)   # per-event [u8 flags][u8][pad pad]
+POST_BLOCK_COUNT = 0x11     # the list after the block starts [u32 0][u32 0x11]
 
 
-def fix_raceday_block(src: bytes, out: bytearray) -> None:
-    """Close the 360-only pad in GameplayData's in-progress race-day block.
+def _u32be(src: bytes, o: int) -> int:
+    return struct.unpack_from(">I", src, o + 4)[0]   # PC offset -> 360 payload
 
-    Verified on the mid-race-day pair (Battle Machine, Nevada): from PC
-    0x314 to the block end every 360 field sits 4 bytes later; the block
-    tail is zero on both platforms, so the freed word goes there.
+
+def raceday_block_end(src: bytes) -> int | None:
+    """PC offset where the race-day block ends (= start of the list that
+    follows it: [u32 0][u32 0x11][hash]...). Verified: 0x3E70 on the
+    Battle Machine save, 0xB5B0 on the Willow Springs save (the same list
+    sits at 0x2E0 when no race day is active)."""
+    for o in range(RACEDAY_START + 0x40, len(src) - 16, 16):
+        if _u32be(src, o) == 0 and _u32be(src, o + 4) == POST_BLOCK_COUNT                 and _u32be(src, o + 8) != 0:
+            return o
+    return None
+
+
+def _is_record_kind(w: int) -> bool:
+    """Race-day record header kind word, e.g. 0x00001310, 0x00051110,
+    0x00081B10: low byte 0x10, next byte 0x11..0x1B (odd), top byte 0."""
+    return (w & 0xFF) == 0x10 and ((w >> 8) & 0xFF) in (0x11, 0x13, 0x15, 0x17, 0x19, 0x1B)         and w >> 24 == 0
+
+
+def fix_raceday_block(src: bytes, out: bytearray, warnings: list) -> None:
+    """GameplayData in-progress race-day block (0x2E0..end, variable length).
+
+    Verified on the mid-race-day pair (Battle Machine, Nevada):
+      * the 360 block has a 4-byte pad at 0x314 the PC lacks: every later
+        field moves back 4 bytes; the freed word lands at the block end;
+      * record headers are [u32 kind][u16][u16] - the second word swaps
+        per u16;
+      * per-event words [u8 flags][u8 0][pad pad] (0xAAAA fill) and the name
+        string at 0x300 stay natural.
     PC offsets; the unframed 360 payload has one extra leading word.
     """
-    if struct.unpack_from(">I", src, RACEDAY_ACTIVE + 4)[0] != 1:
+    for o in GAMEPLAY_U8_FIELDS:
+        out[o + 4:o + 8] = src[o + 4:o + 8]
+    active = _u32be(src, RACEDAY_STATE) != 0
+    end = raceday_block_end(src) if active else RACEDAY_START
+    # race-day name strings ('MV03_BattleMachine') live after the block;
+    # string detection is restricted there because float pairs inside the
+    # block can look printable
+    if end is not None:
+        for a, b in find_string_runs(src[end + 4:]):
+            out[end + 4 + a:end + 4 + b] = src[end + 4 + a:end + 4 + b]
+    if not active:
         return
-    a, e = RACEDAY_PAD + 4, RACEDAY_END + 4
+    if end is None:
+        warnings.append("GameplayData: active race day but block end not found - "
+                        "race day will not resume")
+        return
+    lo, hi = RACEDAY_NAME
+    out[lo + 4:hi + 4] = src[lo + 4:hi + 4]
+    prev_kind = False
+    for o in range(RACEDAY_PAD + 4, end, 4):        # 360 word positions (PC coords)
+        w = src[o + 4:o + 8]
+        if prev_kind:
+            out[o + 4:o + 8] = w[1::-1] + w[:1:-1]   # two u16s
+        elif w[1] == 0 and w[2:] == b"\xaa\xaa":
+            out[o + 4:o + 8] = w                     # [u8][u8][pad pad]
+        prev_kind = _is_record_kind(int.from_bytes(w, "big"))
+    a, e = RACEDAY_PAD + 4, end + 4
     out[a:e - 4] = out[a + 4:e]
     out[e - 4:e] = bytes(4)
-    lo, hi = RACEDAY_NAME
-    out[lo + 4:hi + 4] = src[lo + 4:hi + 4]           # before the pad: unshifted
-    lo, hi, step = RACEDAY_FLAGS
-    for o in range(lo, hi, step):                      # after the pad: +4 in src
-        out[o + 4:o + 8] = src[o + 8:o + 12]
 
 
-def apply_struct_fixes(rec, src: bytes) -> None:
+def apply_struct_fixes(rec, src: bytes, warnings: list) -> None:
     out = bytearray(rec.payload)
     if rec.id == GAMEPLAY_ID:
-        fix_raceday_block(src, out)
+        fix_raceday_block(src, out, warnings)
     elif rec.id == CARDB_ID:
         fix_cardb_parts(src, out)
     elif rec.id not in RAW_BLOB_IDS:
         fix_node_flags(src, out)
     rec.payload = bytes(out)
+
+
+GAMEPLAY_BLOB = (0x14, 0x10000)  # PC payload offset/size of the gameplay blob
+
+
+def rehash_gameplay(rec) -> None:
+    """GameplayData blob = [MD5(rest)][rest]; recompute after conversion.
+
+    The PC deserializer (nfs.exe 0x59E550 -> [0xAB9D88] vtbl+0x70) rejects
+    a blob whose MD5 does not match and the career starts from scratch
+    (intro movie). Verified on native PC saves: blob[0:16] ==
+    md5(blob[16:0x10000]). Operates on the PC-framed payload.
+    """
+    if rec.id != GAMEPLAY_ID:
+        return
+    off, size = GAMEPLAY_BLOB
+    p = bytearray(rec.payload)
+    p[off:off + 16] = hashlib.md5(bytes(p[off + 16:off + size])).digest()
+    rec.payload = bytes(p)
 
 
 def _to_pc_record(rec) -> None:
@@ -287,13 +352,20 @@ def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = No
     for rec in tree360.records:
         normalize_gameplay(rec, report.warnings)
         src = rec.payload
-        mode = convert_record(report.kind, rec, report.warnings)
-        apply_struct_fixes(rec, src)
-        if mode == "auto" and len(rec.payload) > 0x1000:
+        if rec.id == GAMEPLAY_ID:
+            # variable layout (race-day block) - positional maps do not apply;
+            # fields are u32/float except the fixes in fix_raceday_block
+            rec.payload = swap_u32s(rec.payload)
+            mode = "gameplay"
+        else:
+            mode = convert_record(report.kind, rec, report.warnings)
+        apply_struct_fixes(rec, src, report.warnings)
+        if mode == "auto" and len(rec.payload) > 0x1000 and rec.id != GAMEPLAY_ID:
             report.warnings.append(
                 f"chunk {CHUNK_NAMES.get(rec.id, hex(rec.id))} ({len(rec.payload):#x} B) "
                 "converted in auto mode (no fieldmap)")
         _to_pc_record(rec)
+        rehash_gameplay(rec)
         pc.records.append(rec)
     if twin is not None:
         # console tail damaged: rebuild the sequence in the twin's order,

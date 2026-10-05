@@ -19,15 +19,16 @@ from nfssave import MC02, read_container
 from nfssave.convert import ConversionReport, convert_payload, write_pc_save
 
 ROOT = Path(__file__).parent.parent
-FLASH = Path("F:/Content/E00001CFFAB204C4/45410822/00000001")
 PAIR_360 = ROOT / "research/pair/CAREER_02_360_fresh"
 
 # (source path, golden md5)
 CASES = [
-    (ROOT / "Extracted/Career/CAREER_01", "0b9e036819e5c20194109c6b4a2cf2f7"),
-    (PAIR_360, "5e773fee5ef0d0f5363b0570a5e0bb10"),
-    (FLASH / "CAREER_03", "b8f586ff3ba88931279eb5f83925d620"),
+    (ROOT / "Extracted/Career/CAREER_01", "4e5b9909674a4c5b918642e5bf605073"),
+    (PAIR_360, "7ec0993a56f60f642cc78ed492ec07ff"),
+    (ROOT / "Extracted/Career/CAREER_03", "c0dcadb218c07ae34952c03e8b4bb36b"),
     (ROOT / "Extracted/Alias/ALIAS_JOSHUA S 10", "578a10cb583785bb6cb00fa64bc69439"),
+    (ROOT / "research/c1_latest/CAREER_01_360", "1018f6b0ff1aeb4b2b5ddf784a48a062"),
+    (ROOT / "research/pair_raceday/CAREER_02_360", "ff72b4a0d6acdb65c6f0c8242211637a"),
 ]
 
 

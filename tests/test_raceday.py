@@ -34,5 +34,36 @@ class RaceDayTests(unittest.TestCase):
             self.assertEqual(conv[o:o + 4].hex(), nat[o:o + 4].hex(), hex(o))
 
 
+class BlockEndTests(unittest.TestCase):
+    def test_block_end_detection(self):
+        from nfssave.convert import raceday_block_end
+        cases = [(R360, 0x3E70), (ROOT / "research/c1_latest/CAREER_01_360", 0xB5B0)]
+        for src, want in cases:
+            if not src.is_file():
+                continue
+            with self.subTest(source=src.name):
+                p = [r.payload for r in Tree.parse(MC02.parse(
+                    read_container(src).payload).tree, big=True).records
+                     if r.id == GAMEPLAY][0]
+                self.assertEqual(raceday_block_end(p), want)
+
+
+class GameplayHashTests(unittest.TestCase):
+    """GameplayData blob (PC payload 0x14, 0x10000 B) starts with
+    MD5(blob[0x10:]); the PC deserializer rejects the blob otherwise."""
+
+    def test_converted_blob_md5(self):
+        import hashlib
+        for src in (R360, ROOT / "research/c1_latest/CAREER_01_360"):
+            if not src.is_file():
+                continue
+            with self.subTest(source=src.name):
+                p = _gp(Tree.parse(convert_payload(
+                    MC02.parse(read_container(src).payload), ConversionReport()).tree,
+                    big=False))
+                blob = p[0x14:0x14 + 0x10000]
+                self.assertEqual(blob[:16], hashlib.md5(blob[16:]).digest())
+
+
 if __name__ == "__main__":
     unittest.main()
