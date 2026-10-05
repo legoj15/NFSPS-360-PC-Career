@@ -23,6 +23,7 @@ load-menu under your profile name (e.g. `JOSHUA S 10`).
 
 ## Status
 
-Verified in-game (October 2026): converted careers load exactly where they
-were saved on the console, including a race day in progress, with the
-right cars and blueprints. Still to check: the garage, and CAREER_03.
+Verified in-game (October 2026): converted careers resume exactly where
+they were saved on the console (including a race day in progress), and
+every car loads in the garage with its blueprints, paint, decals and
+vinyls - including heavily decorated DLC cars.
