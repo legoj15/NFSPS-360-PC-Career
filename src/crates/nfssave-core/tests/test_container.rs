@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use nfssave_core::container360::stfs_block_offset;
 use nfssave_core::tree::Tree;
-use nfssave_core::{read_container, MC02};
+use nfssave_core::{MC02, read_container};
 
 fn root() -> PathBuf {
     common::repo_root()
@@ -73,5 +73,8 @@ fn career_payloads_complete() {
         );
     }
     // docs/re/pair/CAREER_02_360_fresh is tracked and always present
-    assert!(ran >= 1, "at least the tracked career oracle must be present");
+    assert!(
+        ran >= 1,
+        "at least the tracked career oracle must be present"
+    );
 }

@@ -32,11 +32,21 @@ pub struct DiscoveredSave {
     pub bytes: Vec<u8>,
 }
 
+/// Discovery outcome: the saves found plus the non-fatal problems skipped
+/// along the way, so one corrupt file or directory never hides the rest.
+#[derive(Debug, Clone, Default)]
+pub struct DiscoveryReport {
+    /// ProStreet saves found (sorted by source path).
+    pub saves: Vec<DiscoveredSave>,
+    /// Per-file/per-folder problems that were skipped while scanning.
+    pub notes: Vec<String>,
+}
+
 /// Scans `volume` for ProStreet saves using the default title-ID set.
 pub fn discover_prostreet_saves<R: Read + Seek>(
     volume: &mut FatxVolume<R>,
 ) -> Result<Vec<DiscoveredSave>> {
-    discover_prostreet_saves_with(volume, &[])
+    Ok(discover_prostreet_saves_noted(volume, &[])?.saves)
 }
 
 /// Scans `volume` for saves, additionally accepting `extra_title_ids`
@@ -45,25 +55,44 @@ pub fn discover_prostreet_saves_with<R: Read + Seek>(
     volume: &mut FatxVolume<R>,
     extra_title_ids: &[[u8; 4]],
 ) -> Result<Vec<DiscoveredSave>> {
+    Ok(discover_prostreet_saves_noted(volume, extra_title_ids)?.saves)
+}
+
+/// Like [`discover_prostreet_saves_with`], also reporting skipped problems.
+///
+/// One unreadable file, directory or cluster chain degrades to a note and
+/// the scan keeps going: a single corrupt entry on the media must not hide
+/// every other save. Only failure of the `Content` root itself aborts
+/// (nothing is enumerable then).
+pub fn discover_prostreet_saves_noted<R: Read + Seek>(
+    volume: &mut FatxVolume<R>,
+    extra_title_ids: &[[u8; 4]],
+) -> Result<DiscoveryReport> {
     let mut accepted: Vec<[u8; 4]> = PROSTREET_TITLE_IDS.to_vec();
     accepted.extend_from_slice(extra_title_ids);
 
+    let mut report = DiscoveryReport::default();
     let content_root = match find_entry(volume, "/", CONTENT_ROOT) {
         Some(entry) => entry,
-        None => return Ok(Vec::new()), // no Content folder: nothing to find
+        None => return Ok(report), // no Content folder: nothing to find
     };
     if !content_root.is_directory() {
-        return Ok(Vec::new());
+        return Ok(report);
     }
 
-    let mut found = Vec::new();
     let profiles = volume.list_dir(CONTENT_ROOT)?;
     for profile in profiles {
         if !profile.is_directory() {
             continue;
         }
         let profile_path = format!("{CONTENT_ROOT}/{}", profile.name);
-        let titles = volume.list_dir(&profile_path)?;
+        let titles = match volume.list_dir(&profile_path) {
+            Ok(t) => t,
+            Err(e) => {
+                report.notes.push(format!("{profile_path}: skipped ({e})"));
+                continue;
+            }
+        };
         for title in titles {
             if !title.is_directory() {
                 continue;
@@ -78,28 +107,45 @@ pub fn discover_prostreet_saves_with<R: Read + Seek>(
                     if file.is_directory() || file.deleted {
                         continue;
                     }
-                    if should_keep(volume, &file, &accepted)? {
-                        log::debug!("keeping {}/{}", type_path, file.name);
-                        let bytes = volume.read_entry(&file)?;
-                        let con = ConHeader::parse(&bytes).ok();
-                        let friendly_name = con
-                            .as_ref()
-                            .map(|c| c.display_name.trim().to_string())
-                            .filter(|name| !name.is_empty())
-                            .unwrap_or_else(|| file.name.clone());
-                        found.push(DiscoveredSave {
-                            friendly_name,
-                            source_path: format!("{type_path}/{}", file.name),
-                            bytes,
-                        });
+                    let label = format!("{type_path}/{}", file.name);
+                    let keep = match should_keep(volume, &file, &accepted) {
+                        Ok(k) => k,
+                        Err(e) => {
+                            report.notes.push(format!("{label}: skipped ({e})"));
+                            continue;
+                        }
+                    };
+                    if !keep {
+                        continue;
                     }
+                    log::debug!("keeping {label}");
+                    let bytes = match volume.read_entry(&file) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            report.notes.push(format!("{label}: skipped ({e})"));
+                            continue;
+                        }
+                    };
+                    let con = ConHeader::parse(&bytes).ok();
+                    let friendly_name = con
+                        .as_ref()
+                        .map(|c| c.display_name.trim().to_string())
+                        .filter(|name| !name.is_empty())
+                        .unwrap_or_else(|| file.name.clone());
+                    report.saves.push(DiscoveredSave {
+                        friendly_name,
+                        source_path: label,
+                        bytes,
+                    });
                 }
             }
         }
     }
 
-    found.sort_by(|a, b| a.source_path.cmp(&b.source_path));
-    Ok(found)
+    report
+        .saves
+        .sort_by(|a, b| a.source_path.cmp(&b.source_path));
+    Ok(report)
 }
 
 /// Name-prefix filter and CON-title filter, evaluated without reading the

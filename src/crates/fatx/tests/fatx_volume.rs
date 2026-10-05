@@ -5,7 +5,7 @@
 use std::io::{Cursor, Seek, SeekFrom};
 
 use fatx::fatx::{FatxVolume, MEDIA_16, MEDIA_32, SUPERBLOCK_SIZE};
-use fatx::test_util::{content_save_path, FatxImageBuilder};
+use fatx::test_util::{FatxImageBuilder, content_save_path};
 
 fn profile_a() -> String {
     "E0001A2B3C4D5E6F".to_string() // 16 hex chars, like a real profile id
@@ -61,8 +61,14 @@ fn directory_listing_and_path_resolution() {
 
     let root = volume.list_dir("/").unwrap();
     let names: Vec<&str> = root.iter().map(|e| e.name.as_str()).collect();
-    assert!(names.contains(&"Content"), "root has Content, got {names:?}");
-    assert!(names.contains(&"name.txt"), "root has name.txt, got {names:?}");
+    assert!(
+        names.contains(&"Content"),
+        "root has Content, got {names:?}"
+    );
+    assert!(
+        names.contains(&"name.txt"),
+        "root has name.txt, got {names:?}"
+    );
     assert!(root.iter().all(|e| !e.deleted));
 
     let content = volume.list_dir("/Content").unwrap();
@@ -72,7 +78,10 @@ fn directory_listing_and_path_resolution() {
 
     // Path walking is case-insensitive (console semantics).
     let good = volume
-        .lookup(&format!("/content/{}/45410822/00000001/file_a", profile_a()))
+        .lookup(&format!(
+            "/content/{}/45410822/00000001/file_a",
+            profile_a()
+        ))
         .unwrap();
     assert_eq!(good.name, "FILE_A");
     assert!(!good.is_directory());
@@ -124,7 +133,10 @@ fn fragmented_chain_reads_byte_for_byte() {
     assert!(!contiguous, "chain is fragmented with stride 5: {chain:?}");
 
     let readback = volume
-        .read_file(&format!("/Content/{}/45410822/00000001/CAREER_01_360", profile_a()))
+        .read_file(&format!(
+            "/Content/{}/45410822/00000001/CAREER_01_360",
+            profile_a()
+        ))
         .unwrap();
     assert_eq!(readback.len(), payload.len());
     assert_eq!(readback, payload, "byte-for-byte round trip");
@@ -197,10 +209,7 @@ fn long_42_char_name_round_trips() {
     let entries = volume.list_dir(&dir).unwrap();
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].name, name);
-    assert_eq!(
-        volume.read_file(&format!("{dir}/{name}")).unwrap(),
-        payload
-    );
+    assert_eq!(volume.read_file(&format!("{dir}/{name}")).unwrap(), payload);
 }
 
 #[test]
@@ -235,7 +244,10 @@ fn corrupt_chains_are_detected() {
     let mut cur = Cursor::new(bytes);
     let mut volume = FatxVolume::open(&mut cur, 0, vol.bytes.len() as u64).unwrap();
     let err = volume
-        .read_file(&format!("/Content/{}/45410822/00000001/CORRUPT_ME", profile_a()))
+        .read_file(&format!(
+            "/Content/{}/45410822/00000001/CORRUPT_ME",
+            profile_a()
+        ))
         .unwrap_err();
     assert!(matches!(err, fatx::Error::CorruptChain { .. }), "{err:?}");
 
@@ -245,7 +257,10 @@ fn corrupt_chains_are_detected() {
     let mut cur = Cursor::new(bytes);
     let mut volume = FatxVolume::open(&mut cur, 0, vol.bytes.len() as u64).unwrap();
     let err = volume
-        .read_file(&format!("/Content/{}/45410822/00000001/CORRUPT_ME", profile_a()))
+        .read_file(&format!(
+            "/Content/{}/45410822/00000001/CORRUPT_ME",
+            profile_a()
+        ))
         .unwrap_err();
     assert!(matches!(err, fatx::Error::CorruptChain { .. }), "{err:?}");
 }

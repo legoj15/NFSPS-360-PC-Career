@@ -48,9 +48,14 @@ fn file_label(p: &Path) -> String {
 }
 
 fn has_save_prefix(name: &str) -> bool {
-    NAME_PREFIXES
-        .iter()
-        .any(|p| name.len() >= p.len() && name[..p.len()].eq_ignore_ascii_case(p))
+    // Compare bytes, not chars: slicing `name[..p.len()]` panics when byte
+    // p.len() falls inside a multi-byte character (e.g. a CJK file name
+    // whose 7th byte is mid-character) and this runs on the UI thread.
+    let bytes = name.as_bytes();
+    NAME_PREFIXES.iter().any(|p| {
+        let pb = p.as_bytes();
+        bytes.len() >= pb.len() && bytes[..pb.len()].eq_ignore_ascii_case(pb)
+    })
 }
 
 /// Accepts a single file or a folder and returns the saves found in it.
@@ -58,12 +63,8 @@ fn has_save_prefix(name: &str) -> bool {
 /// A file that is neither a CON container nor a raw MC02 is an error; an
 /// empty folder is fine and returns an empty list.
 pub fn discover_manual(path: &Path) -> io::Result<Vec<ManualSave>> {
-    let meta = fs::metadata(path).map_err(|e| {
-        io::Error::new(
-            e.kind(),
-            format!("{}: cannot read ({e})", path.display()),
-        )
-    })?;
+    let meta = fs::metadata(path)
+        .map_err(|e| io::Error::new(e.kind(), format!("{}: cannot read ({e})", path.display())))?;
     if meta.is_file() {
         let bytes = fs::read(path)?;
         if !is_save_bytes(&bytes) {
@@ -117,10 +118,7 @@ fn walk(dir: &Path, depth: u32, out: &mut Vec<ManualSave>) {
                 continue;
             }
             if has_con_magic(&path) {
-                out.push(ManualSave {
-                    path,
-                    label: name,
-                });
+                out.push(ManualSave { path, label: name });
             }
         }
     }

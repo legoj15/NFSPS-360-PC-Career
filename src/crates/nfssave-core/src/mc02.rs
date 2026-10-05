@@ -21,7 +21,7 @@
 //! the same code validates both.
 
 use crate::crc::crc32_ea;
-use crate::{format_err, Result};
+use crate::{Result, format_err};
 
 pub const MAGIC: u32 = 0x4D43_3032;
 pub const HEADER_SIZE: usize = 0x1C;
@@ -137,8 +137,10 @@ impl MC02 {
         }
         let mut hdr: Vec<u8> = Vec::with_capacity(HEADER_SIZE);
         self.endian.put(&mut hdr, MAGIC);
-        self.endian
-            .put(&mut hdr, (HEADER_SIZE + self.extra.len() + tree.len()) as u32);
+        self.endian.put(
+            &mut hdr,
+            (HEADER_SIZE + self.extra.len() + tree.len()) as u32,
+        );
         self.endian.put(&mut hdr, self.extra.len() as u32);
         self.endian.put(&mut hdr, tree.len() as u32);
         self.endian.put(&mut hdr, crc32_ea(&self.extra));

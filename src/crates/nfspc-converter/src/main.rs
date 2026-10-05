@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use nfspc_converter::app::batch::{run_batch, SaveInput, SaveStatus};
+use nfspc_converter::app::batch::{SaveInput, SaveStatus, run_batch};
 use nfspc_converter::app::sources::discover_manual;
 use nfspc_converter::ui;
 
@@ -40,7 +40,8 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
             "--convert" => {
                 i += 1;
                 src = Some(PathBuf::from(
-                    args.get(i).ok_or("--convert needs a file or folder argument")?,
+                    args.get(i)
+                        .ok_or("--convert needs a file or folder argument")?,
                 ));
             }
             "--out" => {

@@ -25,7 +25,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::{format_err, Result};
+use crate::{Result, format_err};
 
 pub const BLOCK: usize = 0x1000;
 /// 170 data blocks per level-0 hash table
@@ -95,7 +95,17 @@ pub fn parse_container(data: &[u8], label: &str) -> Result<Container360> {
 
     let table_block = le24(&data[0x37E..0x381]);
     let block = block_at(data, table_block, first_table, shift, label)?;
-    let entry = &block[..0x40];
+    // Python clamps the block slice to EOF; every field this parser reads
+    // sits in the first 0x38 bytes of the entry, so a shorter table block
+    // means the file table itself is truncated (Python's unpack_from fails
+    // there too). Refuse instead of panicking on the [..0x40] slice.
+    if block.len() < 0x38 {
+        return Err(format_err(format!(
+            "{label}: STFS file table block truncated ({:#x} B)",
+            block.len()
+        )));
+    }
+    let entry = &block[..0x40.min(block.len())];
     let nul = entry[..0x28].iter().position(|&b| b == 0);
     let name_end = nul.unwrap_or(0x28);
     let name = String::from_utf8_lossy(&entry[..name_end]).into_owned();
@@ -116,7 +126,12 @@ pub fn parse_container(data: &[u8], label: &str) -> Result<Container360> {
             "{label}: '{name}' size {size:#x} exceeds its {n_blocks} blocks"
         )));
     }
-    let mut payload = Vec::with_capacity(n_blocks * BLOCK);
+    // Never preallocate on the corruption-controlled 24-bit block count: a
+    // crafted count of 0xFFFFFF used to abort the process on a ~64 GiB
+    // allocation. The appended bytes are bounded by the file size anyway
+    // (block offsets are strictly increasing), and the loop still refuses
+    // at the first block beyond EOF.
+    let mut payload = Vec::with_capacity((n_blocks * BLOCK).min(data.len()));
     for i in 0..n_blocks {
         payload.extend_from_slice(block_at(data, start + i, first_table, shift, label)?);
     }

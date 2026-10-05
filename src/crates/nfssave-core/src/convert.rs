@@ -24,12 +24,10 @@ use md5::{Digest, Md5};
 
 use crate::container360::parse_container;
 use crate::mc02::{Endian, MC02};
-use crate::payload_rules::{
-    convert_payload_auto, convert_record, find_string_runs, rules_loaded,
-};
-use crate::tree::{swap_u32s, Record, Tree, TREE_MAGIC};
+use crate::payload_rules::{convert_payload_auto, convert_record, find_string_runs, rules_loaded};
+use crate::tree::{Record, TREE_MAGIC, Tree, swap_u32s};
 use crate::treehash::tree_hash;
-use crate::{format_err, Error, Result};
+use crate::{Error, Result, format_err};
 
 /// allocator-garbage region PC keeps between count and root
 pub const PC_HEAD_STRUCT_SIZE: usize = 0x1AC;
@@ -222,6 +220,36 @@ pub const CARDB_PACKED: (usize, usize) = (0x7C980, 0x90660);
 /// 360 uninitialized 14/16-bit field (0xAAAA masked)
 pub const PACKED_FILL: [u8; 2] = [0x2A, 0xAA];
 
+/// `src[a:b]` with Python slice semantics: clamps to the buffer end instead
+/// of failing, so a fixed offset beyond a short (corrupt-size) payload is an
+/// empty or partial slice, never a panic.
+fn py_slice(src: &[u8], a: usize, b: usize) -> &[u8] {
+    let hi = b.min(src.len());
+    if a >= hi { &[] } else { &src[a..hi] }
+}
+
+/// `out[a:b] = src[a:b]` with Python clamping (`src` and `out` always have
+/// the same length in the struct fixes: `out` is a clone of the payload).
+fn copy_nat(src: &[u8], out: &mut [u8], a: usize, b: usize) {
+    let hi = b.min(src.len());
+    if a >= hi {
+        return;
+    }
+    out[a..hi].copy_from_slice(&src[a..hi]);
+}
+
+/// `out[a:b] = f(src[a:b])` with Python clamping: `f` sees the clamped
+/// slice exactly like the Python right-hand side, and its (length-preserving)
+/// result lands in the same clamped left-hand slice.
+fn put_mapped(src: &[u8], out: &mut [u8], a: usize, b: usize, f: impl FnOnce(&[u8]) -> Vec<u8>) {
+    let hi = b.min(src.len());
+    if a >= hi {
+        return;
+    }
+    let x = f(&src[a..hi]);
+    out[a..hi].copy_from_slice(&x);
+}
+
 /// One 8-byte packed entry, 360 BE -> PC LE.
 ///
 /// Layout (both platforms, as u32 pairs): w1 = [u16 index | 14-bit link
@@ -245,7 +273,11 @@ pub fn convert_packed_entry(e: &[u8; 8]) -> [u8; 8] {
 pub fn fix_cardb_packed(src: &[u8], out: &mut [u8]) {
     let (lo, hi) = CARDB_PACKED;
     for o in (lo..hi).step_by(8) {
-        let e = &src[o + 4..o + 12];
+        // Python reads `src[o + 4:o + 12]` (clamped): a short entry fails
+        // the fill check and is skipped.
+        let Some(e) = src.get(o + 4..o + 12) else {
+            continue;
+        };
         if e[0..2] == PACKED_FILL && e[6..8] == PACKED_FILL {
             out[o + 4..o + 12].copy_from_slice(&convert_packed_entry(e.try_into().unwrap()));
         }
@@ -273,11 +305,12 @@ fn swap16s(b: &[u8]) -> Vec<u8> {
 
 /// Decal/vinyl entry: [s16 x][s16 y][u16][u8 x4][u16 id][u16]...(u16s).
 /// All u16 fields swap per u16; the four bytes at +6..+9 stay natural
-/// (native PC 'bf 12 12 00' <-> 360 'c0 1b 1b 00' pattern).
+/// (native PC 'bf 12 12 00' <-> 360 'c0 1b 1b 00' pattern). Sub-slices
+/// clamp like Python's for truncated entries.
 pub fn convert_decal_entry(e: &[u8]) -> Vec<u8> {
-    let mut out = swap16s(&e[..6]);
-    out.extend_from_slice(&e[6..10]);
-    out.extend(swap16s(&e[10..]));
+    let mut out = swap16s(py_slice(e, 0, 6));
+    out.extend_from_slice(py_slice(e, 6, 10));
+    out.extend(swap16s(py_slice(e, 10, usize::MAX)));
     out
 }
 
@@ -289,16 +322,16 @@ pub fn fix_blueprint_set(src: &[u8], out: &mut [u8], s: usize) {
     let (off, step, n) = BP_PAINT;
     for k in 0..n {
         let o = s + off + k * step;
-        out[o..o + 4].copy_from_slice(&swap16s(&src[o..o + 4]));
+        put_mapped(src, out, o, o + 4, swap16s);
     }
     for &(off, step, n) in &[BP_DECALS, BP_VINYLS] {
         for k in 0..n {
             let o = s + off + k * step;
-            out[o..o + step].copy_from_slice(&convert_decal_entry(&src[o..o + step]));
+            put_mapped(src, out, o, o + step, convert_decal_entry);
         }
     }
     let (lo, hi) = BP_COLOURS;
-    out[s + lo..s + hi].copy_from_slice(&src[s + lo..s + hi]);
+    copy_nat(src, out, s + lo, s + hi);
 }
 
 /// Customization part slots are u16 arrays: swap each u16 in place.
@@ -315,17 +348,28 @@ pub fn fix_cardb_parts(src: &[u8], out: &mut [u8]) {
     let (flo, fhi) = CARDB_PART_FLAGS;
     for r in 0..count {
         let rec = base + r * stride + 4;
-        out[rec..rec + 4].copy_from_slice(&src[rec..rec + 4]); // u8 x3 + pad
-        out[rec + 4..rec + 6].copy_from_slice(&[src[rec + 5], src[rec + 4]]);
-        out[rec + 6..rec + 8].copy_from_slice(&[src[rec + 7], src[rec + 6]]);
+        copy_nat(src, out, rec, rec + 4); // u8 x3 + pad
+        put_mapped(src, out, rec + 4, rec + 8, |w| {
+            // two u16s, each reversed (Python: s[a:b][::-1] + s[b:d][::-1])
+            let mut x = w.to_vec();
+            let mid = x.len().min(2);
+            let (a, b) = x.split_at_mut(mid);
+            a.reverse();
+            b.reverse();
+            x
+        });
         for &bp in &CARDB_BLUEPRINT_SETS {
             let rec0 = rec + bp;
             let mut s = rec0 + lo;
             while s < rec0 + hi {
-                out[s..s + 2].copy_from_slice(&[src[s + 1], src[s]]);
+                put_mapped(src, out, s, s + 2, |w| {
+                    let mut x = w.to_vec();
+                    x.reverse();
+                    x
+                });
                 s += 2;
             }
-            out[rec0 + flo..rec0 + fhi].copy_from_slice(&src[rec0 + flo..rec0 + fhi]);
+            copy_nat(src, out, rec0 + flo, rec0 + fhi);
             fix_blueprint_set(src, out, rec0);
         }
     }
@@ -334,7 +378,7 @@ pub fn fix_cardb_parts(src: &[u8], out: &mut [u8]) {
     let (t0, size, n) = CARDB_TABLE;
     for k in 0..n {
         let o = t0 + k * size + CARDB_TABLE_SLOT + 4;
-        out[o..o + 4].copy_from_slice(&src[o..o + 4]);
+        copy_nat(src, out, o, o + 4);
     }
 }
 
@@ -364,9 +408,7 @@ pub fn raceday_block_end(src: &[u8]) -> Option<usize> {
     (RACEDAY_START + 0x40..src.len().saturating_sub(16))
         .step_by(16)
         .find(|&o| {
-            u32be(src, o) == 0
-                && u32be(src, o + 4) == POST_BLOCK_COUNT
-                && u32be(src, o + 8) != 0
+            u32be(src, o) == 0 && u32be(src, o + 4) == POST_BLOCK_COUNT && u32be(src, o + 8) != 0
         })
 }
 
@@ -389,11 +431,24 @@ fn is_record_kind(w: u32) -> bool {
 ///     string at 0x300 stay natural.
 ///
 /// PC offsets; the unframed 360 payload has one extra leading word.
-pub fn fix_raceday_block(src: &[u8], out: &mut [u8], warnings: &mut Vec<String>) {
+/// Writes clamp like the Python's slice assignments; a payload too short
+/// to hold the race-day state word (< 0x2DC) is refused - the Python reads
+/// that word with `struct.unpack_from`, which fails there too.
+pub fn fix_raceday_block(src: &[u8], out: &mut [u8], warnings: &mut Vec<String>) -> Result<()> {
     for &o in &GAMEPLAY_U8_FIELDS {
-        out[o + 4..o + 8].copy_from_slice(&src[o + 4..o + 8]);
+        copy_nat(src, out, o + 4, o + 8);
     }
-    let active = u32be(src, RACEDAY_STATE) != 0;
+    let Some(state) = src
+        .get(RACEDAY_STATE + 4..RACEDAY_STATE + 8)
+        .map(|w| u32::from_be_bytes(w.try_into().unwrap()))
+    else {
+        return Err(format_err(format!(
+            "GameplayData chunk too short ({:#x} B) to hold the race-day state - \
+             the source file is corrupted",
+            src.len()
+        )));
+    };
+    let active = state != 0;
     let end = if active {
         raceday_block_end(src)
     } else {
@@ -404,11 +459,11 @@ pub fn fix_raceday_block(src: &[u8], out: &mut [u8], warnings: &mut Vec<String>)
     // block can look printable
     if let Some(end) = end {
         for (a, b) in find_string_runs(&src[end + 4..]) {
-            out[end + 4 + a..end + 4 + b].copy_from_slice(&src[end + 4 + a..end + 4 + b]);
+            copy_nat(src, out, end + 4 + a, end + 4 + b);
         }
     }
     if !active {
-        return;
+        return Ok(());
     }
     let Some(end) = end else {
         warnings.push(
@@ -416,10 +471,10 @@ pub fn fix_raceday_block(src: &[u8], out: &mut [u8], warnings: &mut Vec<String>)
              race day will not resume"
                 .to_string(),
         );
-        return;
+        return Ok(());
     };
     let (lo, hi) = RACEDAY_NAME;
-    out[lo + 4..hi + 4].copy_from_slice(&src[lo + 4..hi + 4]);
+    copy_nat(src, out, lo + 4, hi + 4);
     let mut prev_kind = false;
     for o in (RACEDAY_PAD + 4..end).step_by(4) {
         // 360 word positions (PC coords)
@@ -434,12 +489,13 @@ pub fn fix_raceday_block(src: &[u8], out: &mut [u8], warnings: &mut Vec<String>)
     let (a, e) = (RACEDAY_PAD + 4, end + 4);
     out.copy_within(a + 4..e, a);
     out[e - 4..e].fill(0);
+    Ok(())
 }
 
-pub fn apply_struct_fixes(rec: &mut Record, src: &[u8], warnings: &mut Vec<String>) {
+pub fn apply_struct_fixes(rec: &mut Record, src: &[u8], warnings: &mut Vec<String>) -> Result<()> {
     let mut out = rec.payload.clone();
     if rec.id == GAMEPLAY_ID {
-        fix_raceday_block(src, &mut out, warnings);
+        fix_raceday_block(src, &mut out, warnings)?;
     } else if rec.id == CARDB_ID {
         fix_cardb_parts(src, &mut out);
         fix_cardb_packed(src, &mut out);
@@ -447,6 +503,7 @@ pub fn apply_struct_fixes(rec: &mut Record, src: &[u8], warnings: &mut Vec<Strin
         fix_node_flags(src, &mut out);
     }
     rec.payload = out;
+    Ok(())
 }
 
 /// PC payload offset/size of the gameplay blob
@@ -465,9 +522,18 @@ pub fn rehash_gameplay(rec: &mut Record) {
     let (off, size) = GAMEPLAY_BLOB;
     let mut p = rec.payload.clone();
     let mut h = Md5::new();
-    h.update(&p[off + 16..off + size]);
+    // Python clamps the MD5 input to the payload: a short (corrupt-size)
+    // gameplay record hashes the tail that exists instead of panicking.
+    h.update(py_slice(&p, off + 16, off + size));
     let d = h.finalize();
-    p[off..off + 16].copy_from_slice(&d);
+    if p.len() < off + 16 {
+        // Python bytearray slice assignment grows the buffer: the digest
+        // replaces the tail and the payload becomes off+16 bytes.
+        p.truncate(off);
+        p.extend_from_slice(&d);
+    } else {
+        p[off..off + 16].copy_from_slice(&d);
+    }
     rec.payload = p;
 }
 
@@ -481,7 +547,13 @@ pub fn rehash_gameplay(rec: &mut Record) {
 pub fn to_pc_record(rec: &mut Record) {
     rec.flags = 0x0000_0001;
     if !rec.payload.is_empty() {
-        let mut p = rec.payload[4..].to_vec();
+        // Python `payload[4:]` is empty for payloads shorter than 4 bytes;
+        // the trailing junk word still lands, so the result is 4 zero bytes.
+        let mut p = if rec.payload.len() < 4 {
+            Vec::new()
+        } else {
+            rec.payload[4..].to_vec()
+        };
         p.extend_from_slice(&[0, 0, 0, 0]);
         rec.payload = p;
     }
@@ -500,7 +572,11 @@ pub fn validate_twin(src: &Tree, twin: &Tree) -> Result<()> {
             twin.gap
         )));
     }
-    let src_ids: Vec<(u32, usize)> = src.records.iter().map(|r| (r.id, r.payload.len())).collect();
+    let src_ids: Vec<(u32, usize)> = src
+        .records
+        .iter()
+        .map(|r| (r.id, r.payload.len()))
+        .collect();
     let twin_ids: Vec<(u32, usize)> = twin
         .records
         .iter()
@@ -553,13 +629,22 @@ pub fn convert_tree(
         let src = rec.payload.clone();
         let mode: &str = if rec.id == GAMEPLAY_ID {
             // variable layout (race-day block) - positional maps do not apply;
-            // fields are u32/float except the fixes in fix_raceday_block
+            // fields are u32/float except the fixes in fix_raceday_block.
+            // A record size that is not a multiple of 4 cannot come from a
+            // real save; the Python asserts there - refuse instead.
+            if rec.payload.len() % 4 != 0 {
+                return Err(format_err(format!(
+                    "GameplayData chunk size {:#x} is not word-aligned - \
+                     the source file is corrupted",
+                    rec.payload.len()
+                )));
+            }
             rec.payload = swap_u32s(&rec.payload);
             "gameplay"
         } else {
             convert_record(&kind, rec, Some(&mut report.warnings))
         };
-        apply_struct_fixes(rec, &src, &mut report.warnings);
+        apply_struct_fixes(rec, &src, &mut report.warnings)?;
         if mode == "auto" && rec.payload.len() > 0x1000 && rec.id != GAMEPLAY_ID {
             report.warnings.push(format!(
                 "chunk {} ({:#x} B) converted in auto mode (no fieldmap)",

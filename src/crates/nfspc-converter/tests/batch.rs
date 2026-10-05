@@ -5,8 +5,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use nfspc_converter::app::batch::{run_batch, SaveInput, SaveStatus};
-use nfssave_core::{parse_container, MC02};
+use nfspc_converter::app::batch::{SaveInput, SaveStatus, run_batch};
+use nfssave_core::{MC02, parse_container};
 use tempfile::TempDir;
 
 /// The oracle-verified 360 career container (see docs/re/c1_latest).
@@ -105,8 +105,14 @@ fn corrupted_save_does_not_stop_the_others() {
     };
     let batch = run_batch(vec![bad, good], out.path());
     assert_eq!(batch.results.len(), 2);
-    assert!(matches!(batch.results[0].status, SaveStatus::Refused { .. }));
-    assert!(matches!(batch.results[1].status, SaveStatus::Converted { .. }));
+    assert!(matches!(
+        batch.results[0].status,
+        SaveStatus::Refused { .. }
+    ));
+    assert!(matches!(
+        batch.results[1].status,
+        SaveStatus::Converted { .. }
+    ));
     assert!(!out.path().join("CORRUPT").exists());
     assert!(batch.exported_to.is_some());
 }

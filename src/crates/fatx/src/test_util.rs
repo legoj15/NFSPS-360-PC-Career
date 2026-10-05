@@ -180,13 +180,17 @@ impl FatxImageBuilder {
             "cluster size must be a power of two in 0x1000..=0x10000, got {cluster_size:#x}"
         );
         assert!(
-            self.files.iter().all(|f| {
-                !f.path.starts_with('/') && !f.path.split('/').any(|c| c.is_empty())
-            }),
+            self.files
+                .iter()
+                .all(|f| { !f.path.starts_with('/') && !f.path.split('/').any(|c| c.is_empty()) }),
             "paths must be volume-relative without empty components"
         );
         for f in &self.files {
-            assert!(f.path.len() <= 240, "path {} exceeds the 240-char limit", f.path);
+            assert!(
+                f.path.len() <= 240,
+                "path {} exceeds the 240-char limit",
+                f.path
+            );
             assert!(
                 f.path.rsplit('/').next().unwrap().len() <= 42,
                 "file name in {} exceeds the 42-char limit",
@@ -197,10 +201,18 @@ impl FatxImageBuilder {
         // Directory set = ancestors of every file path; "" is the root.
         let dirs: BTreeSet<String> = self.files.iter().flat_map(|f| ancestors(&f.path)).collect();
 
-        let clusters_for = |bytes: &[u8]| -> u32 { bytes.len().div_ceil(cluster_size as usize) as u32 };
-        let needed: u32 =
-            dirs.len() as u32 + self.files.iter().map(|f| clusters_for(&f.bytes)).sum::<u32>();
-        let span = needed.saturating_mul(self.fragment_stride).max(self.min_clusters) + 8;
+        let clusters_for =
+            |bytes: &[u8]| -> u32 { bytes.len().div_ceil(cluster_size as usize) as u32 };
+        let needed: u32 = dirs.len() as u32
+            + self
+                .files
+                .iter()
+                .map(|f| clusters_for(&f.bytes))
+                .sum::<u32>();
+        let span = needed
+            .saturating_mul(self.fragment_stride)
+            .max(self.min_clusters)
+            + 8;
 
         // Converge on a volume length whose max cluster comfortably covers
         // the allocation span, mirroring the reader's geometry formulas.
@@ -210,7 +222,8 @@ impl FatxImageBuilder {
         let (mut fat_size, mut data_offset, mut max_cluster) = (0u64, 0u64, 0u32);
         for _ in 0..64 {
             let cluster_count = (volume_len / cluster_size as u64) as u32;
-            fat_size = (cluster_count.saturating_add(1) as u64 * fat_entry_width(cluster_count) as u64)
+            fat_size = (cluster_count.saturating_add(1) as u64
+                * fat_entry_width(cluster_count) as u64)
                 .div_ceil(0x1000)
                 * 0x1000;
             data_offset = SUPERBLOCK_SIZE + fat_size;
@@ -223,8 +236,16 @@ impl FatxImageBuilder {
         }
         assert!(max_cluster >= span, "could not size the synthetic volume");
         let fat_width = fat_entry_width((volume_len / cluster_size as u64) as u32);
-        let chain_end = if fat_width == 2 { LAST_CLUSTER_16 as u32 } else { LAST_CLUSTER_32 };
-        let media = if fat_width == 2 { MEDIA_16 as u32 } else { MEDIA_32 };
+        let chain_end = if fat_width == 2 {
+            LAST_CLUSTER_16 as u32
+        } else {
+            LAST_CLUSTER_32
+        };
+        let media = if fat_width == 2 {
+            MEDIA_16 as u32
+        } else {
+            MEDIA_32
+        };
 
         let mut bytes = vec![0u8; volume_len as usize];
 
@@ -253,7 +274,9 @@ impl FatxImageBuilder {
             if count == 0 {
                 return Vec::new();
             }
-            let chain: Vec<u32> = (0..count).map(|i| cursor + i * self.fragment_stride).collect();
+            let chain: Vec<u32> = (0..count)
+                .map(|i| cursor + i * self.fragment_stride)
+                .collect();
             let last = *chain.last().expect("count > 0");
             assert!(
                 last <= max_cluster,
@@ -301,8 +324,16 @@ impl FatxImageBuilder {
             bytes[base..base + cluster_size as usize].fill(0xFF);
             for (i, e) in entries.iter().enumerate() {
                 let raw = &mut bytes[base + i * 0x40..base + (i + 1) * 0x40];
-                raw[0] = if e.deleted { DELETED } else { e.name.len() as u8 };
-                raw[1] = if e.directory { ATTR_DIRECTORY } else { ATTR_ARCHIVE };
+                raw[0] = if e.deleted {
+                    DELETED
+                } else {
+                    e.name.len() as u8
+                };
+                raw[1] = if e.directory {
+                    ATTR_DIRECTORY
+                } else {
+                    ATTR_ARCHIVE
+                };
                 raw[2..2 + e.name.len()].copy_from_slice(e.name.as_bytes());
                 raw[0x2C..0x30].copy_from_slice(&e.first_cluster.to_be_bytes());
                 raw[0x30..0x34].copy_from_slice(&e.size.to_be_bytes());
@@ -356,8 +387,7 @@ impl FatxImageBuilder {
         }
 
         // Splice the FAT in behind the superblock.
-        bytes[SUPERBLOCK_SIZE as usize..SUPERBLOCK_SIZE as usize + fat.len()]
-            .copy_from_slice(&fat);
+        bytes[SUPERBLOCK_SIZE as usize..SUPERBLOCK_SIZE as usize + fat.len()].copy_from_slice(&fat);
 
         VolumeImage {
             bytes,

@@ -8,16 +8,20 @@ use std::time::Duration;
 use eframe::egui;
 use eframe::egui::Color32;
 
-use crate::app::batch::{run_batch, BatchResult, SaveInput, SaveResult, SaveStatus};
+use crate::app::batch::{BatchResult, SaveInput, SaveResult, SaveStatus, run_batch};
 use crate::app::destination;
-use crate::app::drivescan::{scan_physical_drives, DriveScanReport};
-use crate::app::sources::{discover_manual, ManualSave};
+use crate::app::drivescan::{DriveScanReport, scan_physical_drives};
+use crate::app::sources::{ManualSave, discover_manual};
+use crate::app::worker::{Guarded, run_guarded};
 use fatx::DiscoveredSave;
 
 /// Messages from the background threads to the UI thread.
 enum Msg {
     ScanDone(DriveScanReport),
     BatchDone(BatchResult),
+    /// A worker thread panicked; the message carries the panic text. Both
+    /// progress flags clear so the UI never latches in a spinner state.
+    Failed(String),
 }
 
 /// One discovered drive save with its checkbox state.
@@ -34,6 +38,7 @@ struct ConverterApp {
     scan_notes: Vec<String>,
     manual: Vec<ManualSave>,
     manual_error: Option<String>,
+    worker_error: Option<String>,
     picked: Option<PathBuf>,
     suggested: Option<PathBuf>,
     converting: bool,
@@ -51,6 +56,7 @@ impl ConverterApp {
             scan_notes: Vec::new(),
             manual: Vec::new(),
             manual_error: None,
+            worker_error: None,
             picked: None,
             suggested: destination::documents_save_folder(),
             converting: false,
@@ -62,12 +68,16 @@ impl ConverterApp {
 
     fn start_scan(&mut self) {
         self.scanning = true;
+        self.worker_error = None;
         self.rows.clear();
         self.scan_notes.clear();
         let tx = self.tx.clone();
         std::thread::spawn(move || {
-            let report = scan_physical_drives();
-            let _ = tx.send(Msg::ScanDone(report));
+            let msg = match run_guarded(scan_physical_drives) {
+                Guarded::Done(report) => Msg::ScanDone(report),
+                Guarded::Panicked(e) => Msg::Failed(format!("drive scan crashed: {e}")),
+            };
+            let _ = tx.send(msg);
         });
     }
 
@@ -91,24 +101,26 @@ impl ConverterApp {
             return;
         }
         self.converting = true;
+        self.worker_error = None;
         self.batch = None;
         let tx = self.tx.clone();
         std::thread::spawn(move || {
-            let result = match destination::resolve(&picked) {
+            let msg = match run_guarded(|| match destination::resolve(&picked) {
                 Ok(dest) => run_batch(inputs, &dest.root),
                 Err(e) => BatchResult {
                     results: vec![SaveResult {
                         label: picked.display().to_string(),
                         status: SaveStatus::Refused {
-                            reason: format!(
-                                "cannot prepare the export folder: {e}"
-                            ),
+                            reason: format!("cannot prepare the export folder: {e}"),
                         },
                     }],
                     exported_to: None,
                 },
+            }) {
+                Guarded::Done(result) => Msg::BatchDone(result),
+                Guarded::Panicked(e) => Msg::Failed(format!("conversion crashed: {e}")),
             };
-            let _ = tx.send(Msg::BatchDone(result));
+            let _ = tx.send(msg);
         });
     }
 
@@ -130,6 +142,13 @@ impl ConverterApp {
                 Msg::BatchDone(batch) => {
                     self.converting = false;
                     self.batch = Some(batch);
+                }
+                Msg::Failed(err) => {
+                    // A worker died: release both flags so Refresh/Convert
+                    // work again and the failure is visible.
+                    self.scanning = false;
+                    self.converting = false;
+                    self.worker_error = Some(err);
                 }
             }
         }
@@ -153,8 +172,7 @@ impl eframe::App for ConverterApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.drain_messages();
         if self.scanning || self.converting {
-            ui.ctx()
-                .request_repaint_after(Duration::from_millis(120));
+            ui.ctx().request_repaint_after(Duration::from_millis(120));
         }
 
         egui::CentralPanel::default().show(ui, |ui| {
@@ -242,6 +260,9 @@ impl eframe::App for ConverterApp {
             if let Some(err) = &self.manual_error {
                 ui.colored_label(Color32::RED, err.as_str());
             }
+            if let Some(err) = &self.worker_error {
+                ui.colored_label(Color32::RED, err.as_str());
+            }
 
             ui.separator();
 
@@ -259,8 +280,7 @@ impl eframe::App for ConverterApp {
             } else {
                 ui.weak("no export location chosen yet");
             }
-            let mut dialog = rfd::FileDialog::new()
-                .set_title("Select location to export saves");
+            let mut dialog = rfd::FileDialog::new().set_title("Select location to export saves");
             if let Some(sug) = &self.suggested
                 && let Some(parent) = sug.parent().filter(|p| p.is_dir()).or(Some(sug))
             {
@@ -275,15 +295,12 @@ impl eframe::App for ConverterApp {
             ui.separator();
 
             // ---- convert ----
-            let can_convert = !self.converting
-                && self.picked.is_some()
-                && self.selected_count() > 0;
+            let can_convert =
+                !self.converting && self.picked.is_some() && self.selected_count() > 0;
             ui.horizontal(|ui| {
                 let btn = ui.add_enabled(
                     can_convert,
-                    egui::Button::new(
-                        egui::RichText::new("Convert").strong().heading(),
-                    ),
+                    egui::Button::new(egui::RichText::new("Convert").strong().heading()),
                 );
                 if btn.clicked() {
                     self.start_convert();
@@ -292,10 +309,7 @@ impl eframe::App for ConverterApp {
                     ui.spinner();
                     ui.label("converting…");
                 } else {
-                    ui.weak(format!(
-                        "{} save(s) selected",
-                        self.selected_count()
-                    ));
+                    ui.weak(format!("{} save(s) selected", self.selected_count()));
                 }
             });
 

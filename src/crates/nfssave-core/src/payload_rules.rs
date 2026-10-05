@@ -85,10 +85,13 @@ fn load_rules() -> Option<Rules> {
             for (off, class) in chunk.acts {
                 acts.insert(off.parse::<u32>().ok()?, class);
             }
-            out.insert(id, ChunkRules {
-                acts,
-                ref_size: chunk.ref_size,
-            });
+            out.insert(
+                id,
+                ChunkRules {
+                    acts,
+                    ref_size: chunk.ref_size,
+                },
+            );
         }
         Some(out)
     };
@@ -227,7 +230,15 @@ fn swap_tiled(payload: &[u8], natural_ranges: &[(usize, usize)]) -> Vec<u8> {
         out[i..i + 4].reverse();
     }
     for &(s, e) in natural_ranges {
-        out[s..e].copy_from_slice(&payload[s..e]);
+        // Python clamps the slice assignment (`out[s:e] = payload[s:e]`); a
+        // word-quantized string run can round its end up past a payload
+        // whose length is not a multiple of 4, and must copy the tail that
+        // exists rather than panic.
+        let e = e.min(payload.len());
+        let s = s.min(e);
+        if s < e {
+            out[s..e].copy_from_slice(&payload[s..e]);
+        }
     }
     out
 }

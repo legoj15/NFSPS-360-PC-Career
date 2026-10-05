@@ -67,7 +67,9 @@ impl WindowsPhysicalDrives {
 /// datum: any `AccessDenied` on an existing drive means the app manifest
 /// needs `requireAdministrator`.
 pub fn probe_report(source: &dyn DeviceSource) -> Vec<(u32, OpenStatus)> {
-    (0..=MAX_DRIVE_INDEX).map(|index| (index, source.probe(index))).collect()
+    (0..=MAX_DRIVE_INDEX)
+        .map(|index| (index, source.probe(index)))
+        .collect()
 }
 
 // ---- platform implementations ----
@@ -80,8 +82,7 @@ mod imp {
 
     use windows::Win32::Foundation::{GENERIC_READ, HANDLE};
     use windows::Win32::Storage::FileSystem::{
-        CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
-        FILE_FLAGS_AND_ATTRIBUTES,
+        CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
     };
     use windows::Win32::System::IO::DeviceIoControl;
     use windows::core::PCWSTR;
@@ -111,7 +112,9 @@ mod imp {
     }
 
     fn create_handle(index: u32) -> io::Result<HANDLE> {
-        let path: Vec<u16> = format!("\\\\.\\PhysicalDrive{}\0", index).encode_utf16().collect();
+        let path: Vec<u16> = format!("\\\\.\\PhysicalDrive{}\0", index)
+            .encode_utf16()
+            .collect();
         // SAFETY: `path` is a valid NUL-terminated wide string for the
         // duration of the call; no output pointers are passed.
         let handle = unsafe {

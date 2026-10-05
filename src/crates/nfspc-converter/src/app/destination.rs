@@ -17,7 +17,7 @@
 
 use std::fs;
 use std::io;
-use std::path::{absolute, Path, PathBuf};
+use std::path::{Path, PathBuf, absolute};
 
 /// The folder name the PC game reads saves from under its SAVE root.
 pub const GAME_FOLDER_NAME: &str = "NFS ProStreet";
@@ -34,9 +34,8 @@ pub struct Destination {
 }
 
 fn folder_name_is_game(p: &Path) -> bool {
-    p.file_name().is_some_and(|n| {
-        n.to_string_lossy().eq_ignore_ascii_case(GAME_FOLDER_NAME)
-    })
+    p.file_name()
+        .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(GAME_FOLDER_NAME))
 }
 
 /// True when at least one path component strictly between `picked` and
@@ -46,9 +45,8 @@ fn runs_through_save(picked: &Path, cand: &Path) -> bool {
         .skip(1) // the candidate itself
         .take_while(|a| *a != picked)
         .any(|a| {
-            a.file_name().is_some_and(|n| {
-                n.to_string_lossy().eq_ignore_ascii_case(SAVE_FOLDER_NAME)
-            })
+            a.file_name()
+                .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(SAVE_FOLDER_NAME))
         })
 }
 
@@ -160,7 +158,7 @@ pub fn documents_save_folder() -> Option<PathBuf> {
 #[cfg(windows)]
 fn known_folder_documents() -> Option<PathBuf> {
     use windows::Win32::System::Com::CoTaskMemFree;
-    use windows::Win32::UI::Shell::{SHGetKnownFolderPath, FOLDERID_Documents, KF_FLAG_DEFAULT};
+    use windows::Win32::UI::Shell::{FOLDERID_Documents, KF_FLAG_DEFAULT, SHGetKnownFolderPath};
 
     // SAFETY: standard known-folder call with a constant GUID.
     let pwsz = unsafe { SHGetKnownFolderPath(&FOLDERID_Documents, KF_FLAG_DEFAULT, None) }.ok()?;

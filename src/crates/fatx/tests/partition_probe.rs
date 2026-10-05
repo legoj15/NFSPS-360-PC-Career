@@ -4,10 +4,8 @@
 
 use std::io::Cursor;
 
-use fatx::partition::{
-    DriveLayout, XboxDriveImage, RETAIL_USB_DATA_OFFSET, USB_SIGNATURE,
-};
-use fatx::test_util::{content_save_path, FatxImageBuilder};
+use fatx::partition::{DriveLayout, RETAIL_USB_DATA_OFFSET, USB_SIGNATURE, XboxDriveImage};
+use fatx::test_util::{FatxImageBuilder, content_save_path};
 
 fn profile() -> String {
     "E0001A2B3C4D5E6F".to_string()
@@ -25,7 +23,10 @@ fn retail_usb_image_probes_at_fixed_offset() {
 
     // The synthetic image really is a raw drive image: signature present,
     // FATX Data partition at the retail USB offset.
-    assert_eq!(&usb.image[0x1FF..0x1FF + USB_SIGNATURE.len()], USB_SIGNATURE);
+    assert_eq!(
+        &usb.image[0x1FF..0x1FF + USB_SIGNATURE.len()],
+        USB_SIGNATURE
+    );
     assert_eq!(&usb.image[RETAIL_USB_DATA_OFFSET as usize..][..4], b"XTAF");
     assert!(usb.data_offset == RETAIL_USB_DATA_OFFSET);
 
@@ -37,12 +38,18 @@ fn retail_usb_image_probes_at_fixed_offset() {
     assert_eq!(drive.data_partition.length, usb.data_length);
 
     // The volume opens straight from the probed region.
-    let mut vol =
-        fatx::FatxVolume::open(&mut cur, drive.data_partition.offset, drive.data_partition.length)
-            .unwrap();
+    let mut vol = fatx::FatxVolume::open(
+        &mut cur,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .unwrap();
     assert_eq!(
-        vol.read_file(&format!("/Content/{}/45410822/00000001/CAREER_01_360", profile()))
-            .unwrap(),
+        vol.read_file(&format!(
+            "/Content/{}/45410822/00000001/CAREER_01_360",
+            profile()
+        ))
+        .unwrap(),
         b"payload".to_vec()
     );
 }
@@ -57,7 +64,10 @@ fn usb_image_without_signature_still_detected() {
 
     let mut cur = Cursor::new(usb.image.clone());
     let drive = XboxDriveImage::probe(&mut cur, usb.image.len() as u64).unwrap();
-    assert!(!drive.signature_found, "signature is optional, not required");
+    assert!(
+        !drive.signature_found,
+        "signature is optional, not required"
+    );
     assert_eq!(drive.layout, DriveLayout::RetailUsb);
     assert_eq!(drive.data_partition.offset, RETAIL_USB_DATA_OFFSET);
 }
@@ -82,14 +92,23 @@ fn devkit_table_image_probes_with_entries() {
     assert_eq!(entries[1].name, "Dashboard");
     assert_eq!(drive.data_partition.offset, dk.data_offset);
     assert_eq!(drive.data_partition.length, dk.data_length);
-    assert!(!drive.signature_found, "devkit images carry no USB signature");
+    assert!(
+        !drive.signature_found,
+        "devkit images carry no USB signature"
+    );
 
-    let mut vol =
-        fatx::FatxVolume::open(&mut cur, drive.data_partition.offset, drive.data_partition.length)
-            .unwrap();
+    let mut vol = fatx::FatxVolume::open(
+        &mut cur,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .unwrap();
     assert_eq!(
-        vol.read_file(&format!("/Content/{}/45410822/00000001/CAREER_01_360", profile()))
-            .unwrap(),
+        vol.read_file(&format!(
+            "/Content/{}/45410822/00000001/CAREER_01_360",
+            profile()
+        ))
+        .unwrap(),
         b"devkit payload".to_vec()
     );
 }

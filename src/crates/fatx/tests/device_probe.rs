@@ -6,7 +6,7 @@
 //! asserts API coherence only — every OpenStatus variant is acceptable;
 //! the *distribution* of statuses is the datum.
 
-use fatx::device::{probe_report, DeviceSource, OpenStatus, WindowsPhysicalDrives};
+use fatx::device::{DeviceSource, OpenStatus, WindowsPhysicalDrives, probe_report};
 
 #[test]
 fn physical_drive_probe_reports_coherent_statuses() {
@@ -42,8 +42,5 @@ fn physical_drive_probe_reports_coherent_statuses() {
     // Sanity: probing an absurdly high index reports NotFound or Failed,
     // never panics.
     let high = source.probe(9_999);
-    assert!(matches!(
-        high,
-        OpenStatus::NotFound | OpenStatus::Failed(_)
-    ));
+    assert!(matches!(high, OpenStatus::NotFound | OpenStatus::Failed(_)));
 }

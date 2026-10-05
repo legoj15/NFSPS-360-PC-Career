@@ -9,7 +9,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use nfspc_converter::app::destination::{resolve, resolve_dry, Destination, GAME_FOLDER_NAME};
+use nfspc_converter::app::destination::{Destination, GAME_FOLDER_NAME, resolve, resolve_dry};
 use tempfile::TempDir;
 
 fn mkdirs(base: &Path, rel: &str) -> PathBuf {
@@ -97,7 +97,10 @@ fn rule3_creates_p_nfs_prostreet_when_nothing_matches() {
     let picked = mkdirs(tmp.path(), "picked");
     let expected = picked.join(GAME_FOLDER_NAME);
     assert_eq!(resolve_dry(&picked), dest(expected.clone(), true));
-    assert!(!expected.exists(), "dry resolution must not create anything");
+    assert!(
+        !expected.exists(),
+        "dry resolution must not create anything"
+    );
 
     let got = resolve(&picked).unwrap();
     assert_eq!(got, dest(expected.clone(), true));

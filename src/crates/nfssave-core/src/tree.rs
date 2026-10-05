@@ -24,7 +24,7 @@
 //! buffer normalization for GameplayData lives in
 //! [`crate::convert::normalize_gameplay`].
 
-use crate::{format_err, Result};
+use crate::{Result, format_err};
 
 pub const TREE_MAGIC: u32 = 0x59F2_D89B;
 pub const REC_START_360: usize = 0x48;
@@ -81,8 +81,7 @@ impl Tree {
                 break;
             }
         }
-        let magic_off = magic_off
-            .ok_or_else(|| format_err("tree magic 0x59F2D89B not found"))?;
+        let magic_off = magic_off.ok_or_else(|| format_err("tree magic 0x59F2D89B not found"))?;
         let used = rd_u32(tree, magic_off + 4, big);
         if tree.len() < rec_start || used as usize > tree.len() - rec_start {
             return Err(format_err(format!(
@@ -210,8 +209,7 @@ impl Tree {
                 break;
             }
         }
-        let magic_off =
-            magic_off.ok_or_else(|| format_err("tree magic lost in pre_records"))?;
+        let magic_off = magic_off.ok_or_else(|| format_err("tree magic lost in pre_records"))?;
         pre[magic_off + 4..magic_off + 8].copy_from_slice(&if big {
             (used as u32).to_be_bytes()
         } else {

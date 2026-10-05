@@ -10,9 +10,9 @@ mod common;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use nfssave_core::convert::{convert_payload, write_pc_save, ConversionReport};
+use nfssave_core::convert::{ConversionReport, convert_payload, write_pc_save};
 use nfssave_core::tree::Tree;
-use nfssave_core::{read_container, MC02};
+use nfssave_core::{MC02, read_container};
 
 fn root() -> PathBuf {
     common::repo_root()
@@ -100,12 +100,7 @@ fn output_self_validates() {
         let t = Tree::parse(&m.tree, false).unwrap();
         assert!(!t.records.is_empty());
         for r in &t.records {
-            assert_eq!(
-                r.flags & 0xFF,
-                1,
-                "record {:#x} lost PC flags byte",
-                r.id
-            );
+            assert_eq!(r.flags & 0xFF, 1, "record {:#x} lost PC flags byte", r.id);
         }
     }
 }

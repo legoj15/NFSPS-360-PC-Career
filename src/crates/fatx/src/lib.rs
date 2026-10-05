@@ -37,7 +37,9 @@ pub mod stfs;
 pub mod test_util;
 
 pub use device::{DeviceSource, OpenStatus, OpenedDevice, WindowsPhysicalDrives};
-pub use discovery::{discover_prostreet_saves, DiscoveredSave};
+pub use discovery::{
+    DiscoveredSave, DiscoveryReport, discover_prostreet_saves, discover_prostreet_saves_noted,
+};
 pub use error::{Error, Result};
 pub use fatx::{DirEntry, FatxVolume, Superblock};
 pub use partition::{DriveLayout, XboxDriveImage};

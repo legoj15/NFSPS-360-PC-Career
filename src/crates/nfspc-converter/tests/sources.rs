@@ -4,7 +4,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use nfspc_converter::app::sources::{discover_manual, MAX_DEPTH, NAME_PREFIXES};
+use nfspc_converter::app::sources::{MAX_DEPTH, NAME_PREFIXES, discover_manual};
 use tempfile::TempDir;
 
 /// Minimal file with CON magic (discovery checks magic, not full structure).
@@ -143,4 +143,16 @@ fn folder_scan_covers_extracted_content_tree_shape() {
 fn empty_folder_is_ok_but_empty() {
     let tmp = TempDir::new().unwrap();
     assert!(discover_manual(tmp.path()).unwrap().is_empty());
+}
+
+#[test]
+fn unicode_file_name_does_not_panic_the_walk() {
+    // Byte 7 of this name falls inside a multi-byte character; slicing the
+    // &str at NAME_PREFIXES length used to panic the UI-thread walk.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_con(root, "日本語CAREER_X");
+    let good = write_con(root, "CAREER_01");
+    let paths = found_paths(root);
+    assert_eq!(paths, vec![good], "unicode name skipped, real save kept");
 }

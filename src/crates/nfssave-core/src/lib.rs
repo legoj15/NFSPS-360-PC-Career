@@ -14,7 +14,7 @@ pub mod tree;
 pub mod treehash;
 pub mod typemap;
 
-pub use container360::{parse_container, read_container, Container360};
+pub use container360::{Container360, parse_container, read_container};
 pub use crc::crc32_ea;
 pub use mc02::{Endian, MC02};
 

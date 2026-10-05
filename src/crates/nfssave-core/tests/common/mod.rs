@@ -39,10 +39,7 @@ pub struct TempDir(PathBuf);
 impl TempDir {
     pub fn new(tag: &str) -> TempDir {
         let n = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let p = std::env::temp_dir().join(format!(
-            "nfssave-core-{tag}-{}-{n}",
-            std::process::id()
-        ));
+        let p = std::env::temp_dir().join(format!("nfssave-core-{tag}-{}-{n}", std::process::id()));
         fs::create_dir_all(&p).expect("create temp dir");
         TempDir(p)
     }

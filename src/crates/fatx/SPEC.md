@@ -193,12 +193,13 @@ FILE_SHARE_READ|FILE_SHARE_WRITE, OPEN_EXISTING)`:
   physical drives on modern Windows (with rare exceptions, e.g. some
   removable-bit devices where a handle is granted if no volume is mounted).
   The crate exposes `device::WindowsPhysicalDrives::probe()` so the app can
-  decide at runtime whether its manifest must set `requireAdministrator`.
-  **Measured on the development machine (2026-10-05, unelevated
-  `cargo test -p fatx --test device_probe`)**: PhysicalDrive0–3 →
-  `AccessDenied` (drives exist), PhysicalDrive4–15 → `NotFound`. Conclusion:
-  the converter app's manifest must set `requireAdministrator` for raw-drive
-  scanning on this machine.
+  detect this at runtime. **Measured on the development machine (2026-10-05,
+  unelevated `cargo test -p fatx --test device_probe`)**: PhysicalDrive0–3 →
+  `AccessDenied` (drives exist), PhysicalDrive4–15 → `NotFound`. App-level
+  decision (2026-10-05): the converter exe's manifest is `asInvoker` — the
+  headless `--convert` mode and unelevated GUI launches must not demand UAC —
+  and the GUI surfaces an access-denied scan note asking the user to relaunch
+  elevated (`nfspc-converter/src/app/drivescan.rs`).
 * Length: `IOCTL_DISK_GET_LENGTH_INFO` (0x0007405C) — same approach as the
   reference tools; fallback `SetFilePointerEx(End)`.
 * Note: the `windows` crate surfaces kernel32 failures as HRESULTs

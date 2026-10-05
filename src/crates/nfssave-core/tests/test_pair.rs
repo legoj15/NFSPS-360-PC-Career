@@ -12,14 +12,17 @@ use std::collections::HashMap;
 use std::fs;
 use std::sync::OnceLock;
 
-use nfssave_core::convert::{convert_payload, ConversionReport};
+use nfssave_core::convert::{ConversionReport, convert_payload};
 use nfssave_core::tree::Tree;
-use nfssave_core::{read_container, MC02};
+use nfssave_core::{MC02, read_container};
 
 type RecMap = HashMap<u32, Vec<u8>>;
 
 fn records(tree: &Tree) -> RecMap {
-    tree.records.iter().map(|r| (r.id, r.payload.clone())).collect()
+    tree.records
+        .iter()
+        .map(|r| (r.id, r.payload.clone()))
+        .collect()
 }
 
 fn pair() -> Option<&'static (RecMap, RecMap)> {
@@ -35,11 +38,9 @@ fn pair() -> Option<&'static (RecMap, RecMap)> {
         let mut report = ConversionReport::default();
         let conv = convert_payload(&mc, Some(&mut report), None).unwrap();
         let conv = records(&Tree::parse(&conv.tree, false).unwrap());
-        let native = records(&Tree::parse(
-            &MC02::parse(&fs::read(&ppc).unwrap()).unwrap().tree,
-            false,
-        )
-        .unwrap());
+        let native = records(
+            &Tree::parse(&MC02::parse(&fs::read(&ppc).unwrap()).unwrap().tree, false).unwrap(),
+        );
         Some((conv, native))
     })
     .as_ref()
@@ -54,13 +55,7 @@ fn guarded() -> Option<&'static (RecMap, RecMap)> {
 }
 
 const NODE_CHUNKS: [u32; 7] = [
-    0x328C6431,
-    0xDC6B027F,
-    0xB67F6CC6,
-    0x51A41B14,
-    0x885B4DDC,
-    0xD548266C,
-    0xCA269650,
+    0x328C6431, 0xDC6B027F, 0xB67F6CC6, 0x51A41B14, 0x885B4DDC, 0xD548266C, 0xCA269650,
 ];
 const CARDB: u32 = 0x47A07113;
 
@@ -70,7 +65,9 @@ fn le32(b: &[u8], o: usize) -> u32 {
 
 #[test]
 fn node_flag_bytes() {
-    let Some((conv, native)) = guarded() else { return };
+    let Some((conv, native)) = guarded() else {
+        return;
+    };
     for &cid in &NODE_CHUNKS {
         let a = &conv[&cid];
         let b = &native[&cid];
@@ -95,7 +92,9 @@ fn node_flag_bytes() {
 /// owned-car entries must keep them natural.
 #[test]
 fn car_table_slot_bytes() {
-    let Some((conv, native)) = guarded() else { return };
+    let Some((conv, native)) = guarded() else {
+        return;
+    };
     let (a, b) = (&conv[&CARDB], &native[&CARDB]);
     for k in [114usize, 150, 190] {
         // catalog entries identical on both platforms
@@ -111,11 +110,17 @@ fn car_table_slot_bytes() {
 /// Each car record holds three customization sets 0x7B4 apart.
 #[test]
 fn all_blueprint_part_sets() {
-    let Some((conv, native)) = guarded() else { return };
+    let Some((conv, native)) = guarded() else {
+        return;
+    };
     let (a, b) = (&conv[&CARDB], &native[&CARDB]);
     for setoff in [0x7B4usize, 0xF68] {
         let (s, e) = (0x2680 + setoff + 0x3C, 0x2680 + setoff + 0x186);
-        assert_eq!(common::hex(&a[s..e]), common::hex(&b[s..e]), "set +{setoff:#x}");
+        assert_eq!(
+            common::hex(&a[s..e]),
+            common::hex(&b[s..e]),
+            "set +{setoff:#x}"
+        );
     }
 }
 
@@ -125,9 +130,7 @@ fn all_blueprint_part_sets() {
 #[test]
 fn packed_table_entries() {
     use nfssave_core::convert::convert_packed_entry;
-    let case = |hexstr: &str| -> [u8; 8] {
-        common::unhex(hexstr).try_into().unwrap()
-    };
+    let case = |hexstr: &str| -> [u8; 8] { common::unhex(hexstr).try_into().unwrap() };
     assert_eq!(
         common::hex(&convert_packed_entry(&case("2aaafffeffff2aaa"))),
         "feffff3ffffffeff"
@@ -140,7 +143,9 @@ fn packed_table_entries() {
         common::hex(&convert_packed_entry(&case("2aaafffe31182aaa"))),
         "feffff3fffff1831"
     );
-    let Some((conv, native)) = guarded() else { return };
+    let Some((conv, native)) = guarded() else {
+        return;
+    };
     let (a, b) = (&conv[&CARDB], &native[&CARDB]);
     let empty = common::unhex("feffff3ffffffeff");
     for o in (0x7DF50..0x90658).step_by(8) {
@@ -153,7 +158,9 @@ fn packed_table_entries() {
 
 #[test]
 fn starter_car_parts() {
-    let Some((conv, native)) = guarded() else { return };
+    let Some((conv, native)) = guarded() else {
+        return;
+    };
     let (s, e) = (0x2680 + 0x3C, 0x2680 + 0x190);
     assert_eq!(
         common::hex(&conv[&CARDB][s..e]),

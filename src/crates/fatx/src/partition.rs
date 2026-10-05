@@ -128,12 +128,9 @@ impl XboxDriveImage {
         let magic_le = u32::from_le_bytes(head[..4].try_into().expect("4 bytes"));
         if magic_le == DEVKIT_MAGIC {
             let content_lba = u32::from_le_bytes(head[0x8..0xC].try_into().expect("4 bytes"));
-            let content_sectors =
-                u32::from_le_bytes(head[0xC..0x10].try_into().expect("4 bytes"));
-            let dash_lba =
-                u32::from_le_bytes(head[0x10..0x14].try_into().expect("4 bytes"));
-            let dash_sectors =
-                u32::from_le_bytes(head[0x14..0x18].try_into().expect("4 bytes"));
+            let content_sectors = u32::from_le_bytes(head[0xC..0x10].try_into().expect("4 bytes"));
+            let dash_lba = u32::from_le_bytes(head[0x10..0x14].try_into().expect("4 bytes"));
+            let dash_sectors = u32::from_le_bytes(head[0x14..0x18].try_into().expect("4 bytes"));
 
             if content_sectors > 0 {
                 let entry = DevPartitionEntry {

@@ -4,3 +4,4 @@ pub mod batch;
 pub mod destination;
 pub mod drivescan;
 pub mod sources;
+pub mod worker;

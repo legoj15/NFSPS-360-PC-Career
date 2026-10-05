@@ -6,8 +6,8 @@
 //! drives are summarized into one note so the UI can tell the user to
 //! relaunch elevated.
 
-use fatx::device::{DeviceSource, WindowsPhysicalDrives, MAX_DRIVE_INDEX};
-use fatx::{discover_prostreet_saves, DiscoveredSave, FatxVolume, XboxDriveImage};
+use fatx::device::{DeviceSource, MAX_DRIVE_INDEX, WindowsPhysicalDrives};
+use fatx::{DiscoveredSave, FatxVolume, XboxDriveImage, discover_prostreet_saves_noted};
 
 /// Result of one full drive scan.
 #[derive(Debug, Clone, Default)]
@@ -64,8 +64,11 @@ pub fn scan_physical_drives() -> DriveScanReport {
                 continue;
             }
         };
-        match discover_prostreet_saves(&mut volume) {
-            Ok(mut found) => report.saves.append(&mut found),
+        match discover_prostreet_saves_noted(&mut volume, &[]) {
+            Ok(mut found) => {
+                report.saves.append(&mut found.saves);
+                report.notes.append(&mut found.notes);
+            }
             Err(e) => report
                 .notes
                 .push(format!("PhysicalDrive{index}: scan failed: {e}")),

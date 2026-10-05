@@ -8,7 +8,7 @@ use std::io::{Cursor, Seek};
 use fatx::discovery::{discover_prostreet_saves, discover_prostreet_saves_with};
 use fatx::partition::XboxDriveImage;
 use fatx::stfs::TITLE_ID_NFS_PROSTREET;
-use fatx::test_util::{content_save_path, FatxImageBuilder};
+use fatx::test_util::{FatxImageBuilder, content_save_path};
 
 const PROFILE_A: &str = "E0001A2B3C4D5E6F";
 const PROFILE_B: &str = "E0000FEEDFACEC0D";
@@ -40,7 +40,10 @@ fn scenario() -> (fatx::test_util::SyntheticUsbImage, Vec<String>) {
         .file(save(PROFILE_A, "00000001", "CAREER_01_360"), career.clone())
         .file(save(PROFILE_A, "00000001", &long_name), career.clone())
         // Profile B: second oracle save and an ALIAS save under 00000002.
-        .file(save(PROFILE_B, "00000001", "CAREER_02_360"), career_fresh.clone())
+        .file(
+            save(PROFILE_B, "00000001", "CAREER_02_360"),
+            career_fresh.clone(),
+        )
         .file(save(PROFILE_B, "00000002", "ALIAS_01_360"), career.clone())
         // Foreign title, but the file name forces inclusion.
         .file(
@@ -88,7 +91,10 @@ fn discovery_finds_exactly_the_embedded_saves() {
     paths.sort();
     let mut want: Vec<&str> = expected.iter().map(|s| s.as_str()).collect();
     want.sort();
-    assert_eq!(paths, want, "discovered set must match the embedded set exactly");
+    assert_eq!(
+        paths, want,
+        "discovered set must match the embedded set exactly"
+    );
 }
 
 #[test]
@@ -109,7 +115,11 @@ fn discovered_bytes_match_oracles_byte_for_byte() {
         } else {
             career.clone()
         };
-        assert_eq!(s.bytes, expected, "byte-for-byte mismatch for {}", s.source_path);
+        assert_eq!(
+            s.bytes, expected,
+            "byte-for-byte mismatch for {}",
+            s.source_path
+        );
         assert_eq!(s.bytes.len(), 823_296, "oracle size for {}", s.source_path);
     }
 }
@@ -131,8 +141,14 @@ fn deleted_and_foreign_saves_are_not_discovered() {
     let (usb, _) = scenario();
     let found = scan(&usb);
     for s in &found {
-        assert!(!s.source_path.contains("CAREER_DELETED"), "deleted save leaked");
-        assert!(!s.source_path.contains("SETTINGS_DAT"), "foreign save leaked");
+        assert!(
+            !s.source_path.contains("CAREER_DELETED"),
+            "deleted save leaked"
+        );
+        assert!(
+            !s.source_path.contains("SETTINGS_DAT"),
+            "foreign save leaked"
+        );
     }
 }
 
@@ -166,8 +182,7 @@ fn extra_title_ids_extend_the_filter() {
         drive.data_partition.length,
     )
     .unwrap();
-    let found =
-        discover_prostreet_saves_with(&mut vol, &[[0x4D, 0x53, 0x09, 0x26]]).unwrap();
+    let found = discover_prostreet_saves_with(&mut vol, &[[0x4D, 0x53, 0x09, 0x26]]).unwrap();
     assert_eq!(found.len(), 6);
     assert!(found.iter().any(|s| s.source_path.contains("SETTINGS_DAT")));
 }
@@ -189,4 +204,45 @@ fn empty_content_partition_is_not_an_error() {
 #[test]
 fn title_id_constant_is_prostreet_45410822() {
     assert_eq!(TITLE_ID_NFS_PROSTREET, [0x45, 0x41, 0x08, 0x22]);
+}
+
+/// One corrupt directory entry must not hide the good saves on the same
+/// media: the broken file is skipped with a note, the scan keeps going.
+#[test]
+fn corrupt_file_is_skipped_without_hiding_good_saves() {
+    let career = fatx::test_util::oracle_career_latest();
+    let good = save(PROFILE_A, "00000001", "CAREER_01_360");
+    let broken = content_save_path(PROFILE_C, OTHER_TITLE_DIR, "00000001", "BROKEN_SIZE");
+    let usb = FatxImageBuilder::new()
+        .cluster_size(0x1000)
+        .file(good.clone(), career.clone())
+        .file(broken.clone(), career)
+        .build_usb_image();
+
+    // Sabotage the BROKEN_SIZE dirent: declared size far beyond its chain.
+    let mut image = usb.image.clone();
+    let name_off = image
+        .windows(11)
+        .position(|w| w == b"BROKEN_SIZE".as_slice())
+        .expect("dirent name present in the image");
+    let dirent = name_off - 2; // the name starts at +2 inside the dirent
+    image[dirent + 0x30..dirent + 0x34].copy_from_slice(&0x7F_FF_F0u32.to_be_bytes());
+
+    let mut cur = Cursor::new(image);
+    let drive = XboxDriveImage::probe(&mut cur, usb.image.len() as u64).unwrap();
+    let mut vol = fatx::FatxVolume::open(
+        &mut cur,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .unwrap();
+
+    let report = fatx::discovery::discover_prostreet_saves_noted(&mut vol, &[]).unwrap();
+    assert_eq!(report.saves.len(), 1, "the good save must survive");
+    assert_eq!(report.saves[0].source_path, good);
+    assert!(
+        report.notes.iter().any(|n| n.contains("BROKEN_SIZE")),
+        "the skipped file must be noted: {:?}",
+        report.notes
+    );
 }

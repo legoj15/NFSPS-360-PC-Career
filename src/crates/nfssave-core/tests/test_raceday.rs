@@ -9,10 +9,10 @@ use std::fs;
 use std::path::PathBuf;
 
 use nfssave_core::convert::{
-    convert_decal_entry, convert_payload, raceday_block_end, ConversionReport,
+    ConversionReport, convert_decal_entry, convert_payload, raceday_block_end,
 };
 use nfssave_core::tree::Tree;
-use nfssave_core::{read_container, MC02};
+use nfssave_core::{MC02, read_container};
 
 const GAMEPLAY: u32 = 0x3B309E09;
 const CARDB: u32 = 0x47A07113;
@@ -103,7 +103,11 @@ fn paint_and_colour_bytes() {
     };
     for o in [0x5A0usize, 0x5AC, 0x600, 0x604] {
         // values differ, layout must not
-        assert_eq!(nz(&conv[r + o..r + o + 4]), nz(&nat[r + o..r + o + 4]), "{o:#x}");
+        assert_eq!(
+            nz(&conv[r + o..r + o + 4]),
+            nz(&nat[r + o..r + o + 4]),
+            "{o:#x}"
+        );
     }
 }
 
@@ -147,6 +151,11 @@ fn converted_blob_md5() {
         }
         let p = gp(&conv_tree(&src), GAMEPLAY);
         let blob = &p[0x14..0x14 + 0x10000];
-        assert_eq!(&blob[..16], &Md5::digest(&blob[16..])[..], "{}", src.display());
+        assert_eq!(
+            &blob[..16],
+            &Md5::digest(&blob[16..])[..],
+            "{}",
+            src.display()
+        );
     }
 }

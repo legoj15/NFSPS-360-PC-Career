@@ -157,9 +157,7 @@ impl<R: Read + Seek> FatxVolume<R> {
         let idx = cluster as usize * self.sb.fat_entry_width;
         Some(match self.sb.fat_entry_width {
             2 => u16::from_be_bytes([self.fat[idx], self.fat[idx + 1]]) as u32,
-            _ => u32::from_be_bytes(
-                self.fat[idx..idx + 4].try_into().expect("4-byte slice"),
-            ),
+            _ => u32::from_be_bytes(self.fat[idx..idx + 4].try_into().expect("4-byte slice")),
         })
     }
 
@@ -175,10 +173,7 @@ impl<R: Read + Seek> FatxVolume<R> {
             if !(1..=self.sb.max_cluster).contains(&cur) {
                 return Err(Error::CorruptChain {
                     cluster: cur,
-                    reason: format!(
-                        "cluster out of range (max {})",
-                        self.sb.max_cluster
-                    ),
+                    reason: format!("cluster out of range (max {})", self.sb.max_cluster),
                 });
             }
             if seen.get(cur as usize).copied().unwrap_or(true) {
@@ -215,7 +210,11 @@ impl<R: Read + Seek> FatxVolume<R> {
     /// (`"/"` or `""` is the root).
     pub fn list_dir(&mut self, path: &str) -> Result<Vec<DirEntry>> {
         let cluster = self.resolve_dir(path)?;
-        Ok(self.read_directory(cluster)?.into_iter().filter(|e| !e.deleted).collect())
+        Ok(self
+            .read_directory(cluster)?
+            .into_iter()
+            .filter(|e| !e.deleted)
+            .collect())
     }
 
     /// Like [`FatxVolume::list_dir`] but also returns deleted entries,
@@ -320,13 +319,10 @@ impl<R: Read + Seek> FatxVolume<R> {
             )));
         }
         let volume_id = u32::from_be_bytes(header[4..8].try_into().expect("4 bytes"));
-        let sectors_per_cluster =
-            u32::from_be_bytes(header[8..12].try_into().expect("4 bytes"));
-        let root_cluster =
-            u32::from_be_bytes(header[12..16].try_into().expect("4 bytes"));
+        let sectors_per_cluster = u32::from_be_bytes(header[8..12].try_into().expect("4 bytes"));
+        let root_cluster = u32::from_be_bytes(header[12..16].try_into().expect("4 bytes"));
 
-        if !sectors_per_cluster.is_power_of_two() || !(2..=0x80).contains(&sectors_per_cluster)
-        {
+        if !sectors_per_cluster.is_power_of_two() || !(2..=0x80).contains(&sectors_per_cluster) {
             return Err(bad(&format!(
                 "implausible sectors-per-cluster {sectors_per_cluster}"
             )));
@@ -339,7 +335,11 @@ impl<R: Read + Seek> FatxVolume<R> {
         }
 
         let cluster_count = (self.length / cluster_size as u64) as u32;
-        let fat_entry_width = if cluster_count >= FAT16_MAX_CLUSTERS { 4 } else { 2 };
+        let fat_entry_width = if cluster_count >= FAT16_MAX_CLUSTERS {
+            4
+        } else {
+            2
+        };
         let fat_entries = cluster_count.saturating_add(1);
         let fat_size = (fat_entries as u64 * fat_entry_width as u64).div_ceil(0x1000) * 0x1000;
         let data_offset = SUPERBLOCK_SIZE + fat_size;
@@ -474,8 +474,7 @@ fn parse_dirent(raw: &[u8]) -> Result<DirEntry> {
     };
     let name = String::from_utf8_lossy(&name_bytes[..name_end]).into_owned();
 
-    let first_cluster =
-        u32::from_be_bytes(raw[0x2C..0x30].try_into().expect("4 bytes"));
+    let first_cluster = u32::from_be_bytes(raw[0x2C..0x30].try_into().expect("4 bytes"));
     let size = u32::from_be_bytes(raw[0x30..0x34].try_into().expect("4 bytes"));
 
     if !deleted && !name.bytes().all(|b| b.is_ascii_graphic() || b == b' ') {

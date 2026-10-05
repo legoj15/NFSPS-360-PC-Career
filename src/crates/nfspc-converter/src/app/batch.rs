@@ -5,11 +5,11 @@
 //! refused without writing anything and never stops the remaining saves.
 use std::fs;
 use std::io;
-use std::path::{absolute, Path, PathBuf};
+use std::path::{Path, PathBuf, absolute};
 
 use fatx::DiscoveredSave;
-use nfssave_core::convert::{convert_one, convert_payload, write_pc_save, ConversionReport};
-use nfssave_core::{parse_container, Error, MC02};
+use nfssave_core::convert::{ConversionReport, convert_one, convert_payload, write_pc_save};
+use nfssave_core::{Error, MC02, parse_container};
 
 use super::sources::{is_con_bytes, is_mc02_bytes};
 
@@ -51,11 +51,7 @@ impl SaveInput {
                 ),
             ));
         };
-        Ok(SaveInput {
-            label,
-            name,
-            bytes,
-        })
+        Ok(SaveInput { label, name, bytes })
     }
 
     /// Build an input from a save discovered on a FATX drive scan.
@@ -102,9 +98,7 @@ pub enum SaveStatus {
     },
     /// Refused (corruption, format violation, write failure). Nothing was
     /// written for this save.
-    Refused {
-        reason: String,
-    },
+    Refused { reason: String },
 }
 
 /// Status line for one save in the batch.
@@ -143,7 +137,9 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
                 .into_iter()
                 .map(|i| SaveResult {
                     label: i.label,
-                    status: SaveStatus::Refused { reason: reason.clone() },
+                    status: SaveStatus::Refused {
+                        reason: reason.clone(),
+                    },
                 })
                 .collect(),
             exported_to: None,
@@ -159,15 +155,17 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
                     target,
                 }
             }
-            Err(e) => SaveStatus::Refused { reason: e.to_string() },
+            Err(e) => SaveStatus::Refused {
+                reason: e.to_string(),
+            },
         };
         results.push(SaveResult {
             label: input.label,
             status,
         });
     }
-    let exported_to = any_converted
-        .then(|| absolute(out_root).unwrap_or_else(|_| out_root.to_path_buf()));
+    let exported_to =
+        any_converted.then(|| absolute(out_root).unwrap_or_else(|_| out_root.to_path_buf()));
     BatchResult {
         results,
         exported_to,
@@ -218,7 +216,9 @@ fn convert_raw_mc02(
     let target = write_pc_save(&pc, &input.name, out_root)?;
     let self_check = MC02::parse(&fs::read(&target)?)?.check();
     for prob in &self_check {
-        report.warnings.push(format!("post-write self-check: {prob}"));
+        report
+            .warnings
+            .push(format!("post-write self-check: {prob}"));
     }
     Ok((report.records, report.warnings, target))
 }
