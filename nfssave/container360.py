@@ -1,48 +1,89 @@
-"""Xbox 360 save container reader (the 'CON ' wrapper EA 360 saves sit in).
+"""Xbox 360 save container reader (STFS 'CON ' package).
 
-Empirically mapped layout (files from a RGH console's Content directory):
-  0x0000: 'CON ' + 8B console info + console serial ASCII (e.g. '852197-001')
-          + date ASCII (e.g. '12-10-10') + console certificate (~to 0x1AC)
-  0x01AC: per-file metadata (title id, content ids, PNG icons, ...)
-  0xC000: entry: filename (NUL-padded), then at +0x28: u32 hash, +0x2C block count,
-          +0x30 flags (00 00 ff ff), +0x34 BE u32 payload size,
-          +0x38/+0x3C BE u32 payload checksum (stored twice)
-  0xD000: raw payload (the MC02 save), padded to a 0x1000 block boundary
-This is NOT a standard retail STFS package (no 0x114-byte RSA signature block);
-it is the simplified container the homebrew stack on the source console wrote.
+The saves are standard STFS packages (console-signed CON, unsigned content
+works the same way):
+  0x0000  'CON ' header + certificate, metadata, PNG icons
+  0x0340  BE u32 header size -> first hash table at (size + 0xFFF) & ~0xFFF
+          (0xA000 for these saves)
+  0x0379  volume descriptor; byte 0x37B bit 0 = block separation. Bit clear
+          -> two copies of every hash table per level (table shift 1)
+  data block 0 = file table (one 0x40-byte entry per file):
+          +0x00 name (0x28, NUL-padded), +0x28 flags (0x40 = contiguous,
+          low 6 bits = name length), +0x29 block count (LE24),
+          +0x2F starting block (LE24), +0x34 BE u32 file size,
+          +0x38/+0x3C update/access timestamps
+Data blocks are interleaved with hash tables: a level-0 table group precedes
+every 170 data blocks (and a level-1 group every 170*170), so a payload
+larger than ~0xA9000 bytes is NOT one contiguous slice of the file. Reading
+it as one (as earlier versions did) pulls hash tables into the save and
+truncates its tail.
 """
 
+import struct
 from dataclasses import dataclass
 from pathlib import Path
 
-ENTRY_OFFSET = 0xC000
-PAYLOAD_OFFSET = 0xD000
+BLOCK = 0x1000
+HASHES_PER_TABLE = 0xAA      # 170 data blocks per level-0 hash table
+L1_SPAN = 0x70E4             # 170 * 170 data blocks per level-1 hash table
+FLAG_CONTIGUOUS = 0x40
+
+
+def stfs_block_offset(block: int, first_table: int, shift: int) -> int:
+    """File offset of data block `block` (Free60/Velocity backing-block math).
+
+    shift is 1 when every hash table is stored twice, else 0.
+    """
+    backing = (((block + HASHES_PER_TABLE) // HASHES_PER_TABLE) << shift) + block
+    if block >= HASHES_PER_TABLE:
+        backing += ((block + L1_SPAN) // L1_SPAN) << shift
+        if block >= L1_SPAN:
+            backing += 1 << shift
+    return first_table + backing * BLOCK
 
 
 @dataclass
 class Container360:
     data: bytes
     name: str
-    payload_size: int
-    checksum: int
+    payload: bytes
 
-    @property
-    def payload(self) -> bytes:
-        return self.data[PAYLOAD_OFFSET:PAYLOAD_OFFSET + self.payload_size]
 
-    def payload_checksum_ok(self, crc_fn) -> bool:
-        return crc_fn(self.payload) == self.checksum
+def parse_container(data: bytes, label: str = "container") -> Container360:
+    if data[:4] != b"CON ":
+        raise ValueError(f"{label}: not a CON container (magic {data[:4]!r})")
+    if len(data) < 0x381:
+        raise ValueError(f"{label}: truncated CON header ({len(data):#x} B)")
+    header_size = struct.unpack_from(">I", data, 0x340)[0]
+    first_table = (header_size + BLOCK - 1) & ~(BLOCK - 1)
+    shift = 0 if data[0x37B] & 1 else 1
+
+    def block_at(n: int) -> bytes:
+        off = stfs_block_offset(n, first_table, shift)
+        if off >= len(data):
+            raise ValueError(f"{label}: data block {n} at {off:#x} beyond file end")
+        return data[off:off + BLOCK]
+
+    table_block = int.from_bytes(data[0x37E:0x381], "little")
+    entry = block_at(table_block)[:0x40]
+    nul = entry.find(b"\0", 0, 0x28)
+    name = entry[:nul if nul != -1 else 0x28].decode("ascii", errors="replace")
+    if not name:
+        raise ValueError(f"{label}: empty STFS file table")
+    flags = entry[0x28]
+    n_blocks = int.from_bytes(entry[0x29:0x2C], "little")
+    start = int.from_bytes(entry[0x2F:0x32], "little")
+    size = struct.unpack_from(">I", entry, 0x34)[0]
+    if not flags & FLAG_CONTIGUOUS:
+        raise ValueError(f"{label}: non-contiguous STFS file '{name}' is not supported")
+    if n_blocks * BLOCK < size:
+        raise ValueError(f"{label}: '{name}' size {size:#x} exceeds its {n_blocks} blocks")
+    payload = b"".join(block_at(start + i) for i in range(n_blocks))[:size]
+    if len(payload) != size:
+        raise ValueError(f"{label}: '{name}' truncated ({len(payload):#x} of {size:#x} B)")
+    return Container360(data, name, payload)
 
 
 def read_container(path: str | Path) -> Container360:
-    data = Path(path).read_bytes()
-    if data[:4] != b"CON ":
-        raise ValueError(f"{path}: not a CON container (magic {data[:4]!r})")
-    name_end = data.index(b"\0", ENTRY_OFFSET)
-    name = data[ENTRY_OFFSET:name_end].decode("ascii", errors="replace")
-    import struct
-    payload_size = struct.unpack_from(">I", data, ENTRY_OFFSET + 0x34)[0]
-    checksum = struct.unpack_from(">I", data, ENTRY_OFFSET + 0x38)[0]
-    if PAYLOAD_OFFSET + payload_size > len(data):
-        raise ValueError(f"{path}: payload {payload_size:#x} exceeds file size {len(data):#x}")
-    return Container360(data, name, payload_size, checksum)
+    p = Path(path)
+    return parse_container(p.read_bytes(), str(p))

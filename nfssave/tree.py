@@ -1,34 +1,36 @@
 """Chunk-tree parse/convert for NFS ProStreet MC02 saves.
 
-Grammar (verified empirically on 4 files; code-level confirmation pending from
-the recomp/exe analyses):
+Grammar (verified empirically and cross-checked against PC-native saves):
 
 tree := noise[16] count:u32 pad:magic 0x59F2D89B used:u32 records...
-  - 360: records start at tree+0x48; PC: tree+0x1C8 (after a 0x1AC preamble
-    chunk that PC serializes from uninitialized memory).
-  - record := type:u32 id:u32 size:u32 payload[size]
-    * id is the platform-independent chunk identity (matches 360<->PC).
-    * type is partly volatile (uninitialized heap on PC; timestamps on 360);
-      small values (0,2,3,...) are meaningful flags. We copy it through.
-    * records tile exactly to records_start + used (alias verified; career
-      has a 0x720 obfuscated tail region - see below).
+  - 360: records start at tree+0x48 (record = [junk][id][size][payload]);
+    PC: tree+0x1CC (record = [id][size][flags][payload]), root record at
+    tree+0x1C0 (360: +0x40).
+  - id is the platform-independent chunk identity (matches 360<->PC).
+  - the first payload word of a 360 record is a 0x01xxxxxx marker + junk;
+    PC drops it and appends 4 trailing junk bytes (same total size).
+  - records tile exactly to records_start + used. The console writing bug
+    can leave damaged noise in the record region: a trailing gap (records
+    missing at the end) or, in principle, an internal gap (parse
+    re-anchors at the first offset where a clean record chain tiles to the
+    end again).
   - after the record area, the rest of the fixed-size tree buffer holds a
-    hash directory table ([h1][h2][0xFFFFFFFF][0] cells); it is byte-swapped
-    as numeric data.
-  - container chunks: payload = [0x01000000][nested record...]; recurse.
+    hash directory table ([h1][h2][0xFFFFFFFF][0] cells); the loader never
+    reads it on either platform (byte-swapped on conversion).
 
-Payload conversion: property-node data - numeric leaves swap BE<->LE, string
-data stays natural. The per-chunk engines live in payload_rules; see
-research/fieldmaps for the empirically-derived classifications.
+Payload conversion engines live in payload_rules; the platform buffer
+normalization for GameplayData lives in convert.normalize_gameplay.
 """
 
 import struct
-from dataclasses import dataclass, field as dfield
+from dataclasses import dataclass
 
 TREE_MAGIC = 0x59F2D89B
 REC_START_360 = 0x48
 REC_START_PC = 0x1CC
 PC_ROOT_OFF = 0x1C0  # root record [id][size][flags] ; children follow at 0x1CC
+
+REANCHOR_MAX_GAP = 0x4000  # don't resync through implausibly large noise
 
 
 @dataclass
@@ -37,7 +39,6 @@ class Record:
     id: int
     size: int
     payload: bytes
-    children: list = dfield(default_factory=list)
 
 
 @dataclass
@@ -48,7 +49,7 @@ class Tree:
     records: list
     post: bytes            # everything after the record area (360-side directory)
     used: int
-    gap: int = 0           # bytes between last parseable record and used end
+    gap: int = 0           # bytes of damaged noise skipped inside the record region
 
     @staticmethod
     def parse(tree: bytes, big: bool) -> "Tree":
@@ -64,6 +65,8 @@ class Tree:
         if magic_off is None:
             raise ValueError("tree magic 0x59F2D89B not found")
         used = struct.unpack_from(e + "I", tree, magic_off + 4)[0]
+        if used > len(tree) - rec_start:
+            raise ValueError(f"corrupt used size {used:#x} exceeds tree buffer")
         records = []
         off = rec_start
         end = rec_start + used
@@ -77,25 +80,50 @@ class Tree:
                 stopped = off
                 break
             # size-0 records are legal (positional hole fillers); 12-byte stride
-            payload = bytes(tree[off + 12:off + 12 + s])
-            rec = Record(t, i, s, payload)
-            _parse_nested(rec, big)
-            records.append(rec)
+            records.append(Record(t, i, s, bytes(tree[off + 12:off + 12 + s])))
             off += 12 + s
         if stopped is None:
             stopped = off
         gap = max(0, end - stopped)
+        if gap:
+            records = records + Tree._reafter_gap(tree, stopped, end, big)
         return Tree(
             noise=bytes(tree[0:0x10]),
             count=count,
             pre_records=bytes(tree[0x14:rec_start]),
             records=records,
-            post=bytes(tree[stopped:]),
+            post=bytes(tree[end:]),
             used=used,
             gap=gap,
         )
 
-    def build(self, big: bool, tree_size: int, rec_start: int) -> bytes:
+    @staticmethod
+    def _reafter_gap(tree: bytes, stopped: int, end: int, big: bool) -> list:
+        """Internal-gap recovery: find a 4-aligned offset after the noise
+        where a clean record chain tiles exactly to `end`; damage beyond
+        REANCHOR_MAX_GAP is treated as unrecoverable tail loss."""
+        if end - stopped > REANCHOR_MAX_GAP:
+            return []
+        e = ">" if big else "<"
+        for cand in range((stopped + 4 + 3) & ~3, end - 11, 4):
+            off = cand
+            recs = []
+            ok = True
+            while off + 12 <= end:
+                if big:
+                    t, i, s = struct.unpack_from(">III", tree, off)
+                else:
+                    i, s, t = struct.unpack_from("<III", tree, off)
+                if (off + 12 + s > end) or (s == 0 and i == 0 and t == 0):
+                    ok = False
+                    break
+                recs.append(Record(t, i, s, bytes(tree[off + 12:off + 12 + s])))
+                off += 12 + s
+            if ok and off == end:
+                return recs
+        return []
+
+    def build(self, big: bool, tree_size: int) -> bytes:
         e = ">" if big else "<"
         body = bytearray()
         for rec in self.records:
@@ -105,7 +133,6 @@ class Tree:
                 body += struct.pack("<III", rec.id, len(rec.payload), rec.type)
             body += rec.payload
         used = len(body)
-        hdr = self.noise + struct.pack(e + "I", self.count) + self.pre_records
         # patch magic+used inside pre_records
         pre = bytearray(self.pre_records)
         magic_off = None
@@ -127,30 +154,6 @@ class Tree:
         return out
 
 
-def _parse_nested(rec: Record, big: bool, depth: int = 0) -> None:
-    """Container chunks: payload = [0x01000000][nested record]..."""
-    if depth > 4 or len(rec.payload) < 16:
-        return
-    e = ">" if big else "<"
-    if struct.unpack_from(e + "I", rec.payload, 0)[0] != 0x01000000:
-        return
-    off = 4
-    while off + 12 <= len(rec.payload):
-        t, i, s = struct.unpack_from(e + "III", rec.payload, off)
-        if s == 0 or off + 12 + s > len(rec.payload):
-            break
-        child = Record(t, i, s, bytes(rec.payload[off + 12:off + 12 + s]))
-        _parse_nested(child, big, depth + 1)
-        rec.children.append(child)
-        off += 12 + s
-
-
 def swap_u32s(data: bytes) -> bytes:
     assert len(data) % 4 == 0
     return b"".join(data[i:i + 4][::-1] for i in range(0, len(data), 4))
-
-
-def swap_u16_pairs(data: bytes) -> bytes:
-    """Swap within 16-bit pairs (for regions of u16 arrays)."""
-    assert len(data) % 2 == 0
-    return b"".join(data[i:i + 2][::-1] for i in range(0, len(data), 2))

@@ -9,8 +9,14 @@ empirical-only notes (kept in git-less history below where relevant).
 ## Xbox 360 side
 
 ### Console container (`CON ` files in `Content/<profile>/<title>/00000001/`)
-- NOT a retail STFS package (no 0x114-byte RSA signature block). Homebrew-
-  written simplified container. VERIFIED on 4 files.
+- CORRECTED 2026-10-04 late: these ARE standard STFS packages (header
+  size @0x340 = 0x971A -> first hash table 0xA000; block separation 0 ->
+  two copies per hash table; file table = data block 0 @0xC000, entry
+  flags 0x40 = contiguous). Data blocks interleave with hash tables
+  (group after every 170 data blocks), so payloads > 0xA9000 B are NOT one
+  slice. See nfssave/container360.py. The earlier "not STFS" claim and the
+  entry-field guesses below (hash/checksum) were wrong: +0x29 block count,
+  +0x2F start block (LE24), +0x38/+0x3C timestamps.
 - 0x0000 `CON ` + console serial/date ASCII + console cert (~0x1AC);
   0x01AC..0xC000 per-file metadata, PNG icons; 0xC000 entry table:
   filename NUL-padded, +0x28 hash, +0x2C block count, +0x30 flags
@@ -134,6 +140,12 @@ recomp.121/128/129 (magic lis 19779/ori 12338); collector sub_827BF770
 4. djb2 names for the four consecutive alias chunks 0x8B7D0AAD..B0
    (runtime-generated: same base name + consecutive suffix char; controller
    configs inferred; cosmetic only).
+
+## 2026-10-04 late: tail "damage" was a reader bug
+Everything below about damaged console tails / re-save twins is SUPERSEDED:
+the noise was STFS hash-table blocks read as payload. All careers parse
+9/9 with valid CRCs once the block map is honoured. Further findings
+(node flag words, u16 car part slots, open struct questions): docs/HANDOFF.md.
 
 ## 2026-10-04 final framing correction + IN-GAME VERIFICATION (convert.py rewrite)
 

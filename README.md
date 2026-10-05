@@ -23,16 +23,7 @@ load-menu under your profile name (e.g. `JOSHUA S 10`).
 
 ## Status
 
-Verified working in-game (October 2026): the `JOSHUA S 10` profile and its
-converted career load on PC with all progress intact — money, career day,
-repair markers, and cars.
-
-- All three careers and the profile are installed in the game's save
-  folder, ready to play.
-- Your console's CAREER_01 had two damaged parts (a console-side writing
-  bug); the converter fully recovers them from a re-saved copy of the same
-  session (auto-detected from the NFSPS360 folder).
-- CAREER_02/03 had the same damage with no matching re-save, so they
-  convert without their race-day/unlock parts — the game fills in defaults
-  for those. Re-saving each career once in the NFSPS360 recomp and
-  re-running the converter would complete them.
+October 2026: a reading bug that cut off the end of every console career
+(race progress and unlocks) is fixed, and cars now keep their installed
+parts. Waiting on an in-game check; the garage crash is still being
+investigated. See `docs/HANDOFF.md`.

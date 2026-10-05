@@ -93,6 +93,10 @@ class MC02:
 
     def to_bytes(self) -> bytes:
         tree = self.tree
+        if len(tree) > self.tree_size:
+            raise ValueError(
+                f"tree data ({len(tree):#x} B) exceeds declared buffer "
+                f"{self.tree_size:#x} - refusing to truncate")
         if len(tree) < self.tree_size:
             tree = tree + b"\0" * (self.tree_size - len(tree))
         return self.header_bytes() + self.extra + tree
