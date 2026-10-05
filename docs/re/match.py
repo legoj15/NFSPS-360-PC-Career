@@ -25,10 +25,11 @@ import walkpc
 
 RESEARCH = os.path.dirname(os.path.abspath(__file__))
 FIELDMAPS = os.path.join(RESEARCH, 'fieldmaps')
+REPO = os.path.dirname(os.path.dirname(RESEARCH))  # repo root
 os.makedirs(FIELDMAPS, exist_ok=True)
 
-P360_ALIAS = 'E:/GitHub/NFSPS-360-PC-Career/Extracted/Alias/ALIAS_JOSHUA S 10'
-P360_CAREER = 'E:/GitHub/NFSPS-360-PC-Career/Extracted/Career/CAREER_01'
+P360_ALIAS = os.path.join(REPO, 'Extracted', 'Alias', 'ALIAS_JOSHUA S 10')
+P360_CAREER = os.path.join(REPO, 'Extracted', 'Career', 'CAREER_01')
 PPC_ALIAS = 'E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - Place This in SAVE folder below/NFS Prostreet/ALIAS_PEIROKUNMANWSP/ALIAS_PEIROKUNMANWSP'
 PPC_CAREER = 'E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - Place This in SAVE folder below/NFS Prostreet/CAREER_01/CAREER_01'
 

@@ -11,7 +11,7 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "python"))
 
 from nfssave import MC02, read_container
 from nfssave.container360 import stfs_block_offset
@@ -22,7 +22,7 @@ FLASH = ROOT / "Extracted/Career"
 
 CAREERS = [
     ROOT / "Extracted/Career/CAREER_01",
-    ROOT / "research/pair/CAREER_02_360_fresh",
+    ROOT / "docs/re/pair/CAREER_02_360_fresh",
     FLASH / "CAREER_03",
 ]
 CAREER_TAIL = [0x885B4DDC, 0xD548266C, 0xCA269650]  # FECareer, CustomRaceDay, Unlock

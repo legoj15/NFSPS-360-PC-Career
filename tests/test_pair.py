@@ -12,15 +12,15 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "python"))
 
 from nfssave import MC02, read_container
 from nfssave.convert import ConversionReport, convert_payload
 from nfssave.tree import Tree
 
 ROOT = Path(__file__).parent.parent
-PAIR_360 = ROOT / "research/pair/CAREER_02_360_fresh"
-PAIR_PC = ROOT / "research/pair/CAREER_02_pc_native"
+PAIR_360 = ROOT / "docs/re/pair/CAREER_02_360_fresh"
+PAIR_PC = ROOT / "docs/re/pair/CAREER_02_pc_native"
 NODE_CHUNKS = [0x328C6431, 0xDC6B027F, 0xB67F6CC6, 0x51A41B14, 0x885B4DDC,
                0xD548266C, 0xCA269650]
 CARDB = 0x47A07113

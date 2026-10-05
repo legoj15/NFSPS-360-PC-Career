@@ -17,9 +17,9 @@ is scored against the evidence:
     car record informs all 80.
 Only words whose candidate outputs differ count as evidence; 360 bytes of
 0xAA (uninitialized fill) are wildcards. Words with no evidence default to
-the u32 swap. Output: nfssave/typemaps.json (run-length per chunk).
+the u32 swap. Output: scripts/python/nfssave/typemaps.json (run-length per chunk).
 
-Run: python research/typemap.py   (needs the sample saves listed below)
+Run: python docs/re/typemap.py   (needs the sample saves listed below)
 """
 
 import json
@@ -27,8 +27,8 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
+ROOT = Path(__file__).parent.parent.parent  # repo root
+sys.path.insert(0, str(ROOT / "scripts" / "python"))
 
 from nfssave.container360 import read_container
 from nfssave.mc02 import MC02
@@ -37,10 +37,10 @@ from nfssave.tree import Tree
 FLASH = "F:/Content/E00001CFFAB204C4/45410822/00000001/"
 PC100 = ("E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - "
          "Place This in SAVE folder below/NFS Prostreet/CAREER_01/CAREER_01")
-PAIR_360 = ROOT / "research/pair/CAREER_02_360_fresh"
-PAIR_PC = ROOT / "research/pair/CAREER_02_pc_native"
+PAIR_360 = ROOT / "docs/re/pair/CAREER_02_360_fresh"
+PAIR_PC = ROOT / "docs/re/pair/CAREER_02_pc_native"
 SAMPLES_360 = [PAIR_360, ROOT / "Extracted/Career/CAREER_01", Path(FLASH + "CAREER_03")]
-SAMPLES_PC = [PAIR_PC, Path(PC100), ROOT / "research/oracle/native_fresh_CAREER_01"]
+SAMPLES_PC = [PAIR_PC, Path(PC100), ROOT / "docs/re/oracle/native_fresh_CAREER_01"]
 
 # transform name -> source byte index for each output byte
 TRANSFORMS = {
@@ -195,7 +195,7 @@ def main() -> None:
         result[f"{cid:08X}"] = {"size": len(b[0]), "runs": runs(acts)}
         hist = Counter(acts)
         print(f"{cid:08X}: {dict(hist)}; {len(result[f'{cid:08X}']['runs'])} runs")
-    out = ROOT / "nfssave/typemaps.json"
+    out = ROOT / "scripts/python/nfssave/typemaps.json"
     out.write_text(json.dumps(result, separators=(",", ":")))
     print(f"wrote {out}")
 

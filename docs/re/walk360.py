@@ -212,10 +212,13 @@ def main(path, payload_off, label, outpath):
 
 
 if __name__ == '__main__':
-    main('E:/GitHub/NFSPS-360-PC-Career/Extracted/Alias/ALIAS_JOSHUA S 10',
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.dirname(os.path.dirname(here))  # repo root
+    main(os.path.join(root, 'Extracted', 'Alias', 'ALIAS_JOSHUA S 10'),
          0xD000, '360 ALIAS (JOSHUA S 10)',
-         'E:/GitHub/NFSPS-360-PC-Career/research/inventory_360_alias.txt')
+         os.path.join(here, 'inventory_360_alias.txt'))
     print()
-    main('E:/GitHub/NFSPS-360-PC-Career/Extracted/Career/CAREER_01',
+    main(os.path.join(root, 'Extracted', 'Career', 'CAREER_01'),
          0xD000, '360 CAREER (CAREER_01)',
-         'E:/GitHub/NFSPS-360-PC-Career/research/inventory_360_career.txt')
+         os.path.join(here, 'inventory_360_career.txt'))

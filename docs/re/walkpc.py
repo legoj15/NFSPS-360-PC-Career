@@ -140,10 +140,12 @@ def main(path, label, outpath):
 
 
 if __name__ == '__main__':
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
     main('E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - Place This in SAVE folder below/NFS Prostreet/ALIAS_PEIROKUNMANWSP/ALIAS_PEIROKUNMANWSP',
          'PC ALIAS (PEIROKUNMANWSP)',
-         'E:/GitHub/NFSPS-360-PC-Career/research/inventory_pc_alias.txt')
+         os.path.join(here, 'inventory_pc_alias.txt'))
     print()
     main('E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - Place This in SAVE folder below/NFS Prostreet/CAREER_01/CAREER_01',
          'PC CAREER (CAREER_01)',
-         'E:/GitHub/NFSPS-360-PC-Career/research/inventory_pc_career.txt')
+         os.path.join(here, 'inventory_pc_career.txt'))

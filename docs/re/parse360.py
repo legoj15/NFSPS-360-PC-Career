@@ -418,7 +418,8 @@ def dump_save(sf, out):
     return tiled_records, sf.count
 
 def main():
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    here = os.path.dirname(os.path.abspath(__file__))
+    base = os.path.dirname(os.path.dirname(here))  # repo root
     targets = [
         os.path.join(base, 'Extracted', 'Career', 'CAREER_01'),
         os.path.join(base, 'Extracted', 'Alias', 'ALIAS_JOSHUA S 10'),
@@ -428,7 +429,7 @@ def main():
                   'E:/GitHub/NFSPS360/user_data/B13EBABEBABEBABE/45410822/00000001/ALIAS_JOSHUA S 10/ALIAS_JOSHUA S 10'):
         if os.path.exists(extra):
             targets.append(extra)
-    out_path = os.path.join(base, 'research', 'inventory_360.txt')
+    out_path = os.path.join(here, 'inventory_360.txt')
     with open(out_path, 'w', encoding='utf-8') as out:
         for t in targets:
             sf = SaveFile(t)

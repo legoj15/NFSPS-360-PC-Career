@@ -6,15 +6,15 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "python"))
 
 from nfssave import MC02, read_container
 from nfssave.convert import ConversionReport, convert_payload
 from nfssave.tree import Tree
 
 ROOT = Path(__file__).parent.parent
-R360 = ROOT / "research/pair_raceday/CAREER_02_360"
-RPC = ROOT / "research/pair_raceday/CAREER_02_pc_native"
+R360 = ROOT / "docs/re/pair_raceday/CAREER_02_360"
+RPC = ROOT / "docs/re/pair_raceday/CAREER_02_pc_native"
 GAMEPLAY = 0x3B309E09
 
 
@@ -64,7 +64,7 @@ class BlueprintSetTests(unittest.TestCase):
 class BlockEndTests(unittest.TestCase):
     def test_block_end_detection(self):
         from nfssave.convert import raceday_block_end
-        cases = [(R360, 0x3E70), (ROOT / "research/c1_latest/CAREER_01_360", 0xB5B0)]
+        cases = [(R360, 0x3E70), (ROOT / "docs/re/c1_latest/CAREER_01_360", 0xB5B0)]
         for src, want in cases:
             if not src.is_file():
                 continue
@@ -81,7 +81,7 @@ class GameplayHashTests(unittest.TestCase):
 
     def test_converted_blob_md5(self):
         import hashlib
-        for src in (R360, ROOT / "research/c1_latest/CAREER_01_360"):
+        for src in (R360, ROOT / "docs/re/c1_latest/CAREER_01_360"):
             if not src.is_file():
                 continue
             with self.subTest(source=src.name):

@@ -55,7 +55,7 @@ name->id hash question is CLOSED).
 ```
 tree+0x000 16B hash of tree[0x10:tree_size] (128-bit fn nfs.exe 0x6D9CE0;
          PC VERIFIES it on load at 0x5AABD0 — recomputation required;
-         algorithm being reversed, see research/tree_hash.py)
+         algorithm being reversed, see tree_hash.py)
 tree+0x010 u32 count (informational: top-level savables on PC; on 360
          counts nested helpers too)
 tree+0x014 .. root record: allocator garbage (never read on load) on PC
@@ -104,7 +104,7 @@ post region: directory/hash table (360 alias: 475 cells [h1][h2][FFFFFFFF][0]);
 
 ## Conversion approach (nfssave/convert.py)
 - Container -> MC02 parse -> tree parse -> per-chunk payload conversion:
-  fieldmap rules (research/fieldmaps, positionally valid for these exact
+  fieldmap rules (fieldmaps, positionally valid for these exact
   source files; 156,454/156,454 verifiable slots byte-exact vs PC reference)
   or auto mode (u32 value-preserving swap + string/subword natural ranges).
 - PC tree assembly: zeroed head struct (loader never reads it), records,
@@ -134,7 +134,7 @@ recomp.121/128/129 (magic lis 19779/ori 12338); collector sub_827BF770
 
 ## Open items
 1. 16-byte tree hash algorithm (fn 0x6D9CE0) + reject-vs-log on load
-   (agent task; research/tree_hash.py when done).
+   (agent task; tree_hash.py when done).
 2. 360-side loader confirmations (agent A pending).
 3. Absent-chunk tolerance at PC load (PC-only chunks missing) — agent B.
 4. djb2 names for the four consecutive alias chunks 0x8B7D0AAD..B0
@@ -145,7 +145,7 @@ recomp.121/128/129 (magic lis 19779/ori 12338); collector sub_827BF770
 Everything below about damaged console tails / re-save twins is SUPERSEDED:
 the noise was STFS hash-table blocks read as payload. All careers parse
 9/9 with valid CRCs once the block map is honoured. Further findings
-(node flag words, u16 car part slots, open struct questions): docs/HANDOFF.md.
+(node flag words, u16 car part slots, open struct questions): ../HANDOFF.md.
 
 ## 2026-10-04 final framing correction + IN-GAME VERIFICATION (convert.py rewrite)
 
@@ -193,4 +193,4 @@ VERIFIED IN-GAME 2026-10-04: converted JOSHUA S 10 alias + CAREER_01
 load on PC — CAREER HUB day 7, $1,345,600, 4 repair markers, correct
 race-day menu. Game exit save wrote no file changes (no dirty state), so
 no native re-save oracle was produced; fresh-native references archived
-at research/oracle/ instead.
+at oracle/ instead.

@@ -13,13 +13,13 @@ import unittest
 from pathlib import Path
 
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "python"))
 
 from nfssave import MC02, read_container
 from nfssave.convert import ConversionReport, convert_payload, write_pc_save
 
 ROOT = Path(__file__).parent.parent
-PAIR_360 = ROOT / "research/pair/CAREER_02_360_fresh"
+PAIR_360 = ROOT / "docs/re/pair/CAREER_02_360_fresh"
 
 # (source path, golden md5)
 CASES = [
@@ -27,8 +27,8 @@ CASES = [
     (PAIR_360, "8dd15c6cb5736cf14aa2694289d8480d"),
     (ROOT / "Extracted/Career/CAREER_03", "0dcfed80eab3dfcc246499b07ae54c37"),
     (ROOT / "Extracted/Alias/ALIAS_JOSHUA S 10", "578a10cb583785bb6cb00fa64bc69439"),
-    (ROOT / "research/c1_latest/CAREER_01_360", "718b6b6b8494decde59eb6b1defcc01d"),
-    (ROOT / "research/pair_raceday/CAREER_02_360", "2bb7d00963509e71d6eaeccbed496b65"),
+    (ROOT / "docs/re/c1_latest/CAREER_01_360", "718b6b6b8494decde59eb6b1defcc01d"),
+    (ROOT / "docs/re/pair_raceday/CAREER_02_360", "2bb7d00963509e71d6eaeccbed496b65"),
 ]
 
 

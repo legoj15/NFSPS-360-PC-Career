@@ -1,4 +1,4 @@
-import struct, sys
+import os, struct, sys
 
 def load(p):
     d = open(p,'rb').read()
@@ -10,11 +10,12 @@ def load(p):
     eb = d[0x18:0x18+extra]
     return d, eb, tb
 
+here = os.path.dirname(os.path.abspath(__file__))
 base = "E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - Place This in SAVE folder below/NFS Prostreet/"
 for name in ["ALIAS_PEIROKUNMANWSP/ALIAS_PEIROKUNMANWSP", "CAREER_01/CAREER_01"]:
     d, eb, tb = load(base + name)
-    open("E:/GitHub/NFSPS-360-PC-Career/research/tree_" + ("alias" if "ALIAS" in name else "career") + ".bin","wb").write(tb)
-    open("E:/GitHub/NFSPS-360-PC-Career/research/extra_" + ("alias" if "ALIAS" in name else "career") + ".bin","wb").write(eb)
+    open(os.path.join(here, "tree_") + ("alias" if "ALIAS" in name else "career") + ".bin","wb").write(tb)
+    open(os.path.join(here, "extra_") + ("alias" if "ALIAS" in name else "career") + ".bin","wb").write(eb)
     print("  extra[:64]:", eb[:64].hex())
     print("  tree[:0x80]:", tb[:0x80].hex())
     # dump words of first 0x100 bytes

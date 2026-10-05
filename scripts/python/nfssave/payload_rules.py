@@ -4,9 +4,10 @@ All record and nested-record sizes are multiples of 4, so payloads are u32-
 tiled end to end and headers convert with the same pass as data.
 
 Rule sources, in priority order:
-  1. Fieldmap slot rules (research/fieldmaps_parsed.json) — derived from the
-     matched 360/PC sample pair; positionally valid only where the payload
-     layout is rigid. Class semantics (from research/match.py):
+  1. Fieldmap slot rules (fieldmaps_parsed.json, packaged next to this
+     module) — derived from the matched 360/PC sample pair; positionally
+     valid only where the payload layout is rigid. Class semantics (from
+     docs/re/match.py in the repo):
        NUM  wpc == swap(w360)  -> swap
        SAME wpc == w360 (raw)  -> copy bytes
        STR  printable both     -> copy bytes
@@ -21,16 +22,16 @@ Rule sources, in priority order:
      sub-word fields natural. String regions are quantized to the u32 grid
      so no word ends up half-swapped/half-natural.
 
-The JSON is regenerated from research/fieldmaps/*.txt by `regenerate_rules()`
-when the source files are newer than the JSON.
+The JSON is regenerated from the fieldmap sources (docs/re/fieldmaps/*.txt)
+by `regenerate_rules(fieldmaps_dir)`; regeneration is explicit, never done
+at import time.
 """
 
 import json
 import re
 from pathlib import Path
 
-RESEARCH = Path(__file__).parent.parent / "research"
-RULES_PATH = RESEARCH / "fieldmaps_parsed.json"
+RULES_PATH = Path(__file__).parent / "fieldmaps_parsed.json"
 COPY_CLASSES = ("STR", "STR360", "SAME")
 
 _SLOT_RE = re.compile(
@@ -41,10 +42,10 @@ _RUN_RE = re.compile(
 _NAME_RE = re.compile(r"^(alias|career)_(?:.*?)([0-9A-Fa-f]{8})(?:_big)?$")
 
 
-def regenerate_rules() -> dict:
-    """Parse research/fieldmaps/*.txt into fieldmaps_parsed.json."""
+def regenerate_rules(fieldmaps_dir: Path) -> dict:
+    """Parse <fieldmaps_dir>/*.txt into the packaged fieldmaps_parsed.json."""
     rules: dict = {"alias": {}, "career": {}}
-    for f in sorted((RESEARCH / "fieldmaps").glob("*.txt")):
+    for f in sorted(fieldmaps_dir.glob("*.txt")):
         m = _NAME_RE.search(f.stem)
         if not m:
             continue
@@ -74,26 +75,17 @@ def regenerate_rules() -> dict:
 
 
 def _load_rules() -> tuple[dict, bool]:
-    if not (RESEARCH / "fieldmaps").is_dir():
+    if not RULES_PATH.exists():
         return {"alias": {}, "career": {}}, False
-    txts = list((RESEARCH / "fieldmaps").glob("*.txt"))
-    if RULES_PATH.exists():
-        try:
-            data = json.loads(RULES_PATH.read_text())
-            if "alias" in data and "career" in data:
-                newest = max(f.stat().st_mtime for f in txts) if txts else 0
-                if RULES_PATH.stat().st_mtime >= newest:
-                    out = {}
-                    for kind in ("alias", "career"):
-                        out[kind] = {}
-                        for cid, v in data[kind].items():
-                            v["acts"] = {int(o): cls for o, cls in v["acts"].items()}
-                            out[kind][int(cid)] = v
-                    return out, True
-        except Exception:
-            pass
     try:
-        return regenerate_rules(), True
+        data = json.loads(RULES_PATH.read_text())
+        out = {}
+        for kind in ("alias", "career"):
+            out[kind] = {}
+            for cid, v in data[kind].items():
+                v["acts"] = {int(o): cls for o, cls in v["acts"].items()}
+                out[kind][int(cid)] = v
+        return out, True
     except Exception:
         return {"alias": {}, "career": {}}, False
 

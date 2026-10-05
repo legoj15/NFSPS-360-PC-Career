@@ -199,9 +199,11 @@ def inventory(path, exe_path, out):
     return stats, root, tops
 
 if __name__ == '__main__':
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
     base = "E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - Place This in SAVE folder below/NFS Prostreet/"
     exe = "E:/legoj/Documents/Need for Speed ProStreet/nfs.exe"
-    out_path = "E:/GitHub/NFSPS-360-PC-Career/research/inventory_pc.txt"
+    out_path = os.path.join(here, 'inventory_pc.txt')
     with open(out_path, 'w', encoding='utf-8') as out:
         for name in ("ALIAS_PEIROKUNMANWSP/ALIAS_PEIROKUNMANWSP",
                      "CAREER_01/CAREER_01"):

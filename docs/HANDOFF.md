@@ -4,7 +4,7 @@
 VERIFIED IN-GAME: CAREER_01/02/03 resume at their saved point (incl. race
 days in progress); garage loads all 10 CAREER_01 cars incl. DLC Veyrons with
 heavy decals; CAREER_03 Camaro fixed. Tests: `python -m pytest -q tests`.
-Fix chain (all in nfssave/convert.py unless noted): STFS block map
+Fix chain (all in scripts/python/nfssave/convert.py unless noted): STFS block map
 (container360.py); node flag words; car-table slot bytes; u16 part slots in
 3 blueprint sets; packed-table 'none' links; paint/decal/vinyl/colour layout
 per set; GameplayData plain u32 + race-day block (variable length, 360 pad
@@ -15,7 +15,7 @@ Remaining (none blocking):
    per-car 0x40 entries at 0x7C980 (byte0 00 vs ff on PC).
 2. Debt: twin code path (validate_twin, Tree._reafter_gap, load_twin,
    --twin); positional node-chunk fieldmaps (superseded by node grammar +
-   flag fix); unused nfssave/typemaps.json + research/typemap.py; duplicate
+   flag fix); unused scripts/python/nfssave/typemaps.json + re/typemap.py; duplicate
    sample copies; stale out/; tree head/post not 0xAA like native (ignored
    by the loader).
 3. Opencode third-party review not run (waived by the user this session).
@@ -29,9 +29,9 @@ Delegation log: no agents spawned this session (all orchestrator work).
 ## State
 - Tests: `python -m pytest -q tests` -> all green (container, pair, golden pins).
 - Installed in the PC save folder (backup of the previous folder:
-  `research/backups/save_20261004_2050/`): new CAREER_01 and CAREER_03.
+  `re/backups/save_20261004_2050/`): new CAREER_01 and CAREER_03.
   CAREER_02 there is still the user's NATIVE PC fresh career (the pair
-  oracle; also archived at research/pair/CAREER_02_pc_native). Alias untouched.
+  oracle; also archived at re/pair/CAREER_02_pc_native). Alias untouched.
 - NOT yet verified in-game. First action next session: ask the user how
   CAREER_01 loads (starting level? starter/blueprint car? garage crash?).
 
@@ -42,7 +42,7 @@ Delegation log: no agents spawned this session (all orchestrator work).
    hash-table group at 0xB6000. Reading the payload as one slice pulled
    hash tables into the save: FECareer from +0x980 on, plus
    CustomRaceDayMemcard and UnlockSystem, were garbage/missing in every
-   career. Fixed in nfssave/container360.py (block map,
+   career. Fixed in scripts/python/nfssave/container360.py (block map,
    `stfs_block_offset`). All 3 careers now parse 9/9 chunks with valid
    CRCs. The NFSPS360 re-save "twin" is no longer needed (auto-detect
    removed; `--twin` kept as a manual last resort — candidate for deletion).
@@ -66,9 +66,9 @@ Delegation log: no agents spawned this session (all orchestrator work).
    packed table at 0x7D000..end (bitfields; 360 empty = 2aaafffe ffff2aaa,
    PC empty = feffff3f fffffeff; PC fresh has entries the 360 fresh lacks —
    may be a platform-built cache). Garage crash likely lives here.
-   research/typemap.py is a first-cut automatic inference tool; its pooled
+   re/typemap.py is a first-cut automatic inference tool; its pooled
    distribution scoring is NOT reliable for small-vocabulary u16 data
-   (see its notes) — do not ship nfssave/typemaps.json until it is fixed
+   (see its notes) — do not ship scripts/python/nfssave/typemaps.json until it is fixed
    (it is currently unused by the converter).
 3. GameplayData raw blob: pair shows only content diffs, but the 100%
    career fills areas that are empty in the fresh pair; needs the same
@@ -81,15 +81,15 @@ Delegation log: no agents spawned this session (all orchestrator work).
 6. Cleanup debt: twin code path (convert.validate_twin, Tree._reafter_gap,
    load_twin), positional fieldmaps for node chunks (superseded by the
    node grammar), duplicate sample copies (Extracted/Career/CAREER_02_pair
-   == research/pair/CAREER_02_360_fresh; research/oracle/native_fresh_CAREER_02_pc
-   == research/pair/CAREER_02_pc_native).
+   == re/pair/CAREER_02_360_fresh; re/oracle/native_fresh_CAREER_02_pc
+   == re/pair/CAREER_02_pc_native).
 
 ## Delegation log
 - (none this session — all analysis done by the orchestrator; no agents spawned)
 
 ## Round 3 notes (21:20) — PC install environment
 - The game allows 3 careers per alias: the CAREER_04 diagnostic triggered a
-  warning on every screen; moved to research/backups/diag_CAREER_04/.
+  warning on every screen; moved to re/backups/diag_CAREER_04/.
 - The PC install is a ChemicalFlood repack, not a clean v1.1: mods =
   FusionFix (FramerateUncap=1, SimRate=-1 = monitor refresh), NFS_XtendedInput
   (input remap), d3d9-wrapper (FPSLimit=60), Ultimate ASI loader (dinput8.dll).
@@ -121,7 +121,7 @@ Delegation log: no agents spawned this session (all orchestrator work).
   not JOSHUA S 10).
 
 ## Round 5 (21:30) — mid-race-day pair
-- New oracle: research/pair_raceday/ (CAREER_02 at the "Battle Machine"
+- New oracle: re/pair_raceday/ (CAREER_02 at the "Battle Machine"
   race day in Nevada, saved on both platforms).
 - GameplayData is NOT a fixed struct: while a race day is in progress
   (u32 at PC 0x2D4 == 1) a race-day block occupies 0x2E0..0x3E70 and the
@@ -130,7 +130,7 @@ Delegation log: no agents spawned this session (all orchestrator work).
   and the name string at 0x300 kept natural. Physics floats differ only in
   noise bits. tests/test_raceday.py.
 - Installed: converted raceday 360 save as SAVE/.../CAREER_02 (native PC
-  copy archived byte-exact at research/pair_raceday/CAREER_02_pc_native —
+  copy archived byte-exact at re/pair_raceday/CAREER_02_pc_native —
   copy it back to restore). User to test: does CAREER_02 resume the Battle
   Machine race day like native did?
 - IMPORTANT: the user's 360 CAREER_01 has NO active race-day block
@@ -153,5 +153,5 @@ Delegation log: no agents spawned this session (all orchestrator work).
   uses the same rules unverified.
 - GameplayData now plain u32 swap (+fixes); the positional fresh-pair map
   for it is no longer used.
-- Installed: CAREER_01 = latest 360 copy (research/c1_latest), CAREER_02 =
+- Installed: CAREER_01 = latest 360 copy (re/c1_latest), CAREER_02 =
   converted raceday, CAREER_03. Awaiting in-game test.

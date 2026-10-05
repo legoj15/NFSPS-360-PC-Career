@@ -4,7 +4,7 @@ Turns Xbox 360 Need for Speed ProStreet career saves into PC saves.
 
 ## How to use
 
-    python convert.py "<path to a 360 save file>"
+    python scripts/python/convert.py "<path to a 360 save file>"
 
 Converted saves land in the game's save folder
 (`Documents\Need for Speed ProStreet\SAVE\NFS ProStreet`) — or pass
@@ -27,3 +27,10 @@ Verified in-game (October 2026): converted careers resume exactly where
 they were saved on the console (including a race day in progress), and
 every car loads in the garage with its blueprints, paint, decals and
 vinyls - including heavily decorated DLC cars.
+
+## Repository layout
+
+- `scripts/` — the converter, one folder per language (Python works today;
+  quickBMS and PowerShell versions are planned).
+- `docs/` — research notes and findings behind the converter.
+- `src/` — future native PC program.
