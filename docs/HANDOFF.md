@@ -1,3 +1,29 @@
+# Handoff — NFSPS 360 -> PC converter (updated 2026-10-04, late night)
+
+## CURRENT STATE (read first)
+VERIFIED IN-GAME: CAREER_01/02/03 resume at their saved point (incl. race
+days in progress); garage loads all 10 CAREER_01 cars incl. DLC Veyrons with
+heavy decals; CAREER_03 Camaro fixed. Tests: `python -m pytest -q tests`.
+Fix chain (all in nfssave/convert.py unless noted): STFS block map
+(container360.py); node flag words; car-table slot bytes; u16 part slots in
+3 blueprint sets; packed-table 'none' links; paint/decal/vinyl/colour layout
+per set; GameplayData plain u32 + race-day block (variable length, 360 pad
+at 0x314, record headers u16 pairs) + MD5 recompute.
+Remaining (none blocking):
+1. Unverified-but-harmless: per-set ints +0x224..0x240, set words
+   +0x448/+0x568, float block +0x738.., record tail +0x171C..0x1870,
+   per-car 0x40 entries at 0x7C980 (byte0 00 vs ff on PC).
+2. Debt: twin code path (validate_twin, Tree._reafter_gap, load_twin,
+   --twin); positional node-chunk fieldmaps (superseded by node grammar +
+   flag fix); unused nfssave/typemaps.json + research/typemap.py; duplicate
+   sample copies; stale out/; tree head/post not 0xAA like native (ignored
+   by the loader).
+3. Opencode third-party review not run (waived by the user this session).
+Delegation log: no agents spawned this session (all orchestrator work).
+
+---
+# History (rounds, oldest first)
+
 # Handoff â€” 2026-10-04 21:00 EDT (Opus session, picked up from ZCode/GLM)
 
 ## State
