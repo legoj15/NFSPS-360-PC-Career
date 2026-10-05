@@ -112,3 +112,20 @@
   state is not in GameplayData's block; this fix does not change CAREER_01.
   Next: once CAREER_02 is confirmed, diff the remaining chunks of CAREER_01
   vs the resume behaviour (FECareer/RaceData/alias-side state).
+
+## Round 6 (late night) — GameplayData MD5 = the "new career" cause
+- User: converted CAREER_02 (raceday) started a NEW career (intro movie).
+- Root cause: GameplayData blob (PC payload 0x14, 0x10000 B) is
+  [MD5(blob[16:])][rest]; loader 0x59E550 -> deserializer [0xAB9D88]
+  vtbl+0x70 rejects a stale hash -> defaults. Every converted file carried
+  the 360's MD5. Fixed (rehash_gameplay). Extra-blob word0 is a vtable
+  pointer (0x974BB8 career / 0x974BAC alias) the loader ignores.
+- Race-day block is variable length (CAREER_02 0x3B90 B state 1, latest
+  CAREER_01 0xB2D0 B state 3); end found via the following [0][0x11] list.
+  Block records: [u32 kind 0x000?1x10][u16][u16] + float matrices.
+  Only the CAREER_02 layout is oracle-verified; CAREER_01's longer block
+  uses the same rules unverified.
+- GameplayData now plain u32 swap (+fixes); the positional fresh-pair map
+  for it is no longer used.
+- Installed: CAREER_01 = latest 360 copy (research/c1_latest), CAREER_02 =
+  converted raceday, CAREER_03. Awaiting in-game test.
