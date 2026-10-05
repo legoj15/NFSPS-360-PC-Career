@@ -6,6 +6,11 @@ v1.1-era build), the 360 static recomp (E:/GitHub/NFSPS360, TU 11.0.2.0),
 and empirical cross-analysis of 4 sample saves. Supersedes the earlier
 empirical-only notes (kept in git-less history below where relevant).
 
+Probe scripts in this folder assume the author's machine: game install at
+E:/legoj/Documents/..., 360 dumps under Extracted/ (gitignored), and a
+360-formatted flash drive at F:. They are research records, not portable
+tools.
+
 ## Xbox 360 side
 
 ### Console container (`CON ` files in `Content/<profile>/<title>/00000001/`)

@@ -17,7 +17,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts" / "python"))
 
 from nfssave.mc02 import MC02
 from nfssave.tree import Tree, Record

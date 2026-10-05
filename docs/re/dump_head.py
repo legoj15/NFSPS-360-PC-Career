@@ -1,4 +1,4 @@
-import os, struct, sys
+import os, struct
 
 def load(p):
     d = open(p,'rb').read()

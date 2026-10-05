@@ -1114,8 +1114,8 @@ FILE: E:/legoj/Documents/Need for Speed ProStreet/100% Gamesave (OPTIONAL) - Pla
 TREE HASH (16 bytes at tree[0x00]) - full specification (follow-up analysis)
 ================================================================================
 Algorithm (fn VA 0x6D9CE0, verified byte-exact against BOTH sample saves,
-reimplemented in research/tree_hash.py; cross-validated with a Unicorn
-emulation of the original code in research/emu_hash.py):
+reimplemented in docs/re/tree_hash.py; cross-validated with a Unicorn
+emulation of the original code in docs/re/emu_hash.py):
 
   1. d1 = MD5(tree[0x10 : tree_size])          <- plain, standard MD5
   2. d2 = MD5(d1); d3 = MD5(d2); d4 = MD5(d3)  <- 16 raw digest bytes chained
