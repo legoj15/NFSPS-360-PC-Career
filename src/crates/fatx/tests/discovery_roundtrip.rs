@@ -1,0 +1,192 @@
+//! End-to-end discovery round trip on a fully synthetic USB image built
+//! from the real tracked oracle bytes (feature test-util).
+
+#![cfg(feature = "test-util")]
+
+use std::io::{Cursor, Seek};
+
+use fatx::discovery::{discover_prostreet_saves, discover_prostreet_saves_with};
+use fatx::partition::XboxDriveImage;
+use fatx::stfs::TITLE_ID_NFS_PROSTREET;
+use fatx::test_util::{content_save_path, FatxImageBuilder};
+
+const PROFILE_A: &str = "E0001A2B3C4D5E6F";
+const PROFILE_B: &str = "E0000FEEDFACEC0D";
+const PROFILE_C: &str = "FF00112233445566";
+const TITLE: &str = "45410822";
+const OTHER_TITLE_DIR: &str = "4D530926"; // some other game's title folder
+
+fn save(profile: &str, save_type: &str, file: &str) -> String {
+    content_save_path(profile, TITLE, save_type, file)
+}
+
+/// The full scenario image: multiple profiles and save types, a 42-char
+/// name, a fragmented chain, a foreign-title save caught by its name,
+/// a foreign-title save that must be dropped, and a deleted save.
+fn scenario() -> (fatx::test_util::SyntheticUsbImage, Vec<String>) {
+    let career = fatx::test_util::oracle_career_latest();
+    let career_fresh = fatx::test_util::oracle_career_fresh();
+    let other_title = fatx::test_util::with_title_id(
+        fatx::test_util::oracle_career_latest(),
+        [0x4D, 0x53, 0x09, 0x26],
+    );
+    let long_name = format!("CAREER_{}", "L".repeat(35));
+    assert_eq!(long_name.len(), 42);
+
+    let builder = FatxImageBuilder::new()
+        .cluster_size(0x1000)
+        .fragment_stride(3)
+        // Profile A: the canonical latest save plus a long-name variant.
+        .file(save(PROFILE_A, "00000001", "CAREER_01_360"), career.clone())
+        .file(save(PROFILE_A, "00000001", &long_name), career.clone())
+        // Profile B: second oracle save and an ALIAS save under 00000002.
+        .file(save(PROFILE_B, "00000001", "CAREER_02_360"), career_fresh.clone())
+        .file(save(PROFILE_B, "00000002", "ALIAS_01_360"), career.clone())
+        // Foreign title, but the file name forces inclusion.
+        .file(
+            content_save_path(PROFILE_A, OTHER_TITLE_DIR, "00000001", "CAREER_OTHER"),
+            other_title.clone(),
+        )
+        // Foreign title and foreign name: must be dropped.
+        .file(
+            content_save_path(PROFILE_C, OTHER_TITLE_DIR, "00000001", "SETTINGS_DAT"),
+            other_title.clone(),
+        )
+        // Deleted ProStreet save: on disk but must not be discovered.
+        .deleted_file(save(PROFILE_C, "00000001", "CAREER_DELETED"), career);
+
+    let expected = vec![
+        save(PROFILE_A, "00000001", "CAREER_01_360"),
+        save(PROFILE_A, "00000001", &long_name),
+        content_save_path(PROFILE_A, OTHER_TITLE_DIR, "00000001", "CAREER_OTHER"),
+        save(PROFILE_B, "00000001", "CAREER_02_360"),
+        save(PROFILE_B, "00000002", "ALIAS_01_360"),
+    ];
+
+    (builder.build_usb_image(), expected)
+}
+
+fn scan(usb: &fatx::test_util::SyntheticUsbImage) -> Vec<fatx::DiscoveredSave> {
+    let mut cur = Cursor::new(usb.image.clone());
+    let drive = XboxDriveImage::probe(&mut cur, usb.image.len() as u64)
+        .expect("synthetic image must probe");
+    let mut vol = fatx::FatxVolume::open(
+        &mut cur,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .expect("synthetic volume must mount");
+    discover_prostreet_saves(&mut vol).expect("discovery must succeed")
+}
+
+#[test]
+fn discovery_finds_exactly_the_embedded_saves() {
+    let (usb, expected) = scenario();
+    let found = scan(&usb);
+
+    let mut paths: Vec<&str> = found.iter().map(|s| s.source_path.as_str()).collect();
+    paths.sort();
+    let mut want: Vec<&str> = expected.iter().map(|s| s.as_str()).collect();
+    want.sort();
+    assert_eq!(paths, want, "discovered set must match the embedded set exactly");
+}
+
+#[test]
+fn discovered_bytes_match_oracles_byte_for_byte() {
+    let (usb, _) = scenario();
+    let found = scan(&usb);
+    let career = fatx::test_util::oracle_career_latest();
+    let fresh = fatx::test_util::oracle_career_fresh();
+
+    for s in &found {
+        let name = s.source_path.rsplit('/').next().unwrap();
+        let expected: Vec<u8> = if name == "CAREER_02_360" {
+            fresh.clone()
+        } else if name == "CAREER_OTHER" {
+            // The foreign-title save is the career oracle with the title ID
+            // swapped; only that 4-byte field differs.
+            fatx::test_util::with_title_id(career.clone(), [0x4D, 0x53, 0x09, 0x26])
+        } else {
+            career.clone()
+        };
+        assert_eq!(s.bytes, expected, "byte-for-byte mismatch for {}", s.source_path);
+        assert_eq!(s.bytes.len(), 823_296, "oracle size for {}", s.source_path);
+    }
+}
+
+#[test]
+fn friendly_names_come_from_con_header() {
+    let (usb, _) = scenario();
+    let found = scan(&usb);
+    assert!(!found.is_empty());
+    for s in &found {
+        // Every discovered file here is built from real CON bytes, so the
+        // friendly name is the STFS display name, not the file name.
+        assert_eq!(s.friendly_name, "NFS ProStreet", "for {}", s.source_path);
+    }
+}
+
+#[test]
+fn deleted_and_foreign_saves_are_not_discovered() {
+    let (usb, _) = scenario();
+    let found = scan(&usb);
+    for s in &found {
+        assert!(!s.source_path.contains("CAREER_DELETED"), "deleted save leaked");
+        assert!(!s.source_path.contains("SETTINGS_DAT"), "foreign save leaked");
+    }
+}
+
+#[test]
+fn round_trip_via_tempfile_backed_file() {
+    let (usb, _) = scenario();
+    let mut tmp = tempfile::tempfile().unwrap();
+    std::io::Write::write_all(&mut tmp, &usb.image).unwrap();
+    tmp.seek(std::io::SeekFrom::Start(0)).unwrap();
+
+    let drive = XboxDriveImage::probe(&mut tmp, usb.image.len() as u64).unwrap();
+    let mut vol = fatx::FatxVolume::open(
+        &mut tmp,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .unwrap();
+    let found = discover_prostreet_saves(&mut vol).unwrap();
+    assert_eq!(found.len(), 5, "same result through a file-backed source");
+}
+
+#[test]
+fn extra_title_ids_extend_the_filter() {
+    // SETTINGS_DAT has title 4D530926; passing it as an extra id admits it.
+    let (usb, _) = scenario();
+    let mut cur = Cursor::new(usb.image.clone());
+    let drive = XboxDriveImage::probe(&mut cur, usb.image.len() as u64).unwrap();
+    let mut vol = fatx::FatxVolume::open(
+        &mut cur,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .unwrap();
+    let found =
+        discover_prostreet_saves_with(&mut vol, &[[0x4D, 0x53, 0x09, 0x26]]).unwrap();
+    assert_eq!(found.len(), 6);
+    assert!(found.iter().any(|s| s.source_path.contains("SETTINGS_DAT")));
+}
+
+#[test]
+fn empty_content_partition_is_not_an_error() {
+    let usb = FatxImageBuilder::new().build_usb_image(); // no files at all
+    let mut cur = Cursor::new(usb.image.clone());
+    let drive = XboxDriveImage::probe(&mut cur, usb.image.len() as u64).unwrap();
+    let mut vol = fatx::FatxVolume::open(
+        &mut cur,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .unwrap();
+    assert_eq!(discover_prostreet_saves(&mut vol).unwrap(), Vec::new());
+}
+
+#[test]
+fn title_id_constant_is_prostreet_45410822() {
+    assert_eq!(TITLE_ID_NFS_PROSTREET, [0x45, 0x41, 0x08, 0x22]);
+}

@@ -3,7 +3,16 @@ name = "fatx"
 version.workspace = true
 edition.workspace = true
 
+[features]
+# Synthesizes full Xbox-360 USB/FATX images (partition table + volume) for
+# hardware-free round-trip tests. Also exposes helpers that read the tracked
+# oracle saves under docs/re/.
+test-util = []
+
 [dependencies]
 log = "0.4.34"
 thiserror = "2.0.21"
-windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO"] }
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO"] }
+
+[dev-dependencies]
+tempfile = "3"
