@@ -24,9 +24,9 @@ PAIR_360 = ROOT / "research/pair/CAREER_02_360_fresh"
 
 # (source path, golden md5)
 CASES = [
-    (ROOT / "Extracted/Career/CAREER_01", "dc5273ff6b1903387d2be32a28236c4e"),
-    (PAIR_360, "482da15f9e645a8b0cd28a9490d3eca4"),
-    (FLASH / "CAREER_03", "c106c6c6e396c953efbe20798f48d37b"),
+    (ROOT / "Extracted/Career/CAREER_01", "0b9e036819e5c20194109c6b4a2cf2f7"),
+    (PAIR_360, "5e773fee5ef0d0f5363b0570a5e0bb10"),
+    (FLASH / "CAREER_03", "b8f586ff3ba88931279eb5f83925d620"),
     (ROOT / "Extracted/Alias/ALIAS_JOSHUA S 10", "578a10cb583785bb6cb00fa64bc69439"),
 ]
 

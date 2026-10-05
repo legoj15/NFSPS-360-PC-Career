@@ -53,6 +53,21 @@ class PairTests(unittest.TestCase):
                             bad.append(hex(o))
                 self.assertEqual(bad[:10], [], f"{len(bad)} flag bytes misplaced")
 
+    def test_car_table_slot_bytes(self):
+        """Car-table entries end in [u8][u8][u8][pad] (garage slot/index);
+        owned-car entries must keep them natural."""
+        a, b = self.conv[CARDB], self.native[CARDB]
+        for k in (114, 150, 190):  # catalog entries identical on both platforms
+            o = 0x14 + 24 * k + 20
+            self.assertEqual(a[o:o + 3].hex(), b[o:o + 3].hex(), f"entry {k}")
+
+    def test_all_blueprint_part_sets(self):
+        """Each car record holds three customization sets 0x7B4 apart."""
+        a, b = self.conv[CARDB], self.native[CARDB]
+        for setoff in (0x7B4, 0xF68):
+            s, e = 0x2680 + setoff + 0x3C, 0x2680 + setoff + 0x186
+            self.assertEqual(a[s:e].hex(), b[s:e].hex(), f"set +{setoff:#x}")
+
     def test_starter_car_parts(self):
         s, e = CAR0_PARTS
         self.assertEqual(self.conv[CARDB][s:e].hex(), self.native[CARDB][s:e].hex())

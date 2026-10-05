@@ -147,6 +147,9 @@ CARDB_ID = 0x47A07113
 CARDB_RECORDS = (0x2680, 0x1870, 80)     # PC payload offset, stride, count
 CARDB_PART_SLOTS = (0x3C, 0x186)         # u16 installed-part arrays per car
 CARDB_PART_FLAGS = (0x186, 0x190)        # u8 fields right after the array
+CARDB_BLUEPRINT_SETS = (0x0, 0x7B4, 0xF68)  # 3 customization sets per car
+CARDB_TABLE = (0x14, 24, 410)            # car table: offset, entry size, count
+CARDB_TABLE_SLOT = 20                    # entry word [u8][u8][u8][pad]
 
 
 def fix_node_flags(src: bytes, out: bytearray) -> None:
@@ -177,10 +180,20 @@ def fix_cardb_parts(src: bytes, out: bytearray) -> None:
     lo, hi = CARDB_PART_SLOTS
     flo, fhi = CARDB_PART_FLAGS
     for r in range(count):
-        rec0 = base + r * stride + 4
-        for s in range(rec0 + lo, rec0 + hi, 2):
-            out[s:s + 2] = src[s:s + 2][::-1]
-        out[rec0 + flo:rec0 + fhi] = src[rec0 + flo:rec0 + fhi]
+        rec = base + r * stride + 4
+        out[rec:rec + 4] = src[rec:rec + 4]                  # u8 x3 + pad
+        out[rec + 4:rec + 8] = src[rec + 4:rec + 6][::-1] + src[rec + 6:rec + 8][::-1]
+        for bp in CARDB_BLUEPRINT_SETS:
+            rec0 = rec + bp
+            for s in range(rec0 + lo, rec0 + hi, 2):
+                out[s:s + 2] = src[s:s + 2][::-1]
+            out[rec0 + flo:rec0 + fhi] = src[rec0 + flo:rec0 + fhi]
+    # car table: last word of every entry is [u8 a][u8 b][u8 slot][pad] -
+    # garage slot/index bytes; a u32 swap scrambles which record a car uses
+    t0, size, n = CARDB_TABLE
+    for k in range(n):
+        o = t0 + k * size + CARDB_TABLE_SLOT + 4
+        out[o:o + 4] = src[o:o + 4]
 
 
 def apply_struct_fixes(rec, src: bytes) -> None:
