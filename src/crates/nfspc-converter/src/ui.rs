@@ -126,30 +126,41 @@ impl ConverterApp {
 
     fn drain_messages(&mut self) {
         while let Ok(msg) = self.rx.try_recv() {
-            match msg {
-                Msg::ScanDone(report) => {
-                    self.scanning = false;
-                    self.scan_notes = report.notes;
-                    self.rows = report
-                        .saves
-                        .into_iter()
-                        .map(|save| DriveRow {
-                            save,
-                            checked: true, // all on by default
-                        })
-                        .collect();
+            self.handle_msg(msg);
+        }
+    }
+
+    /// Applies one worker message. A scan that raced a conversion is
+    /// dropped — replacing `rows` mid-conversion would discard the user's
+    /// checkbox selections the conversion is running on — but the scanning
+    /// spinner is still released.
+    fn handle_msg(&mut self, msg: Msg) {
+        match msg {
+            Msg::ScanDone(report) => {
+                self.scanning = false;
+                if self.converting {
+                    return;
                 }
-                Msg::BatchDone(batch) => {
-                    self.converting = false;
-                    self.batch = Some(batch);
-                }
-                Msg::Failed(err) => {
-                    // A worker died: release both flags so Refresh/Convert
-                    // work again and the failure is visible.
-                    self.scanning = false;
-                    self.converting = false;
-                    self.worker_error = Some(err);
-                }
+                self.scan_notes = report.notes;
+                self.rows = report
+                    .saves
+                    .into_iter()
+                    .map(|save| DriveRow {
+                        save,
+                        checked: true, // all on by default
+                    })
+                    .collect();
+            }
+            Msg::BatchDone(batch) => {
+                self.converting = false;
+                self.batch = Some(batch);
+            }
+            Msg::Failed(err) => {
+                // A worker died: release both flags so Refresh/Convert
+                // work again and the failure is visible.
+                self.scanning = false;
+                self.converting = false;
+                self.worker_error = Some(err);
             }
         }
     }
@@ -182,8 +193,13 @@ impl eframe::App for ConverterApp {
             // ---- drives ----
             ui.horizontal(|ui| {
                 ui.strong("Saves on flash drives");
+                // disabled while converting too: a scan finishing mid-run
+                // would wipe the checkbox selections the run was started on
                 if ui
-                    .add_enabled(!self.scanning, egui::Button::new("Refresh"))
+                    .add_enabled(
+                        !(self.scanning || self.converting),
+                        egui::Button::new("Refresh"),
+                    )
                     .clicked()
                 {
                     self.start_scan();
@@ -370,4 +386,101 @@ pub fn run() -> eframe::Result<()> {
         options,
         Box::new(|_cc| Ok(Box::new(ConverterApp::new()))),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Builds the app WITHOUT spawning the startup scan thread.
+    fn app_with_rows(rows: Vec<DriveRow>) -> ConverterApp {
+        let (tx, rx) = mpsc::channel();
+        ConverterApp {
+            tx,
+            rx,
+            scanning: false,
+            rows,
+            scan_notes: Vec::new(),
+            manual: Vec::new(),
+            manual_error: None,
+            worker_error: None,
+            picked: None,
+            suggested: None,
+            converting: false,
+            batch: None,
+        }
+    }
+
+    fn row(name: &str, checked: bool) -> DriveRow {
+        DriveRow {
+            save: DiscoveredSave {
+                friendly_name: name.to_string(),
+                source_path: format!("Content/E.../45410822/00000001/{name}"),
+                bytes: Vec::new(),
+            },
+            checked,
+        }
+    }
+
+    /// A ScanDone that lands mid-conversion must not replace the rows (the
+    /// user's checkbox selections feed the running conversion), but the
+    /// scanning spinner is released.
+    #[test]
+    fn scan_done_during_conversion_is_dropped() {
+        let mut app = app_with_rows(vec![row("CAREER_01", false)]);
+        app.converting = true;
+        app.scanning = true;
+
+        app.handle_msg(Msg::ScanDone(DriveScanReport {
+            saves: vec![DiscoveredSave {
+                friendly_name: "OTHER".into(),
+                source_path: "Content/other".into(),
+                bytes: Vec::new(),
+            }],
+            notes: vec!["late note".into()],
+        }));
+
+        assert!(app.converting, "conversion state is untouched");
+        assert!(!app.scanning, "the scan spinner is released");
+        assert_eq!(app.rows.len(), 1);
+        assert_eq!(app.rows[0].save.friendly_name, "CAREER_01");
+        assert!(!app.rows[0].checked, "checkbox selection preserved");
+        assert!(app.scan_notes.is_empty(), "the stale report is dropped");
+    }
+
+    /// While idle, ScanDone still replaces the rows (all checked).
+    #[test]
+    fn scan_done_while_idle_replaces_rows() {
+        let mut app = app_with_rows(vec![row("CAREER_01", false)]);
+        app.handle_msg(Msg::ScanDone(DriveScanReport {
+            saves: vec![
+                DiscoveredSave {
+                    friendly_name: "CAREER_02".into(),
+                    source_path: "Content/a".into(),
+                    bytes: Vec::new(),
+                },
+                DiscoveredSave {
+                    friendly_name: "CAREER_03".into(),
+                    source_path: "Content/b".into(),
+                    bytes: Vec::new(),
+                },
+            ],
+            notes: vec!["n".into()],
+        }));
+        assert!(!app.scanning);
+        assert_eq!(app.rows.len(), 2);
+        assert!(app.rows.iter().all(|r| r.checked));
+        assert_eq!(app.scan_notes, vec!["n".to_string()]);
+    }
+
+    /// A failed worker releases both progress flags.
+    #[test]
+    fn worker_failure_releases_both_flags() {
+        let mut app = app_with_rows(Vec::new());
+        app.converting = true;
+        app.scanning = true;
+        app.handle_msg(Msg::Failed("boom".into()));
+        assert!(!app.converting && !app.scanning);
+        assert_eq!(app.worker_error.as_deref(), Some("boom"));
+    }
 }

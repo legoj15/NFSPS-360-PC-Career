@@ -149,6 +149,27 @@ fn from_path_rejects_non_save_files() {
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
 }
 
+/// A discovered save whose CON wrapper cannot be parsed falls back to the
+/// FATX file name for the export — never the game-title display name, which
+/// would label every failing save "NFS ProStreet" and collapse them into
+/// one export folder.
+#[test]
+fn from_discovered_parse_failure_uses_fatx_file_name() {
+    use fatx::DiscoveredSave;
+    use nfspc_converter::app::batch::dirent_name_of;
+
+    let full = fixture_bytes();
+    let save = DiscoveredSave {
+        friendly_name: "NFS ProStreet".into(),
+        source_path: "Content/E0001A2B3C4D5E6F/45410822/00000001/CAREER_BAD_360"
+            .into(),
+        bytes: full[..0x2000].to_vec(), // CON magic, truncated before the file table
+    };
+    let input = SaveInput::from_discovered(&save);
+    assert_eq!(input.name, "CAREER_BAD_360");
+    assert_eq!(dirent_name_of(&save), "CAREER_BAD_360");
+}
+
 #[test]
 fn batch_creates_missing_output_root() {
     let tmp = TempDir::new().unwrap();

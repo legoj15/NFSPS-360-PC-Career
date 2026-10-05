@@ -72,11 +72,24 @@ fn rd_u32(buf: &[u8], off: usize, big: bool) -> u32 {
 impl Tree {
     pub fn parse(tree: &[u8], big: bool) -> Result<Tree> {
         let rec_start = if big { REC_START_360 } else { REC_START_PC };
+        // Python reads the count word with `unpack_from`, which raises on a
+        // blob shorter than 0x14; refuse instead of slicing out of range.
+        if tree.len() < 0x14 {
+            return Err(format_err(format!(
+                "tree blob ({:#x} B) too short for the chunk-count word",
+                tree.len()
+            )));
+        }
         let count = rd_u32(tree, 0x10, big);
-        // locate magic between 0x14 and rec_start
+        // locate magic between 0x14 and rec_start. The scan stops at the
+        // buffer end (Python's unpack_from raises there; both mean "no
+        // magic" for anything this short).
         let mut magic_off = None;
         for off in (0x14..rec_start.saturating_sub(4)).step_by(4) {
-            if rd_u32(tree, off, big) == TREE_MAGIC {
+            let Some(word) = tree.get(off..off + 4) else {
+                break;
+            };
+            if rd_u32(word, 0, big) == TREE_MAGIC {
                 magic_off = Some(off);
                 break;
             }

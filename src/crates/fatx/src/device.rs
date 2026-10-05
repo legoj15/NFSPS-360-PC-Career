@@ -9,6 +9,8 @@
 use std::io;
 use std::io::{Read, Seek};
 
+use crate::aligned::SectorReader;
+
 /// Highest `PhysicalDriveN` index probed by [`probe_report`].
 pub const MAX_DRIVE_INDEX: u32 = 15;
 
@@ -80,17 +82,23 @@ mod imp {
 
     use std::os::windows::io::FromRawHandle;
 
-    use windows::Win32::Foundation::{GENERIC_READ, HANDLE};
+    use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, HANDLE};
     use windows::Win32::Storage::FileSystem::{
         CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
     };
     use windows::Win32::System::IO::DeviceIoControl;
     use windows::core::PCWSTR;
 
-    /// `CTL_CODE(IOCTL_DISK_BASE, 0x0017, METHOD_BUFFERED, FILE_ANY_ACCESS)`
+    /// `CTL_CODE(IOCTL_DISK_BASE, 0x0000, METHOD_BUFFERED, FILE_ANY_ACCESS)`
     /// = IOCTL_DISK_GET_LENGTH_INFO (0x0007405C); same constant the
     /// reference tools use.
     const IOCTL_DISK_GET_LENGTH_INFO: u32 = 0x0007_405C;
+
+    /// `CTL_CODE(IOCTL_DISK_BASE, 0x0000, METHOD_BUFFERED, FILE_ANY_ACCESS)`
+    /// = IOCTL_DISK_GEOMETRY (0x00070000); `BytesPerSector` sits at offset
+    /// 0x14 of the DISK_GEOMETRY output. Used to size the sector-aligned
+    /// reader (advanced-format media can expose 4096-byte sectors).
+    const IOCTL_DISK_GEOMETRY: u32 = 0x0007_0000;
 
     const ERROR_ACCESS_DENIED: i32 = 5;
     const ERROR_FILE_NOT_FOUND: i32 = 2;
@@ -169,6 +177,38 @@ mod imp {
         Ok(end)
     }
 
+    /// Queries the device's logical sector size via IOCTL_DISK_GEOMETRY,
+    /// falling back to 512 when the ioctl is unsupported or returns
+    /// something implausible.
+    fn sector_size(handle: HANDLE) -> usize {
+        let mut geom = [0u8; 24];
+        let mut returned: u32 = 0;
+        // SAFETY: `geom` is a valid 24-byte output buffer matching the
+        // ioctl's DISK_GEOMETRY contract; the handle is alive for the
+        // duration of the call.
+        let ok = unsafe {
+            DeviceIoControl(
+                handle,
+                IOCTL_DISK_GEOMETRY,
+                None,
+                0,
+                Some(geom.as_mut_ptr().cast()),
+                size_of::<[u8; 24]>() as u32,
+                Some(&mut returned),
+                None,
+            )
+        };
+        if ok.is_ok() && returned >= 24 {
+            let bps =
+                u32::from_le_bytes(geom[0x14..0x18].try_into().expect("4 bytes"))
+                    as usize;
+            if bps.is_power_of_two() && bps >= 512 {
+                return bps;
+            }
+        }
+        512
+    }
+
     impl DeviceSource for WindowsPhysicalDrives {
         fn name(&self) -> &'static str {
             "WindowsPhysicalDrives"
@@ -176,21 +216,35 @@ mod imp {
 
         fn probe(&self, index: u32) -> OpenStatus {
             match create_handle(index) {
-                Ok(_) => OpenStatus::Opened,
+                Ok(handle) => {
+                    // The windows-crate HANDLE has no Drop: close it here or
+                    // every probe leaks a raw-device handle.
+                    // SAFETY: `handle` came from a successful CreateFileW and
+                    // is not owned by anything else.
+                    unsafe {
+                        let _ = CloseHandle(handle);
+                    }
+                    OpenStatus::Opened
+                }
                 Err(e) => status_from_err(&e),
             }
         }
 
         fn open(&self, index: u32) -> io::Result<OpenedDevice> {
             let handle = create_handle(index)?;
-            // The std File takes ownership of the handle (HANDLE has no Drop
-            // in the windows crate), so it will be closed exactly once.
+            // The windows-crate HANDLE has no Drop: the std File takes
+            // ownership of the handle below, so it will be closed exactly
+            // once.
             // SAFETY: the handle came straight from a successful CreateFileW
             // and is not owned by anything else.
             let file = unsafe { std::fs::File::from_raw_handle(handle.0 as _) };
             let length = device_length(handle, &file)?;
+            let sector = sector_size(handle);
             Ok(OpenedDevice {
-                reader: Box::new(file),
+                // Physical drives reject unaligned reads with os error 87
+                // (measured on a real 360 stick, SPEC.md §8): every byte the
+                // FATX layers read goes through the sector-aligned wrapper.
+                reader: Box::new(SectorReader::new(file, length, sector)),
                 length,
             })
         }

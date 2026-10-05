@@ -40,9 +40,14 @@ Xbox360_USB_Explorer `FatxHeader.Read`.
 ## 3. FAT ("chainmap") and data area
 
 * FAT starts at partition offset **0x1000**. Exactly one FAT on the 360.
-* Entry width: 2 bytes if cluster count < **0xFFF0** (FAT16-style), else 4
-  bytes (FAT32-style). On USB data partitions the count is far above the
-  threshold, so 4-byte entries in practice.
+* Entry width: 2 bytes if the cluster count **including the reserved FAT
+  slot** (i.e. data clusters + 1) is < **0xFFF0** (FAT16-style), else 4
+  bytes (FAT32-style). The threshold applies to `partitionLength /
+  clusterSize + 1`, exactly as xbox-winfsp computes it
+  (`MaxClusters = partitionLength / ClusterSize + 1; IsFat32 = MaxClusters >=
+  0xFFF0`); comparing the raw data-cluster count instead would misclassify
+  media at exactly 0xFFEF data clusters. On USB data partitions the count is
+  far above the threshold, so 4-byte entries in practice.
 * Cluster count = `partition_length / cluster_size` (+1 reserved FAT slot,
   i.e. FAT covers entries for cluster 0 .. cluster N).
 * **FAT size in bytes is rounded up to the 0x1000 page boundary.**
@@ -171,12 +176,20 @@ Empirically verified against the tracked oracles
 `scripts/python/nfssave/container360.py`:
 
 | Offset | Meaning |
-|--------|---------|
+|---|---|
 | 0x000 | magic `CON ` (saves are console-signed; `PIRS`/`LIVE` also exist) |
 | 0x340 | u32 **BE** header size (0x971A in both oracles → first STFS hash table at 0xA000) |
 | **0x360** | title ID, 4 raw bytes — `45 41 08 22` = **45410822 = NFS ProStreet** |
-| 0x37E | u24 LE file-table block (per Python spec, not needed here) |
+| 0x37B | bit 0 = hash-table block separation (clear → tables stored twice, backing-block shift 1) |
+| 0x37E | u24 LE file-table block number (see `stfs::file_table_name`) |
 | 0x1691 | display name, UTF-16BE, NUL-padded (reads "NFS ProStreet") |
+
+Per-save naming: the display name at 0x1691 is the GAME title on every save.
+The name that identifies the individual save ("CAREER_01") is the file name
+inside the STFS file table (data block named by the 0x37E descriptor field;
+entry +0x00 = NUL-padded ASCII name) — verified on both tracked oracles, and
+it is what discovery reports as `friendly_name` and what the converter
+exports under. The bytes at 0x1711 are the package icon (PNG), not a name.
 
 Title-ID cross-check: `45410822` is listed for NFS ProStreet on Xbox 360
 title-ID lists (se7ensins game-ID thread, iso2god lists). A second regional
@@ -205,6 +218,16 @@ FILE_SHARE_READ|FILE_SHARE_WRITE, OPEN_EXISTING)`:
 * Note: the `windows` crate surfaces kernel32 failures as HRESULTs
   (`0x8007####`); `device::imp` unwraps FACILITY_WIN32 to the plain Win32
   code so `ERROR_ACCESS_DENIED` maps to `OpenStatus::AccessDenied`.
+* **Sector alignment is mandatory (measured on a real 360-formatted USB
+  stick, elevated, 2026-10-05)**: any read whose size is not a multiple of
+  the sector size (and, for safety, whose offset is not sector-aligned)
+  fails with `ERROR_INVALID_PARAMETER (87)` — e.g. the 4-byte `XTAF` magic
+  probe at 0x20000000. Files and in-memory images accept unaligned reads,
+  so synthetic-image tests cannot catch this by construction; `device::open`
+  therefore wraps every handle in `aligned::SectorReader` (sector size from
+  `IOCTL_DISK_GEOMETRY`), and `tests/sector_aligned.rs` re-proves the whole
+  probe→FATX→discovery stack over a mock that rejects unaligned reads the
+  same way a device does.
 
 ## 9. Sources
 

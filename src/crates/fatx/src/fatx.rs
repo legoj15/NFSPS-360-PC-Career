@@ -36,7 +36,11 @@ pub const NEVER_USED: [u8; 2] = [0x00, 0xFF];
 pub const SUPERBLOCK_SIZE: u64 = 0x1000;
 /// Sector size implied by the format.
 pub const SECTOR_SIZE: u32 = 0x200;
-/// Cluster count at or above which the FAT uses 4-byte entries.
+/// Cluster count at or above which the FAT uses 4-byte entries. The
+/// threshold applies to the count INCLUDING the reserved FAT slot (FAT[0]
+/// holds the media descriptor), matching xbox-winfsp's
+/// `MaxClusters = partitionLength / ClusterSize + 1` compared against
+/// 0xFFF0 — see SPEC.md §3.
 pub const FAT16_MAX_CLUSTERS: u32 = 0xFFF0;
 /// 32-bit FAT values at or above this terminate a chain.
 pub const CHAIN_END_32: u32 = 0xFFFF_FFF0;
@@ -167,7 +171,10 @@ impl<R: Read + Seek> FatxVolume<R> {
             return Ok(Vec::new());
         }
         let mut chain = Vec::new();
-        let mut seen = vec![false; self.sb.fat_entries as usize];
+        // Visited-set sized by the CHAIN, not the partition: a per-cluster
+        // byte map zeroed ~64 MB per walk on a 256 GB stick (one walk per
+        // directory/file). Same loop detection, O(chain length) memory.
+        let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
         let mut cur = first;
         loop {
             if !(1..=self.sb.max_cluster).contains(&cur) {
@@ -176,13 +183,12 @@ impl<R: Read + Seek> FatxVolume<R> {
                     reason: format!("cluster out of range (max {})", self.sb.max_cluster),
                 });
             }
-            if seen.get(cur as usize).copied().unwrap_or(true) {
+            if !seen.insert(cur) {
                 return Err(Error::CorruptChain {
                     cluster: cur,
                     reason: "cluster chain loops".into(),
                 });
             }
-            seen[cur as usize] = true;
             chain.push(cur);
 
             let next = self.fat_entry(cur).ok_or(Error::CorruptChain {
@@ -335,7 +341,10 @@ impl<R: Read + Seek> FatxVolume<R> {
         }
 
         let cluster_count = (self.length / cluster_size as u64) as u32;
-        let fat_entry_width = if cluster_count >= FAT16_MAX_CLUSTERS {
+        // The reserved FAT slot participates in the width comparison: real
+        // media at exactly 0xFFEF data clusters carries a 4-byte FAT (0xFFF0
+        // FAT entries), like both reference tools (SPEC.md §3).
+        let fat_entry_width = if cluster_count.saturating_add(1) >= FAT16_MAX_CLUSTERS {
             4
         } else {
             2

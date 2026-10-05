@@ -60,13 +60,22 @@ impl SaveInput {
             .ok()
             .map(|c| c.name)
             .filter(|n| !n.is_empty())
-            .unwrap_or_else(|| safe_name(&save.friendly_name));
+            .unwrap_or_else(|| dirent_name_of(save));
         SaveInput {
             label: save.source_path.clone(),
             name,
             bytes: save.bytes.clone(),
         }
     }
+}
+
+/// Export-name fallback when the CON wrapper cannot be parsed: the FATX
+/// file name from the source path. Never the game-title display name
+/// ("NFS ProStreet"), which would collapse every failing save into one
+/// export folder.
+pub fn dirent_name_of(save: &DiscoveredSave) -> String {
+    let dirent = save.source_path.rsplit('/').next().unwrap_or("");
+    safe_name(dirent)
 }
 
 /// Keep a friendly name usable as a folder/file name.

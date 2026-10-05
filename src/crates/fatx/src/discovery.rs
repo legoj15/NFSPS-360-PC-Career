@@ -22,8 +22,10 @@ pub const PROSTREET_TITLE_IDS: &[[u8; 4]] = &[TITLE_ID_NFS_PROSTREET];
 /// One save found on the volume.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiscoveredSave {
-    /// Human-friendly name: the CON display name when available, otherwise
-    /// the file name.
+    /// Human-friendly per-save name: the STFS file-table name ("CAREER_01")
+    /// when the package can be read, otherwise the FATX file name. Never the
+    /// CON display name — that is the game title ("NFS ProStreet") on every
+    /// save and would label every row identically.
     pub friendly_name: String,
     /// Volume-relative source path, e.g.
     /// `Content/E000.../45410822/00000001/CAREER_01_360`.
@@ -100,8 +102,17 @@ pub fn discover_prostreet_saves_noted<R: Read + Seek>(
             let title_path = format!("{profile_path}/{}", title.name);
             for save_type in SAVE_TYPE_DIRS {
                 let type_path = format!("{title_path}/{save_type}");
-                let Ok(files) = volume.list_dir(&type_path) else {
-                    continue; // most titles only have one of the two
+                let files = match volume.list_dir(&type_path) {
+                    Ok(files) => files,
+                    Err(crate::error::Error::NotFound(_)) => {
+                        continue; // absent save-type dir is normal, not a problem
+                    }
+                    Err(e) => {
+                        // unreadable but present: surface it so "no saves
+                        // found" always carries a diagnostic
+                        report.notes.push(format!("{type_path}: skipped ({e})"));
+                        continue;
+                    }
                 };
                 for file in files {
                     if file.is_directory() || file.deleted {
@@ -126,12 +137,12 @@ pub fn discover_prostreet_saves_noted<R: Read + Seek>(
                             continue;
                         }
                     };
-                    let con = ConHeader::parse(&bytes).ok();
-                    let friendly_name = con
-                        .as_ref()
-                        .map(|c| c.display_name.trim().to_string())
-                        .filter(|name| !name.is_empty())
-                        .unwrap_or_else(|| file.name.clone());
+                    // per-save name from the STFS file table ("CAREER_01"),
+                    // NOT the CON display name — that is the game title
+                    // ("NFS ProStreet") on every save. Fall back to the FATX
+                    // file name when the package is too damaged to name.
+                    let friendly_name =
+                        crate::stfs::file_table_name(&bytes).unwrap_or_else(|_| file.name.clone());
                     report.saves.push(DiscoveredSave {
                         friendly_name,
                         source_path: label,

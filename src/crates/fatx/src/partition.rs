@@ -140,6 +140,11 @@ impl XboxDriveImage {
                 };
                 let offset = entry.offset();
                 if has_xtaf_magic(src, offset)? {
+                    // The table's sector count is corruption-controlled:
+                    // clamp to what the source actually holds (the retail
+                    // path below does the same) so a crafted entry cannot
+                    // drive a multi-GB FAT allocation.
+                    let length = entry.length().min(total_len.saturating_sub(offset));
                     let mut entries = vec![entry];
                     if dash_sectors > 0 {
                         entries.push(DevPartitionEntry {
@@ -154,7 +159,7 @@ impl XboxDriveImage {
                         data_partition: PartitionRegion {
                             kind: PartitionKind::Data,
                             offset,
-                            length: content_sectors as u64 * 0x200,
+                            length,
                         },
                     });
                 }

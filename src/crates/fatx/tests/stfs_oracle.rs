@@ -17,7 +17,7 @@ fn oracle(rel: &str) -> Vec<u8> {
 fn both_oracles_carry_prostreet_title_id_at_0x360() {
     for rel in ["c1_latest/CAREER_01_360", "pair/CAREER_02_360_fresh"] {
         let bytes = oracle(rel);
-        assert_eq!(&bytes[..4], &*CON_MAGIC, "{rel}: CON magic");
+        assert_eq!(&bytes[..4], CON_MAGIC, "{rel}: CON magic");
         assert_eq!(
             &bytes[TITLE_ID_OFFSET..TITLE_ID_OFFSET + 4],
             &TITLE_ID_NFS_PROSTREET,

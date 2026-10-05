@@ -96,7 +96,12 @@ fn validate_manifest_comments(path: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Newest `Windows Kits/*/bin/10.0.*/x64/rc.exe` across the usual roots.
+/// rc.exe architecture subdirectories to probe, in preference order (x64
+/// matches the toolchain; x86/arm64 hosts must not silently lose the
+/// manifest just because their SDK lacks the x64 directory).
+const RC_ARCHES: [&str; 3] = ["x64", "x86", "arm64"];
+
+/// Newest `Windows Kits/*/bin/10.0.*/<arch>/rc.exe` across the usual roots.
 fn find_rc_exe() -> Option<PathBuf> {
     let roots = [
         r"C:\Program Files (x86)\Windows Kits\10\bin".to_string(),
@@ -112,10 +117,14 @@ fn find_rc_exe() -> Option<PathBuf> {
             if !ver.starts_with("10.") {
                 continue;
             }
-            let cand = entry.path().join("x64").join("rc.exe");
-            if !cand.is_file() {
+            // first arch subdirectory (in preference order) that has rc.exe
+            let cand = RC_ARCHES
+                .iter()
+                .map(|arch| entry.path().join(arch).join("rc.exe"))
+                .find(|cand| cand.is_file());
+            let Some(cand) = cand else {
                 continue;
-            }
+            };
             if best.as_ref().is_none_or(|(bv, _)| ver > *bv) {
                 best = Some((ver, cand));
             }

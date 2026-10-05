@@ -27,9 +27,7 @@ Verified this session (2026-10-05): exit code 0, every suite ok — the tail
 includes nfssave-core unit tests (5 passed), `test_raceday` (5 passed) and
 the fatx lib doctest (1 passed). No hardware needed: fatx tests use the
 `test-util` synthetic images; nfssave-core tests use tracked oracles under
-`docs/re/`. Note one stale comment: `nfspc-converter/Cargo.toml`'s `[[bin]]`
-block still says the manifest is `requireAdministrator`; the manifest is
-`asInvoker` (see below) — trust `app.manifest` and `build.rs`.
+`docs/re/`.
 
 Release build: `cargo build --release` from `src/`. The workspace release
 profile is `lto`, `strip`, `codegen-units = 1` (`src/Cargo.toml:17-20`) and
@@ -49,12 +47,16 @@ if the Windows SDK is missing it warns and builds WITHOUT the manifest
   `CAREER_*`/`ALIAS_*` files with the `CON ` magic, which also covers an
   extracted `Content` tree (`src/crates/nfspc-converter/src/app/sources.rs:1-15`).
 - `--out` is the export directory; writes `<out>/<NAME>/<NAME>`
-  (`main.rs:23-24`).
+  (`main.rs:23-24`). Exports are written atomically: bytes land in
+  `<target>.tmp` and are renamed over the target, so an interrupted write
+  never truncates a previous good export (`nfssave-core` `write_pc_save`).
 - Exit code 0 only when every requested save converted; failures print to
-  stderr with a nonzero exit (`main.rs:26-27`, `run_headless` at 93-159).
+  stderr with a nonzero exit. Per-file load failures report to stderr and
+  the run continues with the remaining files, matching the GUI worker and
+  the Python CLI (`app/headless.rs`).
 - No arguments launches the GUI; `--help`/`-h`/?` prints usage (`main.rs:53-56`).
 - Headless does NOT scan physical drives — manual file/folder input only
-  (`run_headless` uses `discover_manual`, `main.rs:94`).
+  (`app/headless.rs` uses `discover_manual`).
 
 ## FATX format reference
 
@@ -97,8 +99,6 @@ only so cargo's test harnesses stay unelevated (`build.rs:51-54`), and
   UNVERIFIED and is never required for detection (`SPEC.md` §5.4).
 - No code signing → SmartScreen "Windows protected your PC" on first run
   (README documents the More info → Run anyway path).
-- Stale `requireAdministrator` comment in `nfspc-converter/Cargo.toml`
-  `[[bin]]` (manifest is `asInvoker`).
 - No git remote is configured on this checkout yet (verified:
   `git remote -v` is empty), so the README's "GitHub Releases" download
   wording presumes a repo/remote with published releases that does not

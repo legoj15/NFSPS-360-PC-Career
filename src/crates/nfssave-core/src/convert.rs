@@ -15,7 +15,7 @@
 //! Chunk ids are djb2(name) hashes (h=-1; h=h*33+c), identical across
 //! platforms — see [`chunk_name`].
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -458,7 +458,11 @@ pub fn fix_raceday_block(src: &[u8], out: &mut [u8], warnings: &mut Vec<String>)
     // string detection is restricted there because float pairs inside the
     // block can look printable
     if let Some(end) = end {
-        for (a, b) in find_string_runs(&src[end + 4..]) {
+        // Python `src[end + 4:]` clamps to an empty slice when the payload
+        // ends before the (zero-state) block start: a payload in
+        // [0x2DC, 0x2E4) converts with the tail empty, never panics.
+        let tail = src.get(end + 4..).unwrap_or(&[]);
+        for (a, b) in find_string_runs(tail) {
             copy_nat(src, out, end + 4 + a, end + 4 + b);
         }
     }
@@ -664,14 +668,15 @@ pub fn convert_tree(
             normalize_gameplay(trec, &mut report.warnings);
         }
         validate_twin(tree360, twin)?;
-        let twin_ids: HashSet<u32> = twin.records.iter().map(|r| r.id).collect();
+        // Python: by_id = {r.id: r for r in pc.records} — duplicate ids
+        // collapse last-wins, and `order` keeps the dict's first-occurrence
+        // iteration order for the leftovers appended below.
         let mut by_id: HashMap<u32, Record> = HashMap::new();
-        let mut leftovers: Vec<Record> = Vec::new();
+        let mut order: Vec<u32> = Vec::new();
         for r in std::mem::take(&mut pc.records) {
-            if twin_ids.contains(&r.id) {
-                by_id.insert(r.id, r);
-            } else {
-                leftovers.push(r);
+            let id = r.id;
+            if by_id.insert(id, r).is_none() {
+                order.push(id);
             }
         }
         let mut merged: Vec<Record> = Vec::new();
@@ -689,8 +694,14 @@ pub fn convert_tree(
                 merged.push(trec);
             }
         }
-        if !leftovers.is_empty() {
-            let left = leftovers
+        if !by_id.is_empty() {
+            // remaining console records (ids absent from the twin) keep their
+            // first-occurrence order at the end, one entry per id
+            let remaining: Vec<Record> = order
+                .iter()
+                .filter_map(|id| by_id.remove(id))
+                .collect();
+            let left = remaining
                 .iter()
                 .map(|r| format!("{:#x}", r.id))
                 .collect::<Vec<_>>()
@@ -698,7 +709,7 @@ pub fn convert_tree(
             report
                 .warnings
                 .push(format!("records absent from twin kept at end: {left}"));
-            merged.extend(leftovers);
+            merged.extend(remaining);
         }
         pc.records = merged;
     } else if tree360.gap != 0 && pc.records.len() < tree360.count as usize {
@@ -767,7 +778,9 @@ pub fn convert_payload(
         "career".into()
     };
     let mut twin = None;
-    if let Some(tp) = twin_payload
+    // Python: `if twin_payload and ...` — an EMPTY twin slice is falsy and
+    // means "no twin"; it must not fail the conversion with a parse error.
+    if let Some(tp) = twin_payload.filter(|tp| !tp.is_empty())
         && report.kind == "career"
         && tree360.gap != 0
     {
@@ -777,11 +790,15 @@ pub fn convert_payload(
     report.records = pc_tree.records.len();
     let tree_size = mc02_be.tree_size as usize;
     let mut tree_bytes = pc_tree.build(false, tree_size)?;
-    let used: u32 = pc_tree
-        .records
-        .iter()
-        .map(|r| 12 + r.payload.len() as u32)
-        .sum();
+    // Python sums in arbitrary precision and raises in struct.pack when the
+    // used size leaves u32 range; overflow-check instead of wrapping.
+    let used = pc_tree.records.iter().try_fold(0u32, |acc, r| {
+        acc.checked_add(12)
+            .and_then(|v| v.checked_add(r.payload.len() as u32))
+            .ok_or_else(|| {
+                format_err("converted tree used size exceeds 32 bits - the source file is corrupted")
+            })
+    })?;
     // native PC saves carry the built tree's used size in the extra blob
     // (word 1); copy it through so the loader sees a consistent pair
     let mut extra = convert_extra(&mc02_be.extra)?;
@@ -808,6 +825,13 @@ pub fn load_twin(data: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// Write a converted save to the PC save layout `<save_root>/<name>/<name>`.
+///
+/// The bytes land in `<target>.tmp` first and are renamed over the target,
+/// so an interrupted write (window close, full disk, unplugged destination)
+/// can never leave a truncated file silently replacing a good export; the
+/// previous export survives and the leftover `.tmp` is removed on failure.
+/// `std::fs::rename` refuses to replace an existing file on Windows, so an
+/// existing target is removed first (a brief non-atomic gap).
 pub fn write_pc_save(mc02_pc: &MC02, name: &str, save_root: &Path) -> Result<PathBuf> {
     if name.is_empty() || name.contains(['\\', '/', ':']) || name == "." || name == ".." {
         return Err(format_err(format!("unsafe save name {name:?}")));
@@ -815,7 +839,23 @@ pub fn write_pc_save(mc02_pc: &MC02, name: &str, save_root: &Path) -> Result<Pat
     let folder = save_root.join(name);
     fs::create_dir_all(&folder)?;
     let target = folder.join(name);
-    fs::write(&target, mc02_pc.to_bytes()?)?;
+    let tmp = folder.join(format!("{name}.tmp"));
+    let bytes = mc02_pc.to_bytes()?;
+    let write = || -> std::io::Result<()> {
+        use std::io::Write;
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(&bytes)?;
+        f.sync_all()?;
+        drop(f);
+        if target.exists() {
+            fs::remove_file(&target)?;
+        }
+        fs::rename(&tmp, &target)
+    };
+    if let Err(e) = write() {
+        let _ = fs::remove_file(&tmp); // never leave a stray .tmp behind
+        return Err(e.into());
+    }
     Ok(target)
 }
 
@@ -863,4 +903,47 @@ pub fn convert_one(
         report,
         self_check,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mc02_with(extra_word: u32) -> MC02 {
+        let mut extra = vec![0u8; 28];
+        extra[0..4].copy_from_slice(&extra_word.to_le_bytes());
+        MC02::new(Endian::Little, extra, vec![0xA5; 0x100], 0x100)
+    }
+
+    /// A pre-existing target is fully replaced and no `.tmp` remains: the
+    /// write goes through `<target>.tmp` + rename, so an interrupted write
+    /// can never leave a truncated export silently in place of a good one.
+    #[test]
+    fn write_pc_save_replaces_existing_target_without_tmp_leftover() {
+        let dir = std::env::temp_dir().join(format!("nfssave-write-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        // seed a stale export with different content
+        let save = mc02_with(1);
+        let stale = mc02_with(2);
+        let folder = dir.join("CAREER_XX");
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(folder.join("CAREER_XX"), stale.to_bytes().unwrap()).unwrap();
+
+        let target = write_pc_save(&save, "CAREER_XX", &dir).unwrap();
+        assert_eq!(target, folder.join("CAREER_XX"));
+        assert_eq!(fs::read(&target).unwrap(), save.to_bytes().unwrap());
+        assert!(
+            !folder.join("CAREER_XX.tmp").exists(),
+            "no .tmp may survive a successful write"
+        );
+        // a second write replaces again, still atomically
+        write_pc_save(&mc02_with(3), "CAREER_XX", &dir).unwrap();
+        assert_eq!(
+            fs::read(&target).unwrap(),
+            mc02_with(3).to_bytes().unwrap(),
+            "pre-existing target must be fully replaced"
+        );
+        assert!(!folder.join("CAREER_XX.tmp").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

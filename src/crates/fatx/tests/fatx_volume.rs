@@ -36,7 +36,7 @@ fn superblock_and_geometry_math_matches_spec() {
 
     let cluster_count = (vol.bytes.len() as u64 / sb.cluster_size as u64) as u32;
     let fat_entries = cluster_count + 1;
-    let expected_fat = ((fat_entries as u64 * 2 + 0xFFF) / 0x1000) * 0x1000;
+    let expected_fat = (fat_entries as u64 * 2).div_ceil(0x1000) * 0x1000;
     assert_eq!(sb.fat_offset, SUPERBLOCK_SIZE);
     assert_eq!(sb.fat_size, expected_fat);
     assert_eq!(sb.data_offset, SUPERBLOCK_SIZE + expected_fat);
@@ -165,6 +165,41 @@ fn fat32_width_on_large_volume() {
         .read_file(&format!("/Content/{}/45410822/00000001/TINY", profile_a()))
         .unwrap();
     assert_eq!(got, payload);
+}
+
+/// The 2-vs-4-byte FAT threshold applies to the cluster count INCLUDING the
+/// reserved FAT slot (`partitionLength / clusterSize + 1 >= 0xFFF0`), like
+/// xbox-winfsp — so 0xFFEF data clusters already carry a 32-bit FAT. The
+/// source only needs to hold the header + FAT; the claimed partition length
+/// drives the geometry (SPEC.md §3).
+#[test]
+fn fat_width_threshold_includes_reserved_slot() {
+    let cases = [
+        (0xFFEEu64, 2usize), // 0xFFEF FAT entries < 0xFFF0 -> 16-bit
+        (0xFFEF, 4),         // 0xFFF0 FAT entries >= 0xFFF0 -> 32-bit
+        (0xFFF0, 4),         // comfortably past the boundary
+    ];
+    for (clusters, want_width) in cases {
+        let length = clusters * 0x1000; // 4 KiB clusters
+        // header region + room for the largest FAT (0x40000 for 0xFFF0 x 4B)
+        let mut bytes = vec![0u8; 0x1000 + 0x40000];
+        bytes[..4].copy_from_slice(&fatx::fatx::MAGIC);
+        bytes[8..12].copy_from_slice(&8u32.to_be_bytes()); // sectors/cluster
+        bytes[12..16].copy_from_slice(&1u32.to_be_bytes()); // root cluster
+        match want_width {
+            2 => bytes[0x1000..0x1002].copy_from_slice(&MEDIA_16.to_be_bytes()),
+            _ => bytes[0x1000..0x1004].copy_from_slice(&MEDIA_32.to_be_bytes()),
+        }
+        let mut cur = Cursor::new(bytes);
+        let volume = FatxVolume::open(&mut cur, 0, length)
+            .unwrap_or_else(|e| panic!("{clusters:#x} clusters: {e}"));
+        assert_eq!(
+            volume.superblock().fat_entry_width,
+            want_width,
+            "{clusters:#x} data clusters ({} FAT entries)",
+            clusters + 1
+        );
+    }
 }
 
 #[test]

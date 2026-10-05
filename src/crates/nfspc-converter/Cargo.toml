@@ -11,9 +11,9 @@ path = "src/lib.rs"
 [[bin]]
 name = "NFSPS-SaveConverter"
 path = "src/main.rs"
-# The exe embeds a requireAdministrator manifest (see build.rs), which would
-# block cargo from launching its (empty) test harness unelevated. All tests
-# live in the lib integration tests instead.
+# The exe embeds an asInvoker manifest (see build.rs); bins-only link args
+# keep cargo's (empty) test harness free of it. All tests live in the lib
+# integration tests instead.
 test = false
 
 [dependencies]

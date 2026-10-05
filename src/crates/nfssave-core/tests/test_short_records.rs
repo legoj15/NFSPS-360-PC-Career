@@ -38,7 +38,7 @@ fn md5(b: &[u8]) -> String {
 /// Rebuild the tracked save with one record's payload replaced; mirrors the
 /// fixture construction run against the Python converter.
 fn craft(rec_id: u32, payload: &[u8]) -> Vec<u8> {
-    let mc02 = MC02::parse(&read_container(&src_path()).unwrap().payload).unwrap();
+    let mc02 = MC02::parse(&read_container(src_path()).unwrap().payload).unwrap();
     let mut tree = Tree::parse(&mc02.tree, true).unwrap();
     for r in tree.records.iter_mut() {
         if r.id == rec_id {
@@ -177,6 +177,75 @@ fn gameplay_0x2e0_tail_matches_python() {
     );
 }
 
+/// Every payload length in [0x2DC, 0x2E4) with a ZERO race-day state word
+/// must refuse-with-error or convert like the Python — which clamps the
+/// post-block tail `src[0x2E4:]` to empty — never panic on the tail slice.
+/// Word-aligned lengths convert (digests pinned from the Python); unaligned
+/// lengths are refused at the alignment check (Python asserts there too).
+#[test]
+fn gameplay_zero_state_window_matches_python() {
+    // len -> (crafted fixture md5, converted output md5)
+    let pinned = [
+        (0x2DCusize, "d90b6f6931545fba07971c4fdb4908d7", "8baa3ff65e78db8f749653c8a3e60123"),
+        (0x2E0, "e4882a46c79271139bb47dd4dcd59a9c", "ee244d674d61003421aab04ee01979b2"),
+    ];
+    for len in 0x2DC..0x2E4 {
+        let mut payload = vec![0x11u8; len];
+        payload[0x2D8..0x2DC].fill(0); // race-day state word (360-side offset)
+        let data = craft(GAMEPLAY_ID, &payload);
+        if let Some(&(_, fixture, output)) = pinned.iter().find(|p| p.0 == len) {
+            assert_eq!(md5(&data), fixture, "fixture drift at {len:#x}");
+            let pc = convert_crafted(&data)
+                .unwrap_or_else(|e| panic!("zero-state payload {len:#x} must convert: {e}"));
+            assert_eq!(
+                md5(&pc.to_bytes().unwrap()),
+                output,
+                "converted output at {len:#x}"
+            );
+        } else {
+            let err = convert_crafted(&data)
+                .expect_err("unaligned gameplay payload {len:#x} must be refused");
+            assert!(
+                err.to_string().contains("word-aligned"),
+                "{len:#x}: unexpected error: {err}"
+            );
+        }
+    }
+}
+
+/// Tree blobs shorter than the count word / magic region error instead of
+/// slicing out of range (the Python's unpack_from raises there too).
+#[test]
+fn short_tree_blobs_error_not_panic() {
+    for blob in [&[0u8; 10][..], &[0u8; 20][..]] {
+        let err =
+            Tree::parse(blob, true).expect_err("short tree blob must be refused, not a panic");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("too short") || msg.contains("magic"),
+            "unexpected error: {msg}"
+        );
+    }
+}
+
+/// convert_payload on an MC02 whose file ends mid-tree (total == file length,
+/// so the tree slice is 10 bytes) must refuse, not abort.
+#[test]
+fn convert_payload_on_short_tree_mc02_errors() {
+    let mc02 = MC02::parse(&read_container(src_path()).unwrap().payload).unwrap();
+    let mut data = mc02.to_bytes().unwrap();
+    data.truncate(0x1C + mc02.extra.len() + 10);
+    let total = data.len() as u32;
+    data[4..8].copy_from_slice(&total.to_be_bytes());
+    let short = MC02::parse(&data).unwrap();
+    assert_eq!(short.tree.len(), 10);
+    let err = convert_crafted(&data).expect_err("short-tree MC02 must be refused");
+    assert!(
+        err.to_string().contains("too short") || err.to_string().contains("magic"),
+        "unexpected error: {err}"
+    );
+}
+
 /// A short CARDB record inside the real tree converts byte-exactly like the
 /// Python (clamped struct fixes, auto mode).
 #[test]
@@ -230,7 +299,7 @@ fn rehash_grows_tiny_gameplay_payload() {
 /// refused, not a slice panic.
 #[test]
 fn truncated_file_table_block_is_refused() {
-    let full = std::fs::read(&src_path()).unwrap();
+    let full = std::fs::read(src_path()).unwrap();
     // leave only 0x30 bytes of the file-table block
     let cut = full[..FILE_TABLE_OFF + 0x30].to_vec();
     let err = parse_container(&cut, "cut").unwrap_err();
@@ -244,7 +313,7 @@ fn truncated_file_table_block_is_refused() {
 /// process on a ~64 GiB allocation.
 #[test]
 fn huge_block_count_is_refused_not_aborted() {
-    let mut data = std::fs::read(&src_path()).unwrap();
+    let mut data = std::fs::read(src_path()).unwrap();
     assert!(data[FILE_TABLE_OFF..].starts_with(b"CAREER_01"));
     // file-table entry +0x29: LE24 block count
     data[FILE_TABLE_OFF + 0x29..FILE_TABLE_OFF + 0x2C].copy_from_slice(&[0xFF, 0xFF, 0xFF]);

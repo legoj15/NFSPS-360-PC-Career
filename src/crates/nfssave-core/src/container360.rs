@@ -60,6 +60,23 @@ fn le24(b: &[u8]) -> usize {
     (b[0] as usize) | ((b[1] as usize) << 8) | ((b[2] as usize) << 16)
 }
 
+/// The Python spec decodes STFS names with `decode("ascii", errors="replace")`:
+/// one U+FFFD per non-ASCII BYTE. `String::from_utf8_lossy` would instead
+/// accept multi-byte UTF-8 sequences (bytes `63 C3 A9 74` -> "cét" instead
+/// of "c??t"), changing the exported folder name for non-ASCII names.
+fn decode_ascii_replace(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .map(|&b| {
+            if b.is_ascii() {
+                b as char
+            } else {
+                char::REPLACEMENT_CHARACTER
+            }
+        })
+        .collect()
+}
+
 fn block_at<'a>(
     data: &'a [u8],
     n: usize,
@@ -108,7 +125,7 @@ pub fn parse_container(data: &[u8], label: &str) -> Result<Container360> {
     let entry = &block[..0x40.min(block.len())];
     let nul = entry[..0x28].iter().position(|&b| b == 0);
     let name_end = nul.unwrap_or(0x28);
-    let name = String::from_utf8_lossy(&entry[..name_end]).into_owned();
+    let name = decode_ascii_replace(&entry[..name_end]);
     if name.is_empty() {
         return Err(format_err(format!("{label}: empty STFS file table")));
     }
@@ -153,4 +170,19 @@ pub fn read_container(path: impl AsRef<Path>) -> Result<Container360> {
     let p = path.as_ref();
     let data = fs::read(p)?;
     parse_container(&data, &p.display().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_ascii_replace;
+
+    /// Python decodes with `ascii` + `errors="replace"`: ONE U+FFFD per
+    /// non-ASCII byte. A name whose bytes look like UTF-8 (`63 C3 A9 74`)
+    /// must NOT decode as "cét" — the export folder name depends on it.
+    #[test]
+    fn stfs_name_decode_matches_python_ascii_replace() {
+        assert_eq!(decode_ascii_replace(b"c\xC3\xA9t"), "c\u{FFFD}\u{FFFD}t");
+        assert_eq!(decode_ascii_replace(b"CAREER_01"), "CAREER_01");
+        assert_eq!(decode_ascii_replace(&[0xFF, 0xE5]), "\u{FFFD}\u{FFFD}");
+    }
 }

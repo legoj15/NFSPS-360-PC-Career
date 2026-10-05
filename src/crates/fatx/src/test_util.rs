@@ -452,7 +452,8 @@ impl FatxImageBuilder {
 }
 
 fn fat_entry_width(cluster_count: u32) -> usize {
-    if cluster_count >= FAT16_MAX_CLUSTERS {
+    // Mirrors the reader: the reserved FAT slot counts toward the threshold.
+    if cluster_count.saturating_add(1) >= FAT16_MAX_CLUSTERS {
         4
     } else {
         2

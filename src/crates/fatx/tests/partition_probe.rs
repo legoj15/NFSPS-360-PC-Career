@@ -127,6 +127,49 @@ fn non_xbox_media_is_rejected() {
     ));
 }
 
+/// A crafted devkit-table sector count cannot invent a partition longer
+/// than the source: the length is clamped to what the image actually holds
+/// (same contract as the retail fixed-offset path).
+#[test]
+fn devkit_table_length_is_clamped_to_the_source() {
+    let data_lba: u32 = 0x800; // 1 MiB in
+    let dk = FatxImageBuilder::new()
+        .file(path("CAREER_01_360"), b"devkit payload".to_vec())
+        .build_devkit_image(data_lba);
+
+    // Inflate the Content entry's sector count far beyond the image.
+    let mut image = dk.image.clone();
+    let claimed_sectors: u32 = 0x00FF_FFFF; // ~512 GB
+    image[0xC..0x10].copy_from_slice(&claimed_sectors.to_le_bytes());
+    let total = image.len() as u64;
+    let expected_len = total - dk.data_offset; // clamped, not 0x1FFFFFE00
+
+    let mut cur = Cursor::new(image);
+    let drive = XboxDriveImage::probe(&mut cur, total).unwrap();
+    assert_eq!(drive.data_partition.length, expected_len);
+    assert_eq!(
+        drive.data_partition.length,
+        dk.data_length,
+        "clamped length equals the real volume"
+    );
+
+    // The clamped region still mounts and reads like the honest table did.
+    let mut vol = fatx::FatxVolume::open(
+        &mut cur,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .unwrap();
+    assert_eq!(
+        vol.read_file(&format!(
+            "/Content/{}/45410822/00000001/CAREER_01_360",
+            profile()
+        ))
+        .unwrap(),
+        b"devkit payload".to_vec()
+    );
+}
+
 #[test]
 fn truncated_media_is_rejected_not_panicked() {
     let mut cur = Cursor::new(vec![0u8; 0x10]);

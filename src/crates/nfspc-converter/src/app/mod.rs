@@ -3,5 +3,6 @@
 pub mod batch;
 pub mod destination;
 pub mod drivescan;
+pub mod headless;
 pub mod sources;
 pub mod worker;

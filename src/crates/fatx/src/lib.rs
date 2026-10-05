@@ -27,6 +27,7 @@
 //! Feature `test-util` enables [`test_util`], which synthesizes complete
 //! FATX USB images for hardware-free round-trip tests.
 
+pub mod aligned;
 pub mod device;
 pub mod discovery;
 pub mod error;
@@ -36,6 +37,7 @@ pub mod stfs;
 #[cfg(feature = "test-util")]
 pub mod test_util;
 
+pub use aligned::SectorReader;
 pub use device::{DeviceSource, OpenStatus, OpenedDevice, WindowsPhysicalDrives};
 pub use discovery::{
     DiscoveredSave, DiscoveryReport, discover_prostreet_saves, discover_prostreet_saves_noted,

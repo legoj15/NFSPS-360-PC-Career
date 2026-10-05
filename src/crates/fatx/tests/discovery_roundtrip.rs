@@ -125,15 +125,42 @@ fn discovered_bytes_match_oracles_byte_for_byte() {
 }
 
 #[test]
-fn friendly_names_come_from_con_header() {
+fn friendly_names_are_per_save() {
     let (usb, _) = scenario();
     let found = scan(&usb);
     assert!(!found.is_empty());
     for s in &found {
-        // Every discovered file here is built from real CON bytes, so the
-        // friendly name is the STFS display name, not the file name.
-        assert_eq!(s.friendly_name, "NFS ProStreet", "for {}", s.source_path);
+        // The STFS file-table name identifies the save ("CAREER_01"); the
+        // CON display name would read "NFS ProStreet" on every row.
+        let file = s.source_path.rsplit('/').next().unwrap();
+        let want = if file == "CAREER_02_360" { "CAREER_02" } else { "CAREER_01" };
+        assert_eq!(s.friendly_name, want, "for {}", s.source_path);
     }
+}
+
+/// A package too damaged to name falls back to its FATX file name, never
+/// the game-title display name.
+#[test]
+fn friendly_name_falls_back_to_fatx_file_name() {
+    let mut broken = vec![0u8; 0x1800];
+    broken[..4].copy_from_slice(b"CON ");
+    let usb = FatxImageBuilder::new()
+        .cluster_size(0x1000)
+        .file(
+            save(PROFILE_A, "00000001", "CAREER_01_360"),
+            fatx::test_util::oracle_career_latest(),
+        )
+        .file(save(PROFILE_A, "00000001", "CAREER_BAD"), broken)
+        .build_usb_image();
+    let found = scan(&usb);
+    let by_file = |f: &str| {
+        found
+            .iter()
+            .find(|s| s.source_path.ends_with(f))
+            .unwrap_or_else(|| panic!("{f} missing"))
+    };
+    assert_eq!(by_file("CAREER_01_360").friendly_name, "CAREER_01");
+    assert_eq!(by_file("CAREER_BAD").friendly_name, "CAREER_BAD");
 }
 
 #[test]
@@ -243,6 +270,73 @@ fn corrupt_file_is_skipped_without_hiding_good_saves() {
     assert!(
         report.notes.iter().any(|n| n.contains("BROKEN_SIZE")),
         "the skipped file must be noted: {:?}",
+        report.notes
+    );
+}
+
+/// An UNREADABLE save-type directory (corrupt cluster chain) is noted at
+/// its own level and the scan keeps going — "no saves found" on otherwise
+/// healthy media must always carry a diagnostic. A merely absent 00000001/
+/// 00000002 folder stays silent (normal for titles with one save type).
+#[test]
+fn unreadable_save_type_dir_is_noted_and_scan_continues() {
+    let usb = FatxImageBuilder::new()
+        .cluster_size(0x1000)
+        .file(
+            save(PROFILE_A, "00000001", "CAREER_DEAD"),
+            fatx::test_util::oracle_career_latest(),
+        )
+        .file(
+            save(PROFILE_A, "00000002", "CAREER_02_360"),
+            fatx::test_util::oracle_career_fresh(),
+        )
+        .build_usb_image();
+
+    // Loop the 00000001 directory cluster's FAT entry onto itself. Directory
+    // clusters are 0xFF-padded behind the name, so match the raw 8-byte name
+    // plus the directory attribute byte in front of it.
+    let mut image = usb.image.clone();
+    let name_off = image
+        .windows(8)
+        .enumerate()
+        .position(|(i, w)| w == b"00000001".as_slice() && image[i - 1] == 0x10)
+        .expect("save-type dirent present");
+    let dirent = name_off - 2;
+    let cluster = u32::from_be_bytes(
+        image[dirent + 0x2C..dirent + 0x30]
+            .try_into()
+            .expect("4 bytes"),
+    );
+    // 16-bit FAT on this small volume; offsets are volume-relative, so add
+    // the Data-partition base inside the raw image.
+    let fat = usb.data_offset as usize + 0x1000 + cluster as usize * 2;
+    image[fat..fat + 2].copy_from_slice(&(cluster as u16).to_be_bytes());
+
+    let mut cur = Cursor::new(image);
+    let drive = XboxDriveImage::probe(&mut cur, usb.image.len() as u64).unwrap();
+    let mut vol = fatx::FatxVolume::open(
+        &mut cur,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .unwrap();
+
+    let report = fatx::discovery::discover_prostreet_saves_noted(&mut vol, &[]).unwrap();
+    assert_eq!(
+        report.saves.len(),
+        1,
+        "the good save in the sibling save-type dir must survive"
+    );
+    assert_eq!(
+        report.saves[0].source_path,
+        save(PROFILE_A, "00000002", "CAREER_02_360")
+    );
+    assert!(
+        report
+            .notes
+            .iter()
+            .any(|n| n.contains("00000001") && n.contains("skipped")),
+        "the unreadable save-type dir must be noted: {:?}",
         report.notes
     );
 }

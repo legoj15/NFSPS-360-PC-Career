@@ -1,12 +1,10 @@
 //! Entry point: headless `--convert <file-or-folder> --out <dir>` for
 //! automated cross-checks and power users, GUI otherwise.
 
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
-use nfspc_converter::app::batch::{SaveInput, SaveStatus, run_batch};
-use nfspc_converter::app::sources::discover_manual;
+use nfspc_converter::app::headless;
 use nfspc_converter::ui;
 
 const USAGE: &str = "\
@@ -86,74 +84,6 @@ fn main() -> ExitCode {
                 }
             }
         }
-        Cli::Convert { src, out } => run_headless(&src, &out),
-    }
-}
-
-fn run_headless(src: &Path, out: &Path) -> ExitCode {
-    let manual = match discover_manual(src) {
-        Ok(found) if !found.is_empty() => found,
-        Ok(_) => {
-            eprintln!("no ProStreet saves found under {}", src.display());
-            return ExitCode::FAILURE;
-        }
-        Err(e) => {
-            eprintln!("error: {e}");
-            return ExitCode::FAILURE;
-        }
-    };
-
-    let mut inputs: Vec<SaveInput> = Vec::new();
-    for m in &manual {
-        match SaveInput::from_path(&m.path) {
-            Ok(input) => inputs.push(input),
-            Err(e) => {
-                eprintln!("error: {e}");
-                return ExitCode::FAILURE;
-            }
-        }
-    }
-
-    if let Err(e) = std::fs::create_dir_all(out) {
-        eprintln!("error: cannot create {}: {e}", out.display());
-        return ExitCode::FAILURE;
-    }
-
-    let batch = run_batch(inputs, out);
-    let mut failures = 0usize;
-    for result in &batch.results {
-        match &result.status {
-            SaveStatus::Converted {
-                chunks,
-                warnings,
-                target,
-            } => {
-                println!("[+] {}: {} chunks", result.label, chunks);
-                for w in warnings {
-                    println!("      ! {w}");
-                }
-                let _ = writeln!(std::io::stdout(), "      wrote {}", target.display());
-            }
-            SaveStatus::Refused { reason } => {
-                failures += 1;
-                eprintln!("[!] FAILED {}: {}", result.label, reason);
-            }
-        }
-    }
-
-    match batch.success_message() {
-        Some(msg) => {
-            println!("{msg}");
-            if failures == 0 {
-                ExitCode::SUCCESS
-            } else {
-                eprintln!("error: {failures} save(s) could not be converted");
-                ExitCode::FAILURE
-            }
-        }
-        None => {
-            eprintln!("error: no saves were converted");
-            ExitCode::FAILURE
-        }
+        Cli::Convert { src, out } => headless::run(&src, &out),
     }
 }

@@ -11,7 +11,10 @@ fn completed_work_comes_back_as_done() {
 
 #[test]
 fn panicked_work_comes_back_with_its_message() {
-    let out = run_guarded(|| panic!("boom: disk went away"));
+    // Pin T = () so the Done variant stays inhabited and the pattern below
+    // stays refutable (a `panic!`-only closure infers T = !, which would
+    // make the let-else irrefutable).
+    let out: Guarded<()> = run_guarded(|| panic!("boom: disk went away"));
     let Guarded::Panicked(msg) = out else {
         panic!("expected Panicked, got {out:?}");
     };

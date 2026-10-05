@@ -18,6 +18,17 @@ pub const TITLE_ID_OFFSET: usize = 0x360;
 pub const DISPLAY_NAME_OFFSET: usize = 0x1691;
 /// Length reserved for the display name.
 pub const DISPLAY_NAME_LEN: usize = 0x80;
+/// Volume-descriptor byte whose bit 0 selects the hash-table layout
+/// (clear = every hash table stored twice -> backing-block shift 1).
+pub const TABLE_SHIFT_OFFSET: usize = 0x37B;
+/// Offset of the LE24 file-table block number inside the volume descriptor.
+pub const FILE_TABLE_BLOCK_OFFSET: usize = 0x37E;
+/// STFS data block size.
+pub const STFS_BLOCK: usize = 0x1000;
+/// Data blocks per level-0 hash table.
+pub const HASHES_PER_TABLE: usize = 0xAA;
+/// Data blocks per level-1 hash table (170 * 170).
+pub const L1_SPAN: usize = 0x70E4;
 /// Need for Speed: ProStreet (verified against both tracked oracles and
 /// community title-ID lists).
 pub const TITLE_ID_NFS_PROSTREET: [u8; 4] = [0x45, 0x41, 0x08, 0x22];
@@ -77,6 +88,53 @@ impl ConHeader {
     pub fn title_id_matches(&self, ids: &[[u8; 4]]) -> bool {
         ids.contains(&self.title_id)
     }
+}
+
+/// File offset of STFS data block `block` given the page-aligned first hash
+/// table and the backing-block shift (1 when every hash table is stored
+/// twice). Mirrors `nfssave_core::container360::stfs_block_offset` and the
+/// Python spec `scripts/python/nfssave/container360.py`.
+fn stfs_block_offset(block: usize, first_table: usize, shift: usize) -> usize {
+    let mut backing = (((block + HASHES_PER_TABLE) / HASHES_PER_TABLE) << shift) + block;
+    if block >= HASHES_PER_TABLE {
+        backing += ((block + L1_SPAN) / L1_SPAN) << shift;
+        if block >= L1_SPAN {
+            backing += 1usize << shift;
+        }
+    }
+    first_table + backing * STFS_BLOCK
+}
+
+/// Extracts the per-save name from a CON package's STFS file table (see
+/// [`ConHeader::parse`] for the header fields used to locate it). Returns
+/// an error when the package is too short or the table block is beyond EOF.
+pub fn file_table_name(data: &[u8]) -> Result<String> {
+    let bad = |why: &str| Error::BadEntry(format!("STFS file table unreadable: {why}"));
+    if data.len() < MIN_LEN {
+        return Err(bad("package shorter than a CON header"));
+    }
+    let header_size = u32::from_be_bytes(
+        data[HEADER_SIZE_OFFSET..HEADER_SIZE_OFFSET + 4]
+            .try_into()
+            .expect("4-byte slice"),
+    ) as usize;
+    let first_table = header_size.div_ceil(STFS_BLOCK) * STFS_BLOCK;
+    let shift = if data[TABLE_SHIFT_OFFSET] & 1 != 0 { 0 } else { 1 };
+    let b = &data[FILE_TABLE_BLOCK_OFFSET..FILE_TABLE_BLOCK_OFFSET + 3];
+    let table_block = b[0] as usize | ((b[1] as usize) << 8) | ((b[2] as usize) << 16);
+    let off = stfs_block_offset(table_block, first_table, shift);
+    let Some(entry) = data.get(off..off + 0x40) else {
+        return Err(bad(&format!("block {table_block} at {off:#x} beyond EOF")));
+    };
+    let nul = entry[..0x28].iter().position(|&x| x == 0).unwrap_or(0x28);
+    let name: String = entry[..nul]
+        .iter()
+        .map(|&x| if x.is_ascii() { x as char } else { char::REPLACEMENT_CHARACTER })
+        .collect();
+    if name.is_empty() {
+        return Err(bad("empty file-table entry"));
+    }
+    Ok(name)
 }
 
 /// Decodes a fixed-size UTF-16BE field trimmed at the first NUL code unit,
