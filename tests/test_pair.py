@@ -68,6 +68,22 @@ class PairTests(unittest.TestCase):
             s, e = 0x2680 + setoff + 0x3C, 0x2680 + setoff + 0x186
             self.assertEqual(a[s:e].hex(), b[s:e].hex(), f"set +{setoff:#x}")
 
+    def test_packed_table_entries(self):
+        """8-byte packed entries after the car records: the 360 leaves the
+        link/low fields uninitialized (0x2AAA); PC writes 'none'. Empty
+        360 entry 2aaafffe ffff2aaa must become feffff3f fffffeff."""
+        from nfssave.convert import convert_packed_entry
+        self.assertEqual(convert_packed_entry(bytes.fromhex("2aaafffeffff2aaa")).hex(),
+                         "feffff3ffffffeff")
+        self.assertEqual(convert_packed_entry(bytes.fromhex("2aaa01aa5c852aaa")).hex(),
+                         "aa01ff3fffff845c")
+        self.assertEqual(convert_packed_entry(bytes.fromhex("2aaafffe31182aaa")).hex(),
+                         "feffff3fffff1831")
+        a, b = self.conv[CARDB], self.native[CARDB]
+        for o in range(0x7DF50, 0x90658, 8):   # every empty native entry
+            if b[o:o + 8] == bytes.fromhex("feffff3ffffffeff") and                     a[o:o + 8] != b[o:o + 8]:
+                self.fail(f"entry {o:#x}: {a[o:o + 8].hex()}")
+
     def test_starter_car_parts(self):
         s, e = CAR0_PARTS
         self.assertEqual(self.conv[CARDB][s:e].hex(), self.native[CARDB][s:e].hex())

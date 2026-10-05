@@ -167,6 +167,35 @@ def fix_node_flags(src: bytes, out: bytearray) -> None:
             out[o:o + 4] = src[o:o + 4]
 
 
+CARDB_PACKED = (0x7C980, 0x90660)   # region holding 8-byte packed entries
+PACKED_FILL = bytes((0x2A, 0xAA))     # 360 uninitialized 14/16-bit field (0xAAAA masked)
+
+
+def convert_packed_entry(e: bytes) -> bytes:
+    """One 8-byte packed entry, 360 BE -> PC LE.
+
+    Layout (both platforms, as u32 pairs): w1 = [u16 index | 14-bit link
+    << 16 | 2 bits], w2 = [u16 low | flag bit << 16 | value << 17].
+    The PC writes 'none' into the link (0x3FFF) and low (0xFFFF) fields and
+    keeps the flag bit clear; the 360 leaves link/low as heap fill (0x2AAA)
+    and the flag bit set on some entries. A walked link of 0x2AAA points
+    past the ~9400-entry table (garage hang). Verified on the matched pairs:
+    2aaafffe ffff2aaa -> feffff3f fffffeff; value 0x5C85 -> 0x5C84.
+    """
+    w1, w2 = struct.unpack(">II", e)
+    w1 = (w1 & 0xC000FFFF) | (0x3FFF << 16)
+    w2 = (w2 & 0xFFFE0000) | 0xFFFF
+    return struct.pack("<II", w1, w2)
+
+
+def fix_cardb_packed(src: bytes, out: bytearray) -> None:
+    lo, hi = CARDB_PACKED
+    for o in range(lo, hi, 8):
+        e = src[o + 4:o + 12]
+        if e[:2] == PACKED_FILL and e[6:8] == PACKED_FILL:
+            out[o + 4:o + 12] = convert_packed_entry(e)
+
+
 def fix_cardb_parts(src: bytes, out: bytearray) -> None:
     """Customization part slots are u16 arrays: swap each u16 in place.
 
@@ -275,6 +304,7 @@ def apply_struct_fixes(rec, src: bytes, warnings: list) -> None:
         fix_raceday_block(src, out, warnings)
     elif rec.id == CARDB_ID:
         fix_cardb_parts(src, out)
+        fix_cardb_packed(src, out)
     elif rec.id not in RAW_BLOB_IDS:
         fix_node_flags(src, out)
     rec.payload = bytes(out)
