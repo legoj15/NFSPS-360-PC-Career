@@ -23,7 +23,6 @@ load-menu under your profile name (e.g. `JOSHUA S 10`).
 
 ## Status
 
-October 2026: a reading bug that cut off the end of every console career
-(race progress and unlocks) is fixed, and cars now keep their installed
-parts. Waiting on an in-game check; the garage crash is still being
-investigated. See `docs/HANDOFF.md`.
+Verified in-game (October 2026): converted careers load exactly where they
+were saved on the console, including a race day in progress, with the
+right cars and blueprints. Still to check: the garage, and CAREER_03.
