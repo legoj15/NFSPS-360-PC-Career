@@ -196,9 +196,38 @@ def fix_cardb_parts(src: bytes, out: bytearray) -> None:
         out[o:o + 4] = src[o:o + 4]
 
 
+RACEDAY_ACTIVE = 0x2D4      # GameplayData: u32 1 while a race day is in progress
+RACEDAY_PAD = 0x314         # 360-only 4-byte pad inside the race-day block
+RACEDAY_END = 0x3E70        # block end (event list follows on both platforms)
+RACEDAY_NAME = (0x300, 0x310)          # car/name C-string, natural order
+RACEDAY_FLAGS = (0x434, 0x784, 0x10)   # per-event [u8 flags][u8][pad pad]
+
+
+def fix_raceday_block(src: bytes, out: bytearray) -> None:
+    """Close the 360-only pad in GameplayData's in-progress race-day block.
+
+    Verified on the mid-race-day pair (Battle Machine, Nevada): from PC
+    0x314 to the block end every 360 field sits 4 bytes later; the block
+    tail is zero on both platforms, so the freed word goes there.
+    PC offsets; the unframed 360 payload has one extra leading word.
+    """
+    if struct.unpack_from(">I", src, RACEDAY_ACTIVE + 4)[0] != 1:
+        return
+    a, e = RACEDAY_PAD + 4, RACEDAY_END + 4
+    out[a:e - 4] = out[a + 4:e]
+    out[e - 4:e] = bytes(4)
+    lo, hi = RACEDAY_NAME
+    out[lo + 4:hi + 4] = src[lo + 4:hi + 4]           # before the pad: unshifted
+    lo, hi, step = RACEDAY_FLAGS
+    for o in range(lo, hi, step):                      # after the pad: +4 in src
+        out[o + 4:o + 8] = src[o + 8:o + 12]
+
+
 def apply_struct_fixes(rec, src: bytes) -> None:
     out = bytearray(rec.payload)
-    if rec.id == CARDB_ID:
+    if rec.id == GAMEPLAY_ID:
+        fix_raceday_block(src, out)
+    elif rec.id == CARDB_ID:
         fix_cardb_parts(src, out)
     elif rec.id not in RAW_BLOB_IDS:
         fix_node_flags(src, out)

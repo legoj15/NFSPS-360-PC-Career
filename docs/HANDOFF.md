@@ -93,3 +93,22 @@
   FECareer, or GameplayData), then check how the converter handles them.
   Also worth checking: alias-side career state (game loaded alias "Player",
   not JOSHUA S 10).
+
+## Round 5 (21:30) — mid-race-day pair
+- New oracle: research/pair_raceday/ (CAREER_02 at the "Battle Machine"
+  race day in Nevada, saved on both platforms).
+- GameplayData is NOT a fixed struct: while a race day is in progress
+  (u32 at PC 0x2D4 == 1) a race-day block occupies 0x2E0..0x3E70 and the
+  event list follows. The 360 block has a 4-byte pad at 0x314 the PC lacks;
+  fixed (fix_raceday_block) + u8 per-event flag words (0x434..0x784 step 16)
+  and the name string at 0x300 kept natural. Physics floats differ only in
+  noise bits. tests/test_raceday.py.
+- Installed: converted raceday 360 save as SAVE/.../CAREER_02 (native PC
+  copy archived byte-exact at research/pair_raceday/CAREER_02_pc_native —
+  copy it back to restore). User to test: does CAREER_02 resume the Battle
+  Machine race day like native did?
+- IMPORTANT: the user's 360 CAREER_01 has NO active race-day block
+  (0x2D0 looks like the fresh career) - so its "resume Willow Springs"
+  state is not in GameplayData's block; this fix does not change CAREER_01.
+  Next: once CAREER_02 is confirmed, diff the remaining chunks of CAREER_01
+  vs the resume behaviour (FECareer/RaceData/alias-side state).
