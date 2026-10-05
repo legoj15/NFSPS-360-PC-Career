@@ -75,3 +75,21 @@
   (blocked selecting "Yes" to load). Suspects: XtendedInput / a drifting or
   virtual controller axis; SimRate (-1) != FPS cap (60). Not changed - user's
   call.
+
+## Round 4 (21:15) — user test result
+- CAREER_01 now loads the CORRECT car (car-table slot fix confirmed in-game).
+- Still wrong: it plays the "new game" intro cutscene; on the 360 the save
+  resumes an in-progress Willow Springs race day. So a "career started /
+  current race day" state is still lost.
+- Checked and ruled out tonight: GameplayData shows no width-error
+  signature vs the PC 100% save (2 mirror hits, both content); FECareer
+  node values look like plausible swapped u32s (8-byte nodes are 16-byte
+  aligned with padding, so a naive node walker breaks — alignment is
+  preserved by the converter because PC/360 record offsets stay congruent).
+- Next: get an oracle for the in-progress state. Ask the user to save BOTH
+  platforms' CAREER_02 mid-race-day (start the next race day, finish one
+  event, save/quit) -> new matched pair. Diff its chunks against the current
+  pair to locate the race-day-in-progress fields (likely RaceData 0x51A41B14,
+  FECareer, or GameplayData), then check how the converter handles them.
+  Also worth checking: alias-side career state (game loaded alias "Player",
+  not JOSHUA S 10).
