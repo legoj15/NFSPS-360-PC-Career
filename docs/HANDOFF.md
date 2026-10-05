@@ -60,3 +60,18 @@
 
 ## Delegation log
 - (none this session — all analysis done by the orchestrator; no agents spawned)
+
+## Round 3 notes (21:20) — PC install environment
+- The game allows 3 careers per alias: the CAREER_04 diagnostic triggered a
+  warning on every screen; moved to research/backups/diag_CAREER_04/.
+- The PC install is a ChemicalFlood repack, not a clean v1.1: mods =
+  FusionFix (FramerateUncap=1, SimRate=-1 = monitor refresh), NFS_XtendedInput
+  (input remap), d3d9-wrapper (FPSLimit=60), Ultimate ASI loader (dinput8.dll).
+  The repack also ships "car fixes" (modified CARS data) and its own FAQ admits
+  garage crashes with DLC cars + stage-4 kits -> the garage crash may be
+  repack-side, not converter-side. Part IDs in modified car data could also
+  differ from the 360 TU.
+- User reports missing speedometer HUD and phantom left/right menu input
+  (blocked selecting "Yes" to load). Suspects: XtendedInput / a drifting or
+  virtual controller axis; SimRate (-1) != FPS cap (60). Not changed - user's
+  call.
