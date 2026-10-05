@@ -2,6 +2,19 @@
 name = "nfspc-converter"
 version.workspace = true
 edition.workspace = true
+build = "build.rs"
+
+[lib]
+name = "nfspc_converter"
+path = "src/lib.rs"
+
+[[bin]]
+name = "NFSPS-SaveConverter"
+path = "src/main.rs"
+# The exe embeds a requireAdministrator manifest (see build.rs), which would
+# block cargo from launching its (empty) test harness unelevated. All tests
+# live in the lib integration tests instead.
+test = false
 
 [dependencies]
 nfssave-core = { path = "../nfssave-core" }
@@ -9,3 +22,11 @@ fatx = { path = "../fatx" }
 eframe = { version = "0.36.2", default-features = false, features = ["glow", "default_fonts"] }
 env_logger = "0.11.11"
 log = "0.4.34"
+rfd = "0.15"
+
+# FOLDERID_Documents / SHGetKnownFolderPath for the default save-folder
+# suggestion (never an env var, per the Python spec's ctypes approach).
+windows = { version = "0.62.2", features = ["Win32_UI_Shell", "Win32_System_Com"] }
+
+[dev-dependencies]
+tempfile = "3"
