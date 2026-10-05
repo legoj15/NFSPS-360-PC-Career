@@ -5,3 +5,6 @@ __pycache__/
 # personal save dumps (input corpus) and converter output - never publish
 Extracted/
 out/
+
+# packaged release artifacts
+/dist/

@@ -1,0 +1,6 @@
+# Statically link the MSVC CRT so release builds of the converter ship
+# without requiring the Visual C++ runtime redistributable on target machines.
+# Cargo has no stable per-profile rustflags, so this applies to every build
+# (debug included) for this target triple.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
