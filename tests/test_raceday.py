@@ -34,6 +34,33 @@ class RaceDayTests(unittest.TestCase):
             self.assertEqual(conv[o:o + 4].hex(), nat[o:o + 4].hex(), hex(o))
 
 
+class BlueprintSetTests(unittest.TestCase):
+    """Starter car blueprint sets in the race-day pair: paint words are two
+    u16s; vinyl colour bytes (+0x574..0x628) stay natural."""
+
+    def test_paint_and_colour_bytes(self):
+        conv = [r.payload for r in Tree.parse(convert_payload(
+            MC02.parse(read_container(R360).payload), ConversionReport()).tree,
+            big=False).records if r.id == 0x47A07113][0]
+        nat = [r.payload for r in Tree.parse(MC02.parse(RPC.read_bytes()).tree,
+                                             big=False).records if r.id == 0x47A07113][0]
+        for bs in (0x0, 0x7B4, 0xF68):
+            R = 0x2680 + bs
+            self.assertEqual(conv[R + 0x194:R + 0x198], nat[R + 0x194:R + 0x198], hex(bs))
+        R = 0x2680
+        for o in (0x1A0, 0x1AC):
+            self.assertEqual(conv[R + o:R + o + 4].hex(), nat[R + o:R + o + 4].hex())
+        nz = lambda b: [i for i, x in enumerate(b) if x]
+        for o in (0x5A0, 0x5AC, 0x600, 0x604):   # values differ, layout must not
+            self.assertEqual(nz(conv[R + o:R + o + 4]), nz(nat[R + o:R + o + 4]), hex(o))
+
+    def test_decal_entry_layout(self):
+        from nfssave.convert import convert_decal_entry
+        # 360 Camaro vinyl entry -> u16 fields swapped, bytes 6..9 natural
+        self.assertEqual(convert_decal_entry(bytes.fromhex("04f6006c0002c01b1b0006590000")).hex(),
+                         "f6046c000200c01b1b0059060000")
+
+
 class BlockEndTests(unittest.TestCase):
     def test_block_end_detection(self):
         from nfssave.convert import raceday_block_end

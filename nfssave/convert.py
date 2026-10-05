@@ -196,6 +196,41 @@ def fix_cardb_packed(src: bytes, out: bytearray) -> None:
             out[o + 4:o + 12] = convert_packed_entry(e)
 
 
+# per blueprint set (offsets relative to the set; verified vs native PC saves)
+BP_PAINT = (0x194, 12, 12)       # 12 x [paint: u16,u16][f32][f32]
+BP_DECALS = (0x240, 26, 20)      # 20 x 26 B decal slots
+BP_VINYLS = (0x450, 14, 20)      # 20 x 14 B vinyl slots
+BP_COLOURS = (0x574, 0x628)      # u8[20][9] vinyl colour bytes, natural
+
+
+def _swap16s(b: bytes) -> bytes:
+    return b"".join(b[i:i + 2][::-1] for i in range(0, len(b), 2))
+
+
+def convert_decal_entry(e: bytes) -> bytes:
+    """Decal/vinyl entry: [s16 x][s16 y][u16][u8 x4][u16 id][u16]...(u16s).
+    All u16 fields swap per u16; the four bytes at +6..+9 stay natural
+    (native PC 'bf 12 12 00' <-> 360 'c0 1b 1b 00' pattern)."""
+    return _swap16s(e[:6]) + e[6:10] + _swap16s(e[10:])
+
+
+def fix_blueprint_set(src: bytes, out: bytearray, s: int) -> None:
+    """One customization set at 360-payload offset s (PC offset + 4).
+
+    Decal/vinyl entries are 26/14 bytes - not u32 aligned - so a blanket
+    u32 swap tears fields across entries (garage hang on customized cars)."""
+    off, step, n = BP_PAINT
+    for k in range(n):
+        o = s + off + k * step
+        out[o:o + 4] = _swap16s(src[o:o + 4])
+    for off, step, n in (BP_DECALS, BP_VINYLS):
+        for k in range(n):
+            o = s + off + k * step
+            out[o:o + step] = convert_decal_entry(src[o:o + step])
+    lo, hi = BP_COLOURS
+    out[s + lo:s + hi] = src[s + lo:s + hi]
+
+
 def fix_cardb_parts(src: bytes, out: bytearray) -> None:
     """Customization part slots are u16 arrays: swap each u16 in place.
 
@@ -218,6 +253,7 @@ def fix_cardb_parts(src: bytes, out: bytearray) -> None:
             for s in range(rec0 + lo, rec0 + hi, 2):
                 out[s:s + 2] = src[s:s + 2][::-1]
             out[rec0 + flo:rec0 + fhi] = src[rec0 + flo:rec0 + fhi]
+            fix_blueprint_set(src, out, rec0)
     # car table: last word of every entry is [u8 a][u8 b][u8 slot][pad] -
     # garage slot/index bytes; a u32 swap scrambles which record a car uses
     t0, size, n = CARDB_TABLE
