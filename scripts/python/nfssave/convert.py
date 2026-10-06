@@ -17,8 +17,10 @@ platforms — see CHUNK_NAMES.
 """
 
 import hashlib
+import shutil
 import struct
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .container360 import read_container
@@ -26,7 +28,6 @@ from .mc02 import MC02, Endian
 from .payload_rules import convert_record, convert_payload_auto, find_string_runs, RULES_LOADED
 from .tree import Tree, TREE_MAGIC, REC_START_PC
 
-PC_SAVE_ROOT = r"E:\legoj\Documents\Need for Speed ProStreet\SAVE\NFS ProStreet"
 PC_HEAD_STRUCT_SIZE = 0x1AC  # allocator-garbage region PC keeps between count and root
 
 GAMEPLAY_ID = 0x3B309E09
@@ -505,7 +506,7 @@ def convert_payload(mc02_be: MC02, report: ConversionReport | None = None,
     return pc
 
 
-def write_pc_save(mc02_pc: MC02, name: str, save_root: str = PC_SAVE_ROOT) -> Path:
+def write_pc_save(mc02_pc: MC02, name: str, save_root: str) -> Path:
     if not name or any(c in name for c in "\\/:") or name in (".", ".."):
         raise ValueError(f"unsafe save name {name!r}")
     root = Path(save_root)
@@ -514,3 +515,35 @@ def write_pc_save(mc02_pc: MC02, name: str, save_root: str = PC_SAVE_ROOT) -> Pa
     target = folder / name
     target.write_bytes(mc02_pc.to_bytes())
     return target
+
+
+# Folder (next to the export folder) that receives replaced saves; same
+# convention as the Windows app (nfspc-converter app/batch.rs).
+BACKUP_DIR = "SaveConverter backups"
+
+
+def utc_stamp(t: datetime | None = None) -> str:
+    """YYYY-MM-DD_HH-MM-SS (UTC) for backup folder names."""
+    t = t or datetime.now(timezone.utc)
+    return t.astimezone(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def back_up_existing(save_root, name: str, stamp: str) -> Path | None:
+    """Copy <save_root>/<name>/<name> to
+    <parent of save_root>/SaveConverter backups/<stamp>[-N]/<name>/<name>.
+    Returns the backup path, or None when there was nothing to keep."""
+    existing = Path(save_root) / name / name
+    if not existing.is_file():
+        return None
+    base = Path(save_root).resolve().parent
+    # runs inside the same second share a stamp: never overwrite an earlier
+    # backup, fall through to <stamp>-2, <stamp>-3, ...
+    n = 1
+    while True:
+        dest = base / BACKUP_DIR / (stamp if n == 1 else f"{stamp}-{n}") / name / name
+        if not dest.exists():
+            break
+        n += 1
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(existing, dest)
+    return dest

@@ -28,10 +28,13 @@
     backup convention, -Flash walk, error exits. Failed before the port.
   - Port `scripts/powershell/Convert-NfsSave.ps1` delegated to `impl`
     (C# 5 Add-Type for hot loops, no --twin).
-- Python debt found (not fixed yet): convert.py PC_SAVE_ROOT hardcodes
-  `E:\legoj\Documents\...` (published repo!); `Path("F:")/"Content"` is
-  drive-relative (`F:Content`); write_pc_save overwrites with no backup
-  (exe backs up).
+- Python CLI debt FIXED (tests/test_cli.py): PC_SAVE_ROOT removed,
+  write_pc_save needs an explicit root, CLI defaults to known-folder
+  Documents; bare drive letters -> drive root; CLI backs up replaced saves
+  (nfssave.convert back_up_existing, same layout as app/batch.rs). The
+  known-folder lookup had a wrong FOLDERID_Documents GUID and always fell
+  back to %USERPROFILE%\Documents - the hardcoded path hid it; fixed + test.
+  Remaining nit: --dry-run still requires the output folder to exist.
 
 ## 2026-10-06 — no console window behind the GUI
 - Release exe is now GUI-subsystem; CLI paths attach to the parent console

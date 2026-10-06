@@ -47,7 +47,9 @@ backups** folder first.
 Converted saves land in the game's save folder
 (`Documents\Need for Speed ProStreet\SAVE\NFS ProStreet`) — or pass
 `--out-root` to put them somewhere else first. Add `--flash F: --all` to
-convert every save on the 360-formatted flash drive at once.
+convert every save on the 360-formatted flash drive at once. As with the
+Windows app, a save with the same name that is already there is copied to a
+**SaveConverter backups** folder first.
 
 After converting, launch the game and the career should appear in the
 load-menu after selecting your alias.

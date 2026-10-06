@@ -15,13 +15,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from nfssave import MC02, read_container
-from nfssave.convert import (PC_SAVE_ROOT, CHUNK_NAMES, convert_payload,
-                              ConversionReport, write_pc_save)
+from nfssave.convert import (convert_payload, ConversionReport, write_pc_save,
+                              back_up_existing, utc_stamp)
 from nfssave.container360 import parse_container
+
+GAME_SAVE_SUBDIR = Path("Need for Speed ProStreet") / "SAVE" / "NFS ProStreet"
+
+
+def flash_content_dir(drive: str) -> Path:
+    """<drive>/Content. A bare drive letter ("F" or "F:") means the drive
+    root; Path("F:") / "Content" would be the drive-relative "F:Content"."""
+    d = drive.strip()
+    if len(d) in (1, 2) and d[0].isalpha() and d[1:] in ("", ":"):
+        d = d[0] + ":/"
+    return Path(d) / "Content"
 
 
 def find_flash_saves(drive: str):
-    root = Path(drive) / "Content"
+    root = flash_content_dir(drive)
     if not root.is_dir():
         return []
     return sorted(root.glob("*/*/0000000[12]/*"))
@@ -63,36 +74,53 @@ def convert_one(src: Path, args) -> None:
     if args.dry_run:
         print("[.] dry run - not writing")
         return
+    stamp = getattr(args, "backup_stamp", None) or utc_stamp()
+    backup = back_up_existing(args.out_root, cont.name, stamp)
+    if backup:
+        print(f"[+] backed up existing save to {backup}")
     target = write_pc_save(pc, cont.name, args.out_root)
     check = MC02.parse(target.read_bytes()).check()
     print(f"[+] wrote {target} {'(self-check OK)' if not check else check}")
 
 
-def resolve_out_root(arg: str | None) -> str:
-    if arg:
-        return arg
-    if Path(PC_SAVE_ROOT).is_dir():
-        return PC_SAVE_ROOT
-    # derive the Documents folder via the shell known-folder API (handles
-    # redirected Documents drives); fall back to the profile path
+def known_folder_documents() -> Path | None:
+    """Documents via the shell known-folder API (follows a redirected
+    Documents folder); None off Windows or on failure."""
     try:
         import ctypes
         from ctypes import wintypes
         class GUID(ctypes.Structure):
             _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD),
                         ("Data3", wintypes.WORD), ("Data4", ctypes.c_ubyte * 8)]
+        # FOLDERID_Documents {FDD39AD0-238F-46AF-ADB4-6C85480369C7}
         docs = GUID(0xFDD39AD0, 0x238F, 0x46AF, (ctypes.c_ubyte * 8)(
-            0xAD, 0xB9, 0x47, 0xDC, 0x85, 0x28, 0xE0, 0xD8))  # FOLDERID_Documents
-        p = ctypes.c_wchar_p()
-        if ctypes.windll.shell32.SHGetKnownFolderPath(
-                ctypes.byref(docs), 0, None, ctypes.byref(p)) == 0 and p.value:
-            cand = Path(p.value) / "Need for Speed ProStreet" / "SAVE" / "NFS ProStreet"
-            if cand.is_dir():
-                return str(cand)
+            0xAD, 0xB4, 0x6C, 0x85, 0x48, 0x03, 0x69, 0xC7))
+        p = ctypes.c_void_p()
+        hr = ctypes.windll.shell32.SHGetKnownFolderPath(
+            ctypes.byref(docs), 0, None, ctypes.byref(p))
+        try:
+            if hr == 0 and p.value:
+                return Path(ctypes.wstring_at(p.value))
+        finally:
+            ctypes.windll.ole32.CoTaskMemFree(p)
     except Exception:
         pass
+    return None
+
+
+def documents_dir() -> Path:
+    """The user's Documents folder, else <home>/Documents."""
+    return known_folder_documents() or Path.home() / "Documents"
+
+
+def resolve_out_root(arg: str | None) -> str:
+    if arg:
+        return arg
+    cand = documents_dir() / GAME_SAVE_SUBDIR
+    if cand.is_dir():
+        return str(cand)
     raise SystemExit(
-        f"game save folder not found (looked for {PC_SAVE_ROOT}); pass --out-root")
+        f"game save folder not found (looked for {cand}); pass --out-root")
 
 
 def main() -> int:
@@ -110,11 +138,12 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     args.out_root = resolve_out_root(args.out_root)
+    args.backup_stamp = utc_stamp()  # one backup folder per run
 
     if args.flash and args.all:
         saves = [p for p in find_flash_saves(args.flash) if p.name.startswith(("CAREER_", "ALIAS_"))]
         if not saves:
-            print(f"no saves found under {args.flash}/Content", file=sys.stderr)
+            print(f"no saves found under {flash_content_dir(args.flash)}", file=sys.stderr)
             return 1
         failures = 0
         for p in saves:
