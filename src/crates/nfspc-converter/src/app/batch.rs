@@ -3,6 +3,7 @@
 //! Runs each selected save through the nfssave-core pipeline and produces
 //! per-save status lines. A corrupted source (extra-blob CRC mismatch) is
 //! refused without writing anything and never stops the remaining saves.
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf, absolute};
@@ -154,10 +155,29 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
             exported_to: None,
         };
     }
+    // Export name (case-insensitive, like the filesystem) -> label of the
+    // save that claimed it. A second save with the same name (CAREER_01 on
+    // two sticks) would silently overwrite the first.
+    let mut claimed: HashMap<String, String> = HashMap::new();
     for input in inputs {
+        if let Some(owner) = claimed.get(&input.name.to_lowercase()) {
+            results.push(SaveResult {
+                status: SaveStatus::Refused {
+                    reason: format!(
+                        "another selected save ({owner}) is also named {}; \
+                         converting both would overwrite it - deselect one \
+                         and convert it separately",
+                        input.name
+                    ),
+                },
+                label: input.label,
+            });
+            continue;
+        }
         let status = match convert_input(&input, out_root) {
             Ok((chunks, warnings, target)) => {
                 any_converted = true;
+                claimed.insert(input.name.to_lowercase(), input.label.clone());
                 SaveStatus::Converted {
                     chunks,
                     warnings,

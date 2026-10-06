@@ -185,3 +185,47 @@ fn batch_creates_missing_output_root() {
         other => panic!("expected conversion, got {other:?}"),
     }
 }
+
+/// Two selected saves with the same export name (e.g. CAREER_01 on two
+/// different sticks) must not silently overwrite each other: the first
+/// converts, the second is refused with a reason naming the conflict, and
+/// the written file is the first save's.
+#[test]
+fn duplicate_export_names_in_one_batch_are_refused() {
+    let out = TempDir::new().unwrap();
+    let first = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
+    let mut second = first.clone();
+    second.label = "G:/Content/E000/45410822/00000001/CAREER_01".into();
+    // Different content, same name: flip a byte far from the headers.
+    let n = second.bytes.len();
+    second.bytes[n - 1] ^= 0xFF;
+    let first_label = first.label.clone();
+    let name = first.name.clone();
+
+    let result = run_batch(vec![first, second], out.path());
+    assert_eq!(result.results.len(), 2);
+    let target = match &result.results[0].status {
+        SaveStatus::Converted { target, .. } => target.clone(),
+        other => panic!("first save must convert: {other:?}"),
+    };
+    match &result.results[1].status {
+        SaveStatus::Refused { reason } => {
+            assert!(reason.contains(&name), "{reason}");
+            assert!(reason.contains(&first_label), "{reason}");
+        }
+        other => panic!("second save must be refused: {other:?}"),
+    }
+    let written = fs::read(&target).unwrap();
+    let expected = {
+        let solo = TempDir::new().unwrap();
+        let r = run_batch(
+            vec![SaveInput::from_path(Path::new(FIXTURE)).unwrap()],
+            solo.path(),
+        );
+        match &r.results[0].status {
+            SaveStatus::Converted { target, .. } => fs::read(target).unwrap(),
+            other => panic!("{other:?}"),
+        }
+    };
+    assert_eq!(written, expected, "the first save's output is kept");
+}

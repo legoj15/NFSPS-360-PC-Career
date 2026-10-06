@@ -60,7 +60,7 @@ fn main() {
                     continue;
                 }
             };
-        let report = match discover_prostreet_saves_noted(&mut volume, &[]) {
+        let report = match discover_prostreet_saves_noted(&mut volume) {
             Ok(report) => report,
             Err(err) => {
                 println!("  scan failed: {err}");

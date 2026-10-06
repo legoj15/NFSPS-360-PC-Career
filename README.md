@@ -9,7 +9,10 @@ Converts Xbox 360 Need for Speed ProStreet career saves into PC saves.
    **Run anyway**. That screen appears because the program is new, not because
    something is wrong.
 3. Plug in the flash drive you use with your Xbox 360 — the app finds the
-   saves on it by itself. If the saves are already on your computer, use
+   saves on it by itself. If nothing shows up, click **Click to scan for FATX
+   drives**; Windows asks for administrator permission and the app reopens
+   to look for the older Xbox drive format. If the saves are already on your
+   computer, use
    **Add a single file…** or **Add a folder…** and pick them.
 4. Click **Select location to export saves…** and choose where the converted
    saves should go. The app already suggests the game's own save folder.

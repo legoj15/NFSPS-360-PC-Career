@@ -26,7 +26,9 @@ rfd = "0.15"
 
 # FOLDERID_Documents / SHGetKnownFolderPath for the default save-folder
 # suggestion (never an env var, per the Python spec's ctypes approach).
-windows = { version = "0.62.2", features = ["Win32_UI_Shell", "Win32_System_Com"] }
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Diagnostics_Debug", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
 tempfile = "3"
+# Oracle-save helpers (real CON packages) for the volume-scan tests.
+fatx = { path = "../fatx", features = ["test-util"] }

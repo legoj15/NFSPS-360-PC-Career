@@ -5,7 +5,7 @@
 
 use std::io::{Cursor, Seek};
 
-use fatx::discovery::{discover_prostreet_saves, discover_prostreet_saves_with};
+use fatx::discovery::discover_prostreet_saves;
 use fatx::partition::XboxDriveImage;
 use fatx::stfs::TITLE_ID_NFS_PROSTREET;
 use fatx::test_util::{FatxImageBuilder, content_save_path};
@@ -55,6 +55,9 @@ fn scenario() -> (fatx::test_util::SyntheticUsbImage, Vec<String>) {
             content_save_path(PROFILE_C, OTHER_TITLE_DIR, "00000001", "SETTINGS_DAT"),
             other_title.clone(),
         )
+        // ProStreet package that is not a save (seen on real media as
+        // SHADOW_74GR1): the title ID alone must not pull it in.
+        .file(save(PROFILE_C, "00000001", "SHADOW_74GR1"), career.clone())
         // Deleted ProStreet save: on disk but must not be discovered.
         .deleted_file(save(PROFILE_C, "00000001", "CAREER_DELETED"), career);
 
@@ -198,23 +201,6 @@ fn round_trip_via_tempfile_backed_file() {
 }
 
 #[test]
-fn extra_title_ids_extend_the_filter() {
-    // SETTINGS_DAT has title 4D530926; passing it as an extra id admits it.
-    let (usb, _) = scenario();
-    let mut cur = Cursor::new(usb.image.clone());
-    let drive = XboxDriveImage::probe(&mut cur, usb.image.len() as u64).unwrap();
-    let mut vol = fatx::FatxVolume::open(
-        &mut cur,
-        drive.data_partition.offset,
-        drive.data_partition.length,
-    )
-    .unwrap();
-    let found = discover_prostreet_saves_with(&mut vol, &[[0x4D, 0x53, 0x09, 0x26]]).unwrap();
-    assert_eq!(found.len(), 6);
-    assert!(found.iter().any(|s| s.source_path.contains("SETTINGS_DAT")));
-}
-
-#[test]
 fn empty_content_partition_is_not_an_error() {
     let usb = FatxImageBuilder::new().build_usb_image(); // no files at all
     let mut cur = Cursor::new(usb.image.clone());
@@ -239,18 +225,18 @@ fn title_id_constant_is_prostreet_45410822() {
 fn corrupt_file_is_skipped_without_hiding_good_saves() {
     let career = fatx::test_util::oracle_career_latest();
     let good = save(PROFILE_A, "00000001", "CAREER_01_360");
-    let broken = content_save_path(PROFILE_C, OTHER_TITLE_DIR, "00000001", "BROKEN_SIZE");
+    let broken = save(PROFILE_C, "00000001", "CAREER_BRKN");
     let usb = FatxImageBuilder::new()
         .cluster_size(0x1000)
         .file(good.clone(), career.clone())
         .file(broken.clone(), career)
         .build_usb_image();
 
-    // Sabotage the BROKEN_SIZE dirent: declared size far beyond its chain.
+    // Sabotage the CAREER_BRKN dirent: declared size far beyond its chain.
     let mut image = usb.image.clone();
     let name_off = image
         .windows(11)
-        .position(|w| w == b"BROKEN_SIZE".as_slice())
+        .position(|w| w == b"CAREER_BRKN".as_slice())
         .expect("dirent name present in the image");
     let dirent = name_off - 2; // the name starts at +2 inside the dirent
     image[dirent + 0x30..dirent + 0x34].copy_from_slice(&0x7F_FF_F0u32.to_be_bytes());
@@ -264,11 +250,11 @@ fn corrupt_file_is_skipped_without_hiding_good_saves() {
     )
     .unwrap();
 
-    let report = fatx::discovery::discover_prostreet_saves_noted(&mut vol, &[]).unwrap();
+    let report = fatx::discovery::discover_prostreet_saves_noted(&mut vol).unwrap();
     assert_eq!(report.saves.len(), 1, "the good save must survive");
     assert_eq!(report.saves[0].source_path, good);
     assert!(
-        report.notes.iter().any(|n| n.contains("BROKEN_SIZE")),
+        report.notes.iter().any(|n| n.contains("CAREER_BRKN")),
         "the skipped file must be noted: {:?}",
         report.notes
     );
@@ -321,7 +307,7 @@ fn unreadable_save_type_dir_is_noted_and_scan_continues() {
     )
     .unwrap();
 
-    let report = fatx::discovery::discover_prostreet_saves_noted(&mut vol, &[]).unwrap();
+    let report = fatx::discovery::discover_prostreet_saves_noted(&mut vol).unwrap();
     assert_eq!(
         report.saves.len(),
         1,

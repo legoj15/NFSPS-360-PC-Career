@@ -11,13 +11,26 @@
   `crates/nfspc-converter/tests/sources.rs:133`. Warnings printed:
   chunk 0xb67f6cc6 size 0x2b4 != map ref 0x104 (auto mode); chunk
   0xd548266c 13 unaligned string runs padded.
-- DECISION FOR USER (proposed): replace `app/drivescan.rs` raw
-  PhysicalDrive scan with a scan of mounted volumes (drive letters with
-  `Content\` at root, `name.txt` as a hint) reusing `sources::discover_manual`.
-  No elevation, works on real hardware. Then either delete the `fatx`
-  crate or keep it as an explicitly-labelled "legacy/untested" path for
-  old Data000N sticks and HDD dumps. Recommendation: delete (2,000+ lines,
-  zero real-media coverage) unless the user has an old-format stick.
+- DONE same night (user asked): default GUI scan = mounted drive letters
+  with `Content\` at root (`app/drivescan.rs` scan_volume_roots, no
+  elevation); verified on the user's two real sticks F: and G:. When it finds
+  nothing, a "Click to scan for FATX drives" button relaunches the exe
+  elevated via UAC with `--scan-fatx` (`app/elevation.rs`, `app/cli.rs`),
+  which adds the raw FATX scan. UAC relaunch path NOT yet clicked through
+  on real hardware (needs the user: unplug both sticks, launch, click it).
+- Save recognition is now by NAME only (`fatx::discovery::is_save_name`,
+  CAREER_/ALIAS_) in both scanners: the old "or ProStreet title ID" rule
+  picked up ghost-racer packages (`SHADOW_74GR1` on G:), which are out of
+  scope (user, 2026-10-05). `extra_title_ids` API removed (no callers).
+- Batch export now refuses a second selected save with the same name
+  (CAREER_01 on F: and G: silently overwrote each other before).
+- User-confirmed: the console blocks copying another profile's save while
+  signed in as a different profile, so cross-profile mixing is not a case.
+- Open: third-party review triad (shop26 + glm-flash) launched 21:36 on the
+  pre-filter snapshot; group review-an-uncommitted-change-20261005-213649-b47b.
+  Verify its findings and land fixes as follow-up commits.
+- Debt: the workspace is not rustfmt-clean (cargo fmt touches 9 untouched
+  files); deliberately not mixed into this change.
 - Delegation log: none (orchestrator only).
 
 ## CURRENT STATE (read first)

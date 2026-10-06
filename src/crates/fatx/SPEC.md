@@ -172,15 +172,23 @@ regions.
 
 ## 6. Where saves live inside the Data partition
 
-`Content/0000000000000000/<profile-id>/<titleID-hex>/00000001|00000002/<file>`
+`Content/<profile-id>/<titleID-hex>/00000001|00000002/<file>` (measured on two
+real FAT32 sticks 2026-10-05; `0000000000000000` is a sibling of the profile
+folders, not a parent)
 
 * `Content` sits at the FATX root (alongside `name.txt`, which stores the
   volume label as UTF-16BE from byte offset 2).
 * `0000000000000000` is the "all profiles"/signed-for-console bucket; profile
   folders are 16 hex characters.
 * The title folder name is the 8-hex-digit title ID.
-* `00000001` = saved game (the CON package), `00000002` = publisher/
-  marketplace-ish save data. Both are scanned.
+* `00000001` = saved game (the CON package), `00000002` = marketplace
+  content (on real media: ProStreet DLC under `0000000000000000/45410822/
+  00000002/` with hashed file names, not `CON ` packages). Both are scanned;
+  only save-named files are kept.
+* **Saves are recognised by file name alone** (`CAREER_` / `ALIAS_`,
+  case-insensitive; `discovery::is_save_name`). The title ID is not enough:
+  ProStreet also stores ghost-racer packages (`SHADOW_<id>`, out of scope)
+  under the same title, and they fail conversion. Decided 2026-10-05.
 
 ## 7. CON (STFS) header fields we parse
 
@@ -208,8 +216,8 @@ exports under. The bytes at 0x1711 are the package icon (PNG), not a name.
 
 Title-ID cross-check: `45410822` is listed for NFS ProStreet on Xbox 360
 title-ID lists (se7ensins game-ID thread, iso2god lists). A second regional
-ProStreet ID (`45418827`) exists; our filter defaults to the oracle-verified
-`45410822` and accepts a configurable extra set.
+ProStreet ID (`45418827`) exists. Discovery no longer filters on the title ID
+(see §6), so regional saves are found by their `CAREER_`/`ALIAS_` names.
 
 ## 8. Windows raw-drive access
 

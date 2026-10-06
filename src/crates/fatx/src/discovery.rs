@@ -1,23 +1,19 @@
 //! ProStreet save discovery inside a FATX Data partition.
 //!
-//! Walks `Content/<profile>/<titleID>/0000000{1,2}/*`, reads each file's CON
-//! header, and keeps saves whose title ID matches Need for Speed: ProStreet
-//! or whose file name starts with `CAREER_` / `ALIAS_`.
+//! Walks `Content/<profile>/<titleID>/0000000{1,2}/*` and keeps files whose
+//! name starts with `CAREER_` / `ALIAS_` (see [`is_save_name`]).
 
 use std::io::{Read, Seek};
 
 use crate::error::Result;
 use crate::fatx::{DirEntry, FatxVolume};
-use crate::stfs::{ConHeader, TITLE_ID_NFS_PROSTREET};
 
 /// Root folder scanned inside the Data partition.
 pub const CONTENT_ROOT: &str = "Content";
 /// Per-title sub-folders that hold saves.
 pub const SAVE_TYPE_DIRS: [&str; 2] = ["00000001", "00000002"];
-/// File-name prefixes that force inclusion regardless of title ID.
+/// File-name prefixes that mark a ProStreet save.
 pub const NAME_PREFIXES: [&str; 2] = ["CAREER_", "ALIAS_"];
-/// Title IDs accepted by default (oracle-verified ProStreet id 45410822).
-pub const PROSTREET_TITLE_IDS: &[[u8; 4]] = &[TITLE_ID_NFS_PROSTREET];
 
 /// One save found on the volume.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,23 +40,14 @@ pub struct DiscoveryReport {
     pub notes: Vec<String>,
 }
 
-/// Scans `volume` for ProStreet saves using the default title-ID set.
+/// Scans `volume` for ProStreet saves.
 pub fn discover_prostreet_saves<R: Read + Seek>(
     volume: &mut FatxVolume<R>,
 ) -> Result<Vec<DiscoveredSave>> {
-    Ok(discover_prostreet_saves_noted(volume, &[])?.saves)
+    Ok(discover_prostreet_saves_noted(volume)?.saves)
 }
 
-/// Scans `volume` for saves, additionally accepting `extra_title_ids`
-/// (e.g. regional ProStreet variants such as 45418827).
-pub fn discover_prostreet_saves_with<R: Read + Seek>(
-    volume: &mut FatxVolume<R>,
-    extra_title_ids: &[[u8; 4]],
-) -> Result<Vec<DiscoveredSave>> {
-    Ok(discover_prostreet_saves_noted(volume, extra_title_ids)?.saves)
-}
-
-/// Like [`discover_prostreet_saves_with`], also reporting skipped problems.
+/// Like [`discover_prostreet_saves`], also reporting skipped problems.
 ///
 /// One unreadable file, directory or cluster chain degrades to a note and
 /// the scan keeps going: a single corrupt entry on the media must not hide
@@ -68,11 +55,7 @@ pub fn discover_prostreet_saves_with<R: Read + Seek>(
 /// (nothing is enumerable then).
 pub fn discover_prostreet_saves_noted<R: Read + Seek>(
     volume: &mut FatxVolume<R>,
-    extra_title_ids: &[[u8; 4]],
 ) -> Result<DiscoveryReport> {
-    let mut accepted: Vec<[u8; 4]> = PROSTREET_TITLE_IDS.to_vec();
-    accepted.extend_from_slice(extra_title_ids);
-
     let mut report = DiscoveryReport::default();
     let content_root = match find_entry(volume, "/", CONTENT_ROOT) {
         Some(entry) => entry,
@@ -119,14 +102,7 @@ pub fn discover_prostreet_saves_noted<R: Read + Seek>(
                         continue;
                     }
                     let label = format!("{type_path}/{}", file.name);
-                    let keep = match should_keep(volume, &file, &accepted) {
-                        Ok(k) => k,
-                        Err(e) => {
-                            report.notes.push(format!("{label}: skipped ({e})"));
-                            continue;
-                        }
-                    };
-                    if !keep {
+                    if !is_save_name(&file.name) {
                         continue;
                     }
                     log::debug!("keeping {label}");
@@ -159,25 +135,14 @@ pub fn discover_prostreet_saves_noted<R: Read + Seek>(
     Ok(report)
 }
 
-/// Name-prefix filter and CON-title filter, evaluated without reading the
-/// whole file (the CON header fits in the first 0x1711 bytes).
-fn should_keep<R: Read + Seek>(
-    volume: &mut FatxVolume<R>,
-    file: &DirEntry,
-    accepted: &[[u8; 4]],
-) -> Result<bool> {
-    if NAME_PREFIXES.iter().any(|p| file.name.starts_with(p)) {
-        return Ok(true);
-    }
-    let header_len = crate::stfs::DISPLAY_NAME_OFFSET + crate::stfs::DISPLAY_NAME_LEN;
-    if (file.size as usize) < header_len {
-        return Ok(false); // too small to carry a CON header
-    }
-    let header = volume.read_entry_partial(file, header_len)?;
-    match ConHeader::parse(&header) {
-        Ok(con) => Ok(con.title_id_matches(accepted)),
-        Err(_) => Ok(false),
-    }
+/// Saves are recognised by file name alone. The title ID is not enough:
+/// ProStreet also stores non-save packages (e.g. `SHADOW_74GR1`, seen on
+/// real media 2026-10-05) that fail conversion, and regional ProStreet
+/// releases carry other title IDs but the same save names.
+pub fn is_save_name(name: &str) -> bool {
+    NAME_PREFIXES.iter().any(|p| {
+        name.len() >= p.len() && name.as_bytes()[..p.len()].eq_ignore_ascii_case(p.as_bytes())
+    })
 }
 
 /// Finds a live entry by name inside `dir` (`"/"` for the root).

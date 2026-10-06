@@ -10,7 +10,7 @@ Workspace root is `src/` (`src/Cargo.toml`, members listed at lines 3-7):
 | Crate | Role |
 |---|---|
 | `nfssave-core` | Save-format library: STFS container reader, MC02 parse, chunk-tree byte-order conversion. Rust port of `scripts/python/nfssave`; the Python is the verified spec, the port is pinned byte-exact by golden-md5 tests (`src/crates/nfssave-core/src/lib.rs:1-5`, `tests/test_golden.rs`). |
-| `fatx` | Xbox 360 USB/FATX scanner: probes a raw drive image or `\\.\PhysicalDriveN`, finds the FATX Data partition, walks `Content/<profile>/<titleID>/0000000{1,2}/`, returns matching ProStreet CON saves with bytes (`src/crates/fatx/src/lib.rs:1-33`). Feature `test-util` synthesizes whole FATX USB images so tests need no hardware. |
+| `fatx` | Xbox 360 USB/FATX scanner (opt-in, legacy layout; also owns the shared `CONTENT_ROOT`/`SAVE_TYPE_DIRS`/`is_save_name` rules the default FAT32 scan reuses): probes a raw drive image or `\\.\PhysicalDriveN`, finds the FATX Data partition, walks `Content/<profile>/<titleID>/0000000{1,2}/`, returns matching ProStreet CON saves with bytes (`src/crates/fatx/src/lib.rs:1-33`). Feature `test-util` synthesizes whole FATX USB images so tests need no hardware. |
 | `nfspc-converter` | The app itself. Two strictly separated layers: `app` (destination resolution, manual-source discovery, drive scan, batch conversion — std + the two libraries only, unit-tested) and `ui` (thin eframe/egui front end); headless entry point in `main.rs` (`src/crates/nfspc-converter/src/lib.rs:1-10`). Binary name: `NFSPS-SaveConverter`. |
 
 The bin target has `test = false` — the exe must not run a (bin) test harness
@@ -80,24 +80,27 @@ Evidence: raw `\\.\PhysicalDriveN` read-only opens DO require elevation —
 measured 2026-10-05, unelevated `cargo test -p fatx --test device_probe`:
 PhysicalDrive0-3 → `ERROR_ACCESS_DENIED`, 4-15 → not found
 (`src/crates/fatx/SPEC.md:196-199`). Consequence and runtime handling: a drive
-scan that hits access-denied surfaces one UI note asking the user to relaunch
-elevated (`src/crates/nfspc-converter/src/app/drivescan.rs:75-86`); the app
-never demands elevation itself. Related: the manifest is linked into bins
+scan that hits access-denied surfaces one UI note; normally the FATX scan
+only runs from the self-relaunched elevated instance (`--scan-fatx`,
+`app/elevation.rs`). The app requests elevation (UAC) only when the user
+clicks the FATX button, never at launch. Related: the manifest is linked into bins
 only so cargo's test harnesses stay unelevated (`build.rs:51-54`), and
 `build.rs` rejects XML comments containing `--` (WinError 14001 killer,
 `build.rs:57-61`).
 
 ## Known gaps
 
-- **The `fatx` raw scanner targets a layout current consoles don't write.**
-  Measured 2026-10-05: a console-formatted USB stick is plain FAT32 with a
-  normal `Content\` tree (`src/crates/fatx/SPEC.md` §5.1). The manual
-  folder path already handles it; the raw `PhysicalDrive` scan (and its
-  elevation requirement) has never been tested on real media and would not
-  find these saves. Pending decision: replace the drive scan with a
-  mounted-volume scan (see `docs/HANDOFF.md`).
-- Unelevated GUI cannot scan raw drives: USB FATX scanning needs an elevated
-  relaunch (user-facing note is the only remedy; no self-elevation).
+- The raw FATX scan is opt-in and **untested on real media**: current
+  consoles write plain FAT32 (`src/crates/fatx/SPEC.md` §5.1), which the
+  default mounted-volume scan covers. FATX runs only after the user clicks
+  "Click to scan for FATX drives" (shown when the normal scan found
+  nothing), which relaunches the exe elevated with `--scan-fatx`
+  (`app/elevation.rs`, `app/cli.rs`). The relaunch drops the current
+  window's state (manual picks, chosen export folder). Candidate for
+  deletion if no old-format media ever turns up.
+- Mounted-volume scan only looks at `Content\` at a drive-letter root;
+  partitions without a letter are not seen. Real-hardware check:
+  `cargo run -p nfspc-converter --example volume_scan` (from `src/`).
 - Headless mode has no drive scanning (files/folders only, see above).
 - Drive probe is fixed to `\\.\PhysicalDrive0..=15` (`MAX_DRIVE_INDEX`,
   `drivescan.rs:32`); more than 16 physical drives are not scanned.

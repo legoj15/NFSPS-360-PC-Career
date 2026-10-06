@@ -10,7 +10,8 @@ use eframe::egui::Color32;
 
 use crate::app::batch::{BatchResult, SaveInput, SaveResult, SaveStatus, run_batch};
 use crate::app::destination;
-use crate::app::drivescan::{DriveScanReport, scan_physical_drives};
+use crate::app::drivescan::{DriveScanReport, scan_drives};
+use crate::app::elevation::{FatxAction, fatx_action, is_elevated, relaunch_elevated};
 use crate::app::sources::{ManualSave, discover_manual};
 use crate::app::worker::{Guarded, run_guarded};
 use fatx::DiscoveredSave;
@@ -34,6 +35,10 @@ struct ConverterApp {
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
     scanning: bool,
+    /// Raw FATX drives are scanned too (elevated relaunch or in-place).
+    fatx_mode: bool,
+    /// Why the FATX button did nothing (UAC declined, ...).
+    fatx_error: Option<String>,
     rows: Vec<DriveRow>,
     scan_notes: Vec<String>,
     manual: Vec<ManualSave>,
@@ -46,12 +51,14 @@ struct ConverterApp {
 }
 
 impl ConverterApp {
-    fn new() -> Self {
+    fn new(scan_fatx: bool) -> Self {
         let (tx, rx) = mpsc::channel();
         let mut app = ConverterApp {
             tx,
             rx,
             scanning: false,
+            fatx_mode: scan_fatx,
+            fatx_error: None,
             rows: Vec::new(),
             scan_notes: Vec::new(),
             manual: Vec::new(),
@@ -72,8 +79,9 @@ impl ConverterApp {
         self.rows.clear();
         self.scan_notes.clear();
         let tx = self.tx.clone();
+        let include_fatx = self.fatx_mode;
         std::thread::spawn(move || {
-            let msg = match run_guarded(scan_physical_drives) {
+            let msg = match run_guarded(|| scan_drives(include_fatx)) {
                 Guarded::Done(report) => Msg::ScanDone(report),
                 Guarded::Panicked(e) => Msg::Failed(format!("drive scan crashed: {e}")),
             };
@@ -174,6 +182,32 @@ impl ConverterApp {
         }
     }
 
+    /// The "scan for FATX drives" button shows only after a finished
+    /// normal scan found nothing, and only until FATX mode is on.
+    fn offer_fatx_scan(&self) -> bool {
+        !self.scanning && !self.fatx_mode && self.rows.is_empty()
+    }
+
+    /// FATX button click: scan here when elevated, else relaunch through
+    /// UAC and close this window. Returns true when the window should close.
+    fn request_fatx_scan(&mut self) -> bool {
+        self.fatx_error = None;
+        match fatx_action(is_elevated()) {
+            FatxAction::ScanHere => {
+                self.fatx_mode = true;
+                self.start_scan();
+                false
+            }
+            FatxAction::Relaunch => match relaunch_elevated() {
+                Ok(()) => true,
+                Err(e) => {
+                    self.fatx_error = Some(e);
+                    false
+                }
+            },
+        }
+    }
+
     fn selected_count(&self) -> usize {
         self.rows.iter().filter(|r| r.checked).count() + self.manual.len()
     }
@@ -208,10 +242,20 @@ impl eframe::App for ConverterApp {
             if self.scanning {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label("scanning removable/physical drives…");
+                    ui.label(if self.fatx_mode {
+                        "scanning drives (including FATX)…"
+                    } else {
+                        "scanning drives…"
+                    });
                 });
             } else if self.rows.is_empty() {
-                ui.weak("no saves found on flash drives");
+                ui.weak("no saves found on connected drives");
+                if self.offer_fatx_scan()
+                    && ui.button("Click to scan for FATX drives").clicked()
+                    && self.request_fatx_scan()
+                {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
             } else {
                 egui::ScrollArea::vertical()
                     .id_salt("drive-saves")
@@ -229,6 +273,9 @@ impl eframe::App for ConverterApp {
                             );
                         }
                     });
+            }
+            if let Some(err) = &self.fatx_error {
+                ui.colored_label(Color32::RED, err.as_str());
             }
             for note in &self.scan_notes {
                 ui.colored_label(Color32::from_rgb(180, 120, 0), format!("note: {note}"));
@@ -374,7 +421,8 @@ fn show_save_result(ui: &mut egui::Ui, result: &SaveResult) {
 }
 
 /// Launch the GUI. Blocks until the window closes.
-pub fn run() -> eframe::Result<()> {
+/// `scan_fatx`: start with the raw FATX scan on (elevated relaunch).
+pub fn run(scan_fatx: bool) -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([720.0, 640.0])
@@ -384,7 +432,7 @@ pub fn run() -> eframe::Result<()> {
     eframe::run_native(
         "NFS ProStreet Save Converter",
         options,
-        Box::new(|_cc| Ok(Box::new(ConverterApp::new()))),
+        Box::new(move |_cc| Ok(Box::new(ConverterApp::new(scan_fatx)))),
     )
 }
 
@@ -399,6 +447,8 @@ mod tests {
             tx,
             rx,
             scanning: false,
+            fatx_mode: false,
+            fatx_error: None,
             rows,
             scan_notes: Vec::new(),
             manual: Vec::new(),
@@ -471,6 +521,19 @@ mod tests {
         assert_eq!(app.rows.len(), 2);
         assert!(app.rows.iter().all(|r| r.checked));
         assert_eq!(app.scan_notes, vec!["n".to_string()]);
+    }
+
+    #[test]
+    fn fatx_button_only_after_an_empty_normal_scan() {
+        let mut app = app_with_rows(Vec::new());
+        assert!(app.offer_fatx_scan(), "idle + nothing found");
+        app.scanning = true;
+        assert!(!app.offer_fatx_scan(), "hidden while scanning");
+        app.scanning = false;
+        app.fatx_mode = true;
+        assert!(!app.offer_fatx_scan(), "hidden once FATX mode is on");
+        let app = app_with_rows(vec![row("CAREER_01", true)]);
+        assert!(!app.offer_fatx_scan(), "hidden when saves were found");
     }
 
     /// A failed worker releases both progress flags.
