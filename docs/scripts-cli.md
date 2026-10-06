@@ -42,6 +42,12 @@ An existing `S\<NAME>\<NAME>` is always copied before it is replaced, to
 the parent of `S` in cases 1-3 (exe convention, app/batch.rs) and `R` itself
 in case 4 (never write outside the folder the user chose).
 
+## Not the app's behaviour (deliberate)
+
+The Windows app keeps its own Documents-folder auto-detection: it is the
+"auto" path, the scripts are the explicit one. Do not align them (user
+decision, 2026-10-06).
+
 ## Unchanged
 
 `--dry-run` / `-DryRun`, duplicate-name refusal within one run, exit codes
