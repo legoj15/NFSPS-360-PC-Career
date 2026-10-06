@@ -35,6 +35,11 @@
   known-folder lookup had a wrong FOLDERID_Documents GUID and always fell
   back to %USERPROFILE%\Documents - the hardcoded path hid it; fixed + test.
   Remaining nit: --dry-run still requires the output folder to exist.
+  Review py-cli-fixes (shop26 Qwen 27B + glm-flash low, 1cee3e4..853dc0d):
+  11 low; fixed as follow-up: --flash --all duplicate-name refusal,
+  backup failure -> clean "left it untouched" exit 1, absolute() parity,
+  "F:\" on non-Windows. Rejected: "F:\ not normalized" (already a root).
+  Not done: test gaps for main()-level shared stamp and ctypes failure paths.
 
 ## 2026-10-06 — no console window behind the GUI
 - Release exe is now GUI-subsystem; CLI paths attach to the parent console

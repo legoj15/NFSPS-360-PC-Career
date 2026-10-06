@@ -141,3 +141,35 @@ def test_cli_dry_run_makes_no_backup(tmp_path):
     _seed(out, name, b"previous career")
     cli.convert_one(PAIR_360, Namespace(out_root=str(out), dry_run=True, twin=None))
     assert not (tmp_path / lib.BACKUP_DIR).exists()
+
+
+# --- review follow-ups (parity with app/batch.rs run_batch) ------------------
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_batch_refuses_second_save_with_same_name(tmp_path):
+    out = tmp_path / "out"
+    claimed = {}
+    args = Namespace(out_root=str(out), dry_run=False, twin=None, backup_stamp="s")
+    other = tmp_path / "G" / PAIR_360.name  # same STFS name, other stick
+    other.parent.mkdir()
+    other.write_bytes(PAIR_360.read_bytes())
+    cli.convert_one(PAIR_360, args, claimed)
+    with pytest.raises(ValueError, match="also named"):
+        cli.convert_one(other, args, claimed)
+    assert not (tmp_path / lib.BACKUP_DIR).exists()
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_backup_failure_leaves_existing_untouched(tmp_path, monkeypatch, capsys):
+    from nfssave import read_container
+    name = read_container(PAIR_360).name
+    out = tmp_path / "out"
+    old = _seed(out, name, b"previous career")
+
+    def boom(*a, **k):
+        raise PermissionError("denied")
+    monkeypatch.setattr(cli, "back_up_existing", boom)
+    monkeypatch.setattr(sys, "argv", ["convert.py", str(PAIR_360), "--out-root", str(out)])
+    assert cli.main() == 1
+    assert old.read_bytes() == b"previous career"
+    assert "left it untouched" in capsys.readouterr().err

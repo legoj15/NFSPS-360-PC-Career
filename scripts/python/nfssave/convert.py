@@ -535,7 +535,7 @@ def back_up_existing(save_root, name: str, stamp: str) -> Path | None:
     existing = Path(save_root) / name / name
     if not existing.is_file():
         return None
-    base = Path(save_root).resolve().parent
+    base = Path(save_root).absolute().parent  # not resolve(): batch.rs parity
     # runs inside the same second share a stamp: never overwrite an earlier
     # backup, fall through to <stamp>-2, <stamp>-3, ...
     n = 1

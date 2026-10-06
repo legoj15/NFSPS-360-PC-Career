@@ -26,7 +26,7 @@ def flash_content_dir(drive: str) -> Path:
     """<drive>/Content. A bare drive letter ("F" or "F:") means the drive
     root; Path("F:") / "Content" would be the drive-relative "F:Content"."""
     d = drive.strip()
-    if len(d) in (1, 2) and d[0].isalpha() and d[1:] in ("", ":"):
+    if 1 <= len(d) <= 3 and d[0].isalpha() and d[1:] in ("", ":", ":/", ":\\"):
         d = d[0] + ":/"
     return Path(d) / "Content"
 
@@ -46,8 +46,15 @@ def load_twin(path: str) -> bytes:
     return data
 
 
-def convert_one(src: Path, args) -> None:
+def convert_one(src: Path, args, claimed: dict | None = None) -> None:
+    """`claimed` (export name, casefolded -> source) refuses a second save
+    with the same name in one batch instead of replacing the first."""
     cont = read_container(src)
+    if claimed is not None:
+        owner = claimed.setdefault(cont.name.casefold(), src)
+        if owner != src:
+            raise ValueError(f"another selected save ({owner}) is also named "
+                             f"{cont.name}; skipped")
     mc02 = MC02.parse(cont.payload)
     bad = mc02.check()
     if "extra CRC mismatch" in bad:
@@ -75,7 +82,11 @@ def convert_one(src: Path, args) -> None:
         print("[.] dry run - not writing")
         return
     stamp = getattr(args, "backup_stamp", None) or utc_stamp()
-    backup = back_up_existing(args.out_root, cont.name, stamp)
+    try:
+        backup = back_up_existing(args.out_root, cont.name, stamp)
+    except OSError as exc:
+        raise RuntimeError(f"an existing {cont.name} could not be backed up "
+                           f"({exc}); left it untouched") from exc
     if backup:
         print(f"[+] backed up existing save to {backup}")
     target = write_pc_save(pc, cont.name, args.out_root)
@@ -146,16 +157,21 @@ def main() -> int:
             print(f"no saves found under {flash_content_dir(args.flash)}", file=sys.stderr)
             return 1
         failures = 0
+        claimed = {}
         for p in saves:
             try:
-                convert_one(p, args)
+                convert_one(p, args, claimed)
             except Exception as exc:
                 failures += 1
                 print(f"[!] FAILED {p}: {exc}", file=sys.stderr)
         return 1 if failures else 0
     if not args.source:
         ap.error("provide a source file, or --flash X --all")
-    convert_one(Path(args.source), args)
+    try:
+        convert_one(Path(args.source), args)
+    except Exception as exc:
+        print(f"[!] FAILED {args.source}: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
