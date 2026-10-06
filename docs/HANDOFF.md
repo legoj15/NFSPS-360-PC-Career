@@ -9,7 +9,10 @@
   0/2/1; unredirected run in a fresh conhost prints into that console.
   NOT verified by hand: double-click shows no console (expected by PE field).
 - dist/NFSPS-SaveConverter.exe is the OLD console build until rebuilt/copied.
-- Delegation log: none (orchestrator only); outside review below.
+- Delegation log: no Anthropic agents. Outside review RUNNING: fan-out
+  console-and-exportname-20261006-132632-52c5 (shop26 Qwen3.8-27B +
+  glm-flash) on 7e8b21c..5484387 - also covers the pending 5a0402c.
+  Collect with opencode_wait_group; verify and fix any findings.
 
 ## 2026-10-05 night — USB sticks are FAT32, not FATX (read first)
 - User formatted a fresh 32 GB stick on the console and copied a save:
