@@ -84,8 +84,8 @@ pub fn dirent_name_of(save: &DiscoveredSave) -> String {
 pub const BACKUP_DIR: &str = "SaveConverter backups";
 
 /// Copies `<out_root>/<name>/<name>` to
-/// `<parent of out_root>/SaveConverter backups/<stamp>/<name>/<name>` when it
-/// exists. Returns the backup path, or `None` when there was nothing to keep.
+/// `<parent of out_root>/SaveConverter backups/<stamp>[-N]/<name>/<name>` when
+/// it exists. Returns the backup path, or `None` when there was nothing to keep.
 fn back_up_existing(out_root: &Path, name: &str, stamp: &str) -> io::Result<Option<PathBuf>> {
     let existing = out_root.join(name).join(name);
     if !existing.is_file() {
@@ -93,7 +93,19 @@ fn back_up_existing(out_root: &Path, name: &str, stamp: &str) -> io::Result<Opti
     }
     let root = absolute(out_root)?;
     let base = root.parent().unwrap_or(&root);
-    let dest = base.join(BACKUP_DIR).join(stamp).join(name).join(name);
+    // Never overwrite an earlier backup: runs inside the same second share a
+    // stamp, so fall through to `<stamp>-2`, `<stamp>-3`, ...
+    let dest = (1u32..)
+        .map(|n| {
+            let dir = if n == 1 {
+                stamp.to_string()
+            } else {
+                format!("{stamp}-{n}")
+            };
+            base.join(BACKUP_DIR).join(dir).join(name).join(name)
+        })
+        .find(|p| !p.exists())
+        .expect("unbounded range always yields a free path");
     fs::create_dir_all(dest.parent().expect("dest has a parent"))?;
     fs::copy(&existing, &dest)?;
     Ok(Some(dest))
@@ -345,6 +357,25 @@ mod tests {
         ] {
             assert_eq!(utc_stamp(UNIX_EPOCH + Duration::from_secs(secs)), want);
         }
+    }
+
+    /// Two runs inside the same second share a stamp; the second backup
+    /// must not overwrite the first (which may be the native PC save).
+    #[test]
+    fn same_stamp_backups_never_overwrite_each_other() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let out = tmp.path().join("SAVE").join("NFS ProStreet");
+        let target = out.join("CAREER_01").join("CAREER_01");
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+
+        fs::write(&target, b"native").unwrap();
+        let first = back_up_existing(&out, "CAREER_01", "S").unwrap().unwrap();
+        fs::write(&target, b"converted").unwrap();
+        let second = back_up_existing(&out, "CAREER_01", "S").unwrap().unwrap();
+
+        assert_ne!(first, second);
+        assert_eq!(fs::read(&first).unwrap(), b"native");
+        assert_eq!(fs::read(&second).unwrap(), b"converted");
     }
 
     #[test]
