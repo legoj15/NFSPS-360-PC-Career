@@ -16,8 +16,8 @@
   elevation); verified on the user's two real sticks F: and G:. When it finds
   nothing, a "Click to scan for FATX drives" button relaunches the exe
   elevated via UAC with `--scan-fatx` (`app/elevation.rs`, `app/cli.rs`),
-  which adds the raw FATX scan. UAC relaunch path NOT yet clicked through
-  on real hardware (needs the user: unplug both sticks, launch, click it).
+  which adds the raw FATX scan. UAC relaunch VERIFIED by the user on real
+  hardware 2026-10-05 (no sticks plugged in, button -> UAC -> elevated app).
 - Save recognition is now by NAME only (`fatx::discovery::is_save_name`,
   CAREER_/ALIAS_) in both scanners: the old "or ProStreet title ID" rule
   picked up ghost-racer packages (`SHADOW_74GR1` on G:), which are out of
