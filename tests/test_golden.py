@@ -29,7 +29,20 @@ CASES = [
     (ROOT / "Extracted/Alias/ALIAS_360", "578a10cb583785bb6cb00fa64bc69439"),
     (ROOT / "docs/re/c1_latest/CAREER_01_360", "718b6b6b8494decde59eb6b1defcc01d"),
     (ROOT / "docs/re/pair_raceday/CAREER_02_360", "2bb7d00963509e71d6eaeccbed496b65"),
+    # anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
+    (ROOT / "docs/re/alias_anon/ALIAS_360", "8ae3d82a3c9cb1c9500d6fcce8c01b9d"),
 ]
+
+PERSONAL = ROOT / "Extracted"
+
+
+def _skip_if_personal_missing(case: unittest.TestCase, src: Path) -> None:
+    """Personal saves (gitignored) may be absent; tracked fixtures may not."""
+    if src.is_file():
+        return
+    if src.is_relative_to(PERSONAL):
+        case.skipTest(f"source not present: {src}")
+    case.fail(f"tracked fixture missing: {src}")
 
 
 def _convert(src: Path, tmp: Path) -> Path:
@@ -45,8 +58,7 @@ class GoldenTests(unittest.TestCase):
             out_root = Path(tmp)
             for src, golden in CASES:
                 with self.subTest(source=src):
-                    if not src.is_file():
-                        self.skipTest(f"source not present: {src}")
+                    _skip_if_personal_missing(self, src)
                     target = _convert(src, out_root)
                     digest = hashlib.md5(target.read_bytes()).hexdigest()
                     self.assertEqual(digest, golden)
@@ -57,8 +69,7 @@ class GoldenTests(unittest.TestCase):
             out_root = Path(tmp)
             for src, _ in CASES:
                 with self.subTest(source=src):
-                    if not src.is_file():
-                        self.skipTest(f"source not present: {src}")
+                    _skip_if_personal_missing(self, src)
                     target = _convert(src, out_root)
                     m = MC02.parse(target.read_bytes())
                     self.assertEqual(m.check(), [], "CRC failures in output")

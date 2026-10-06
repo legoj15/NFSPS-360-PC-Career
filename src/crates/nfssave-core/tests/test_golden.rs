@@ -46,7 +46,27 @@ fn cases() -> Vec<(PathBuf, &'static str)> {
             r.join("docs/re/pair_raceday/CAREER_02_360"),
             "2bb7d00963509e71d6eaeccbed496b65",
         ),
+        // anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
+        (
+            r.join("docs/re/alias_anon/ALIAS_360"),
+            "8ae3d82a3c9cb1c9500d6fcce8c01b9d",
+        ),
     ]
+}
+
+/// Personal saves (gitignored, under Extracted/) may be absent and skip;
+/// a missing tracked fixture is a failure.
+fn present(src: &Path) -> bool {
+    if src.is_file() {
+        return true;
+    }
+    assert!(
+        src.starts_with(root().join("Extracted")),
+        "tracked fixture missing: {}",
+        src.display()
+    );
+    eprintln!("skipped (source not present): {}", src.display());
+    false
 }
 
 fn convert(src: &Path, out_root: &Path) -> PathBuf {
@@ -70,8 +90,7 @@ fn md5_hex(data: &[u8]) -> String {
 fn golden_outputs() {
     let tmp = common::TempDir::new("golden");
     for (src, golden) in cases() {
-        if !src.is_file() {
-            eprintln!("skipped (source not present): {}", src.display());
+        if !present(&src) {
             continue;
         }
         let target = convert(&src, tmp.path());
@@ -85,8 +104,7 @@ fn golden_outputs() {
 fn output_self_validates() {
     let tmp = common::TempDir::new("selfval");
     for (src, _) in cases() {
-        if !src.is_file() {
-            eprintln!("skipped (source not present): {}", src.display());
+        if !present(&src) {
             continue;
         }
         let target = convert(&src, tmp.path());

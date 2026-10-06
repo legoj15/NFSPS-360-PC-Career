@@ -5,6 +5,7 @@
 # Golden md5 pins are shared with tests/test_golden.py and
 # src/crates/nfssave-core/tests/test_golden.rs - keep all three identical.
 # Sources under Extracted/ are personal saves (gitignored); absent ones skip.
+# Tracked fixtures (docs/re/...) must be present.
 # Exit code 0 = all passed.
 
 $ErrorActionPreference = 'Stop'
@@ -50,7 +51,9 @@ $cases = @(
     @('Extracted\Career\CAREER_03', '0dcfed80eab3dfcc246499b07ae54c37', 'CAREER_03'),
     @('Extracted\Alias\ALIAS_360', '578a10cb583785bb6cb00fa64bc69439', 'ALIAS_JOSHUA S 10'),
     @('docs\re\c1_latest\CAREER_01_360', '718b6b6b8494decde59eb6b1defcc01d', 'CAREER_01'),
-    @('docs\re\pair_raceday\CAREER_02_360', '2bb7d00963509e71d6eaeccbed496b65', 'CAREER_02')
+    @('docs\re\pair_raceday\CAREER_02_360', '2bb7d00963509e71d6eaeccbed496b65', 'CAREER_02'),
+    # anonymized copy of the personal alias save (docs\re\alias_anon\README.md)
+    @('docs\re\alias_anon\ALIAS_360', '8ae3d82a3c9cb1c9500d6fcce8c01b9d', 'ALIAS_ANONYMOUS 1')
 )
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion) ($hostExe)"
@@ -69,8 +72,13 @@ try {
     # --- golden outputs: <OutRoot>\<NAME>\<NAME>, byte-exact
     foreach ($c in $cases) {
         $src = Join-Path $repo $c[0]
-        $name = Split-Path -Leaf $src
-        if (-not (Test-Path $src -PathType Leaf)) { Skip "golden $name" 'source not present'; continue }
+        $name = $c[0]   # full relative path: two cases share the leaf ALIAS_360
+        if (-not (Test-Path $src -PathType Leaf)) {
+            # personal saves (gitignored) may be absent; tracked fixtures may not
+            if ($c[0] -like 'Extracted\*') { Skip "golden $name" 'source not present' }
+            else { Fail "golden $($c[0])" 'tracked fixture missing' }
+            continue
+        }
         # fresh root per case: several sources share a container name
         $out = New-TempDir; $tmpRoots += $out
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -212,6 +220,22 @@ try {
     try { [void]$m.Invoke($null, [object[]]@($rec.PSObject.BaseObject)) } catch { $threw = $_.Exception.InnerException.Message }
     if (-not $threw -and $rec.Payload.Length -eq 4 -and -not ($rec.Payload | Where-Object { $_ })) { Pass 'short record payload framed like Python' }
     else { Fail 'short record payload framed like Python' "threw '$threw', payload $($rec.Payload -join ',')" }
+
+    # --- unit: ConvertExtra on a 64-byte alias extra whose name has no NUL
+    #     (same vector as tests/test_extra.py; golden aliases all terminate it)
+    $x = [byte[]]::new(64)   # New-Object would hand Invoke a PSObject wrapper
+    for ($i = 0; $i -lt 0x14; $i++) { $x[$i] = $i + 1 }
+    $nm = [System.Text.Encoding]::ASCII.GetBytes('ANONYMOUS 1')
+    [Array]::Copy($nm, 0, $x, 0x14, $nm.Length)
+    for ($i = 0x14 + $nm.Length; $i -lt 0x38; $i++) { $x[$i] = 0xAA }
+    $tail = [byte[]](0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88)
+    [Array]::Copy($tail, 0, $x, 0x38, 8)
+    $want = [byte[]]$x.Clone()
+    foreach ($w in @(0, 4, 8, 12, 16, 0x38, 0x3C)) { [Array]::Reverse($want, $w, 4) }
+    $m = [NfsPs.Save].GetMethod('ConvertExtra', [System.Reflection.BindingFlags]'NonPublic,Public,Static')
+    $got = $m.Invoke($null, [object[]]@(, $x))
+    if ((($got | ForEach-Object { $_.ToString('x2') }) -join '') -eq (($want | ForEach-Object { $_.ToString('x2') }) -join '')) { Pass 'alias extra without NUL converted like Python' }
+    else { Fail 'alias extra without NUL converted like Python' "got $(($got | ForEach-Object { $_.ToString('x2') }) -join '')" }
 }
 finally {
     foreach ($t in $tmpRoots) { Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue }

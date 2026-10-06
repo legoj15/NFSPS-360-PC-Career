@@ -1,5 +1,22 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-05, 21:30 EDT)
 
+## 2026-10-06 — anonymized alias golden fixture
+- `docs/re/alias_anon/ALIAS_360` (container `ALIAS_ANONYMOUS 1`), built by
+  the re-runnable `docs/re/anonymize_alias.py` from the personal alias;
+  provenance + what is stale in `docs/re/alias_anon/README.md`. Seventh
+  golden case in all three suites, md5 8ae3d82a3c9cb1c9500d6fcce8c01b9d;
+  converted output differs from the personal golden only in MC02 CRCs, the
+  extra name, the PC tree hash and the UserProfile name (checked bytewise).
+- Name sites found: STFS file table, CON display name (locale 0), MC02 extra,
+  UserProfile chunk. OnlineUserProfile carries no strings/XUIDs. Blanked:
+  cert body 0x06..0x22C, console id, profile id (offline XUID), device id
+  (USB serial). The 360 tree[0:0x10] does NOT match the PC treehash scheme.
+- Golden suites now FAIL (not skip) on a missing tracked fixture; only
+  `Extracted/` sources skip. New unit tests pin convert_extra's no-NUL
+  branch (tests/test_extra.py, nfssave-core tests/test_extra.rs,
+  Run-Tests.ps1) since every golden alias NUL-terminates its name.
+- Delegation log: none (orchestrator work).
+
 ## 2026-10-06 — script ports: QuickBMS dropped, PowerShell pending
 - User dropped QuickBMS (no bignum for the tree hash, no JSON, 4th
   byte-exact copy to maintain). Committed ee64835 (README + scripts/bms).
@@ -20,10 +37,7 @@
   `*.rules eol=lf` + EOL-agnostic freshness test. REJECTED (probed):
   "Join-Path 'F:' 'Content' is drive-relative" and "drive-root OutRoot
   backs up drive-relative" - PowerShell Join-Path yields `F:\Content` /
-  `D:\SaveConverter backups`. OPEN: the only alias golden is a personal
-  gitignored save, so a fresh clone has no alias coverage in any of the
-  three suites; needs an anonymized alias fixture (name lives in the STFS
-  file name, the extra blob and the CON header).
+  `D:\SaveConverter backups`. Alias coverage gap CLOSED: see next section.
 - Port leftovers worth a look: GAMEPLAY_U8_FIELDS is a 2-tuple iterated as
   offsets but its comment reads like a range (impl agent flagged; goldens
   pin the tuple behaviour, so only change with an in-game check).
