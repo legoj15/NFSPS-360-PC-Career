@@ -1,4 +1,24 @@
-# Handoff — NFSPS 360 -> PC converter (updated 2026-10-04, late night)
+# Handoff — NFSPS 360 -> PC converter (updated 2026-10-05, 21:30 EDT)
+
+## 2026-10-05 night — USB sticks are FAT32, not FATX (read first)
+- User formatted a fresh 32 GB stick on the console and copied a save:
+  result is plain FAT32, `F:\Content\E00001CFFAB204C4\45410822\00000001\CAREER_01`
+  (standard `CON ` STFS) + `name.txt`. No `Xbox360\Data000N`, no XTAF.
+  The GLM-built `fatx` crate assumed FATX; that assumption is wrong for
+  current dashboards. SPEC.md §5.1 and docs/rust-app.md corrected.
+- Verified: `NFSPS-SaveConverter.exe --convert F:\ --out <dir>` converts
+  CAREER_01 (exit 0) via the existing manual folder walk; covered by
+  `crates/nfspc-converter/tests/sources.rs:133`. Warnings printed:
+  chunk 0xb67f6cc6 size 0x2b4 != map ref 0x104 (auto mode); chunk
+  0xd548266c 13 unaligned string runs padded.
+- DECISION FOR USER (proposed): replace `app/drivescan.rs` raw
+  PhysicalDrive scan with a scan of mounted volumes (drive letters with
+  `Content\` at root, `name.txt` as a hint) reusing `sources::discover_manual`.
+  No elevation, works on real hardware. Then either delete the `fatx`
+  crate or keep it as an explicitly-labelled "legacy/untested" path for
+  old Data000N sticks and HDD dumps. Recommendation: delete (2,000+ lines,
+  zero real-media coverage) unless the user has an old-format stick.
+- Delegation log: none (orchestrator only).
 
 ## CURRENT STATE (read first)
 VERIFIED IN-GAME: CAREER_01/02/03 resume at their saved point (incl. race

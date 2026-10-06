@@ -95,7 +95,22 @@ Xbox360_USB_Explorer `FatxHeader.Read`.
 
 ### 5.1 Retail USB stick (formatted by the console as a Memory Unit)
 
-Two equivalent views exist:
+**MEASURED 2026-10-05 on real hardware — read this first.** A fresh 32 GB
+PNY stick formatted by the console's current dashboard is a **plain FAT32
+volume (MBR) with no FATX anywhere**: no `Xbox360\Data000N` files, no
+`XTAF` magic. The root holds `name.txt` (UTF-16BE BOM'd device name, e.g.
+"USB Storage Device") and a normal `Content\<profileID>\<titleID>\<type>\`
+tree; saves are ordinary `CON ` STFS files, e.g.
+`Content\E00001CFFAB204C4\45410822\00000001\CAREER_01`. Windows mounts it
+with a drive letter; no elevation or raw access is needed, and the app's
+manual folder walk (`nfspc-converter/src/app/sources.rs`) already converts
+it (verified: headless `--convert F:\` → CAREER_01, exit 0).
+
+Everything below in §5.1 describes the **older** container layout (and the
+raw fixed-offset view) that community tools target. It is
+**UNVERIFIED on current hardware** — no sample media exists to test it.
+
+Two equivalent views of that older layout exist:
 
 1. **Host (FAT) view** — the stick carries a FAT16/FAT32 volume with a hidden
    `Xbox360` folder holding `Data0000`, `Data0001`, … `DataNNNN` files.

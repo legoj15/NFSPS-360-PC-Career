@@ -89,6 +89,13 @@ only so cargo's test harnesses stay unelevated (`build.rs:51-54`), and
 
 ## Known gaps
 
+- **The `fatx` raw scanner targets a layout current consoles don't write.**
+  Measured 2026-10-05: a console-formatted USB stick is plain FAT32 with a
+  normal `Content\` tree (`src/crates/fatx/SPEC.md` §5.1). The manual
+  folder path already handles it; the raw `PhysicalDrive` scan (and its
+  elevation requirement) has never been tested on real media and would not
+  find these saves. Pending decision: replace the drive scan with a
+  mounted-volume scan (see `docs/HANDOFF.md`).
 - Unelevated GUI cannot scan raw drives: USB FATX scanning needs an elevated
   relaunch (user-facing note is the only remedy; no self-elevation).
 - Headless mode has no drive scanning (files/folders only, see above).
