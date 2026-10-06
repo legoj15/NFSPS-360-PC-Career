@@ -1,5 +1,15 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-05, 21:30 EDT)
 
+## 2026-10-06 — script ports: QuickBMS dropped, PowerShell pending
+- User dropped QuickBMS (no bignum for the tree hash, no JSON, 4th
+  byte-exact copy to maintain). Committed ee64835 (README + scripts/bms).
+- PowerShell port: recommended target = Windows PowerShell 5.1 syntax/APIs
+  (zero install for the no-Python, no-exe audience), CI-tested on both 5.1
+  and pwsh 7. Hot loops (CRC, swaps) in Add-Type C# 5; rule tables via a
+  generated neutral format, not ConvertFrom-Json on the 3 MB file. Gate on
+  the existing golden-md5 corpus (nfssave-core tests/test_golden.rs).
+  Awaiting user's go on target version.
+
 ## 2026-10-06 — no console window behind the GUI
 - Release exe is now GUI-subsystem; CLI paths attach to the parent console
   (app/console.rs, details + cmd/PowerShell no-wait caveat in
