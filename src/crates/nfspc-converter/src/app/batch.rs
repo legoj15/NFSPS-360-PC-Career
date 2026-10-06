@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf, absolute};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use fatx::DiscoveredSave;
 use nfssave_core::convert::{ConversionReport, convert_one, convert_payload, write_pc_save};
@@ -77,6 +78,50 @@ impl SaveInput {
 pub fn dirent_name_of(save: &DiscoveredSave) -> String {
     let dirent = save.source_path.rsplit('/').next().unwrap_or("");
     safe_name(dirent)
+}
+
+/// Folder (next to the export folder) that receives replaced saves.
+pub const BACKUP_DIR: &str = "SaveConverter backups";
+
+/// Copies `<out_root>/<name>/<name>` to
+/// `<parent of out_root>/SaveConverter backups/<stamp>/<name>/<name>` when it
+/// exists. Returns the backup path, or `None` when there was nothing to keep.
+fn back_up_existing(out_root: &Path, name: &str, stamp: &str) -> io::Result<Option<PathBuf>> {
+    let existing = out_root.join(name).join(name);
+    if !existing.is_file() {
+        return Ok(None);
+    }
+    let root = absolute(out_root)?;
+    let base = root.parent().unwrap_or(&root);
+    let dest = base.join(BACKUP_DIR).join(stamp).join(name).join(name);
+    fs::create_dir_all(dest.parent().expect("dest has a parent"))?;
+    fs::copy(&existing, &dest)?;
+    Ok(Some(dest))
+}
+
+/// `YYYY-MM-DD_HH-MM-SS` (UTC) for backup folder names.
+fn utc_stamp(t: SystemTime) -> String {
+    let secs = t
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let (days, rem) = ((secs / 86_400) as i64, secs % 86_400);
+    // civil-from-days (H. Hinnant), proleptic Gregorian
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!(
+        "{y:04}-{m:02}-{d:02}_{:02}-{:02}-{:02}",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
 }
 
 /// The name Windows actually creates for `name`: case-insensitive, with
@@ -166,6 +211,7 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
     // save that claimed it. A second save with the same name (CAREER_01 on
     // two sticks) would silently overwrite the first.
     let mut claimed: HashMap<String, String> = HashMap::new();
+    let stamp = utc_stamp(SystemTime::now());
     for input in inputs {
         if let Some(owner) = claimed.get(&windows_name_key(&input.name)) {
             results.push(SaveResult {
@@ -181,10 +227,35 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
             });
             continue;
         }
+        // A same-named save already in the folder (from an earlier run, or
+        // the user's native PC career) is copied aside first; the copy is
+        // left in place, so a failed conversion leaves the game untouched.
+        let backup = match back_up_existing(out_root, &input.name, &stamp) {
+            Ok(b) => b,
+            Err(e) => {
+                results.push(SaveResult {
+                    status: SaveStatus::Refused {
+                        reason: format!(
+                            "an existing {} could not be backed up ({e});                              left it untouched",
+                            input.name
+                        ),
+                    },
+                    label: input.label,
+                });
+                continue;
+            }
+        };
         let status = match convert_input(&input, out_root) {
-            Ok((chunks, warnings, target)) => {
+            Ok((chunks, mut warnings, target)) => {
                 any_converted = true;
                 claimed.insert(windows_name_key(&input.name), input.label.clone());
+                if let Some(b) = backup {
+                    warnings.push(format!(
+                        "replaced an existing {}; previous file backed up to {}",
+                        input.name,
+                        b.display()
+                    ));
+                }
                 SaveStatus::Converted {
                     chunks,
                     warnings,
@@ -257,4 +328,28 @@ fn convert_raw_mc02(
             .push(format!("post-write self-check: {prob}"));
     }
     Ok((report.records, report.warnings, target))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn utc_stamp_matches_reference_dates() {
+        for (secs, want) in [
+            (0, "1970-01-01_00-00-00"),
+            (951_868_799, "2000-02-29_23-59-59"),
+            (1_791_248_400, "2026-10-06_01-00-00"),
+            (4_107_587_696, "2100-03-01_12-34-56"),
+        ] {
+            assert_eq!(utc_stamp(UNIX_EPOCH + Duration::from_secs(secs)), want);
+        }
+    }
+
+    #[test]
+    fn windows_name_key_folds_case_and_trailing_dots_spaces() {
+        assert_eq!(windows_name_key("CAREER_01. ."), "career_01");
+        assert_eq!(windows_name_key("Alias_X"), "alias_x");
+    }
 }

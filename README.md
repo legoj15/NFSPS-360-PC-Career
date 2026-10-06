@@ -17,7 +17,8 @@ Converts Xbox 360 Need for Speed ProStreet career saves into PC saves.
 4. Click **Select location to export saves…** and choose where the converted
    saves should go. The app already suggests the game's own save folder.
 5. Click **Convert**. Then start the game, pick your alias, and your career
-   is there to load.
+   is there to load. If a save with the same name was already there, the old
+   one is copied to a **SaveConverter backups** folder next to it first.
 
 To build the program yourself instead: `cargo build --release` inside `src/`.
 

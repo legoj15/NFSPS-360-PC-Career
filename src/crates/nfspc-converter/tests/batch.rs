@@ -161,8 +161,7 @@ fn from_discovered_parse_failure_uses_fatx_file_name() {
     let full = fixture_bytes();
     let save = DiscoveredSave {
         friendly_name: "NFS ProStreet".into(),
-        source_path: "Content/E0001A2B3C4D5E6F/45410822/00000001/CAREER_BAD_360"
-            .into(),
+        source_path: "Content/E0001A2B3C4D5E6F/45410822/00000001/CAREER_BAD_360".into(),
         bytes: full[..0x2000].to_vec(), // CON magic, truncated before the file table
     };
     let input = SaveInput::from_discovered(&save);
@@ -239,14 +238,20 @@ fn raw_input(name: &str, bytes: Vec<u8>) -> SaveInput {
 }
 
 fn raw_payload() -> Vec<u8> {
-    parse_container(&fixture_bytes(), "fixture").unwrap().payload
+    parse_container(&fixture_bytes(), "fixture")
+        .unwrap()
+        .payload
 }
 
 /// Windows folds case and drops trailing dots/spaces, so these names land
 /// on the same file and must count as duplicates.
 #[test]
 fn duplicate_guard_matches_windows_name_folding() {
-    for (a, b) in [("CAREER_X", "career_x"), ("CAREER_Y", "CAREER_Y. "), ("ALIAS_Z", "alias_z.")] {
+    for (a, b) in [
+        ("CAREER_X", "career_x"),
+        ("CAREER_Y", "CAREER_Y. "),
+        ("ALIAS_Z", "alias_z."),
+    ] {
         let out = TempDir::new().unwrap();
         let r = run_batch(
             vec![raw_input(a, raw_payload()), raw_input(b, raw_payload())],
@@ -283,4 +288,90 @@ fn failed_save_does_not_claim_its_name() {
         "{:?}",
         r.results[1].status
     );
+}
+
+/// Every file under `dir`, recursively.
+fn files_under(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Ok(rd) = fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                out.extend(files_under(&p));
+            } else {
+                out.push(p);
+            }
+        }
+    }
+    out
+}
+
+/// Export folder shaped like the game's: <tmp>/SAVE/NFS ProStreet.
+fn game_like_out(tmp: &TempDir) -> PathBuf {
+    let out = tmp.path().join("SAVE").join("NFS ProStreet");
+    fs::create_dir_all(&out).unwrap();
+    out
+}
+
+#[test]
+fn existing_export_is_backed_up_before_being_replaced() {
+    let tmp = TempDir::new().unwrap();
+    let out = game_like_out(&tmp);
+    let input = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
+    let existing = out.join(&input.name).join(&input.name);
+    fs::create_dir_all(existing.parent().unwrap()).unwrap();
+    fs::write(&existing, b"native PC career").unwrap();
+
+    let r = run_batch(vec![input], &out);
+    let warnings = match &r.results[0].status {
+        SaveStatus::Converted {
+            warnings, target, ..
+        } => {
+            assert_eq!(target, &existing);
+            warnings.clone()
+        }
+        other => panic!("{other:?}"),
+    };
+    assert_ne!(fs::read(&existing).unwrap(), b"native PC career");
+
+    let backups = files_under(&tmp.path().join("SAVE").join("SaveConverter backups"));
+    assert_eq!(backups.len(), 1, "{backups:?}");
+    assert_eq!(fs::read(&backups[0]).unwrap(), b"native PC career");
+    assert!(backups[0].ends_with(Path::new("CAREER_01").join("CAREER_01")));
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("backed up") && w.contains(&backups[0].display().to_string())),
+        "{warnings:?}"
+    );
+}
+
+#[test]
+fn no_backup_folder_when_nothing_is_replaced() {
+    let tmp = TempDir::new().unwrap();
+    let out = game_like_out(&tmp);
+    let r = run_batch(
+        vec![SaveInput::from_path(Path::new(FIXTURE)).unwrap()],
+        &out,
+    );
+    assert!(matches!(r.results[0].status, SaveStatus::Converted { .. }));
+    assert!(
+        !tmp.path()
+            .join("SAVE")
+            .join("SaveConverter backups")
+            .exists()
+    );
+}
+
+#[test]
+fn failed_conversion_leaves_the_existing_save_in_place() {
+    let tmp = TempDir::new().unwrap();
+    let out = game_like_out(&tmp);
+    let existing = out.join("CAREER_Q").join("CAREER_Q");
+    fs::create_dir_all(existing.parent().unwrap()).unwrap();
+    fs::write(&existing, b"native PC career").unwrap();
+
+    let r = run_batch(vec![raw_input("CAREER_Q", corrupted_mc02_bytes())], &out);
+    assert!(matches!(r.results[0].status, SaveStatus::Refused { .. }));
+    assert_eq!(fs::read(&existing).unwrap(), b"native PC career");
 }

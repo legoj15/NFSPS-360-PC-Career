@@ -36,11 +36,10 @@
   names like Windows (case + trailing dots/spaces), FATX path capped at
   16 MiB like the volume scan, stale manual-pick error cleared, tests for
   claim-on-success and help aliases.
-- OPEN DECISION (both reviewers, medium): export overwrites a same-named
-  save already in the output folder from a previous run (write_pc_save
-  replaces by design; default output is the live game save folder, so a
-  native PC CAREER_01 can be replaced). Options put to the user: back up the
-  existing file first / refuse / keep overwriting.
+- DECIDED (user, 2026-10-05): a same-named save already in the export folder
+  is COPIED to `<parent>/SaveConverter backups/<UTC stamp>/<NAME>/<NAME>`,
+  then replaced (app/batch.rs back_up_existing). Copy, not move: a failed
+  conversion leaves the game's save in place. Backup failure refuses that save.
 - Deferred lows: manual single-file pick reads the whole file on the UI
   thread and again at convert; write_pc_save accepts names safe_name would
   clean; no test for the FATX-mode combined sort (needs scan_drives to take
