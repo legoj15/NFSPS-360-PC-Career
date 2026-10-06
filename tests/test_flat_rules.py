@@ -35,7 +35,9 @@ def _parse(text: str) -> dict:
 class FlatRulesTests(unittest.TestCase):
     def test_committed_file_is_fresh(self):
         self.assertTrue(pr.FLAT_RULES_PATH.is_file(), "fieldmaps.rules missing")
-        self.assertEqual(pr.FLAT_RULES_PATH.read_text(), pr.flat_rules_text())
+        # EOL-agnostic: a checkout may still carry CRLF from before .gitattributes
+        self.assertEqual(pr.FLAT_RULES_PATH.read_bytes().replace(b"\r\n", b"\n").decode(),
+                         pr.flat_rules_text())
 
     def test_round_trip_matches_json_semantics(self):
         flat = _parse(pr.flat_rules_text())

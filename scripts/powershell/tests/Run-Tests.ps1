@@ -127,6 +127,49 @@ try {
     if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '8dd15c6cb5736cf14aa2694289d8480d') { Pass 'flash drive walk' }
     else { Fail 'flash drive walk' "exit $($r.Code): $($r.Text)" }
 
+    # --- bare drive letter (no colon) means that drive's root; names match
+    #     case-insensitively like the exe (fatx discovery is_save_name)
+    $letter = $null
+    foreach ($l in [char[]]'QRSTUVWXYZ') { if (-not (Test-Path "${l}:\")) { $letter = "$l"; break } }
+    if (-not $letter) { Skip 'flash bare drive letter' 'no free drive letter for subst' }
+    else {
+        Rename-Item (Join-Path $cdir 'CAREER_02') 'career_02'
+        subst "${letter}:" $drive | Out-Null
+        try {
+            $r = Invoke-Converter @('-Flash', $letter, '-OutRoot', (Join-Path $fl 'out2'))
+            $t = Join-Path $fl 'out2\CAREER_02\CAREER_02'
+            if ($r.Code -eq 0 -and (Test-Path $t)) { Pass 'flash bare drive letter, lower-case name' }
+            else { Fail 'flash bare drive letter, lower-case name' "exit $($r.Code): $($r.Text)" }
+        } finally { subst "${letter}:" /D | Out-Null }
+    }
+
+    # --- backup folder for this second already taken -> <stamp>-2
+    $bc = New-TempDir; $tmpRoots += $bc
+    $bcRoot = Join-Path $bc 'NFS ProStreet'
+    $bcOld = Join-Path $bcRoot 'CAREER_02\CAREER_02'
+    New-Item -ItemType Directory -Force -Path (Split-Path $bcOld) | Out-Null
+    [System.IO.File]::WriteAllBytes($bcOld, [byte[]](9, 9))
+    $now = [DateTime]::UtcNow
+    foreach ($sec in 0..20) {
+        $st = $now.AddSeconds($sec).ToString('yyyy-MM-dd_HH-mm-ss', [System.Globalization.CultureInfo]::InvariantCulture)
+        New-Item -ItemType Directory -Force -Path (Join-Path $bc "SaveConverter backups\$st\CAREER_02") | Out-Null
+        [System.IO.File]::WriteAllBytes((Join-Path $bc "SaveConverter backups\$st\CAREER_02\CAREER_02"), [byte[]](7))
+    }
+    $r = Invoke-Converter @($pair, '-OutRoot', $bcRoot)
+    $second = @(Get-ChildItem -Directory (Join-Path $bc 'SaveConverter backups') | Where-Object { $_.Name -like '*-2' })
+    $firstIntact = @(Get-ChildItem -Recurse -File (Join-Path $bc 'SaveConverter backups') | Where-Object { $_.Length -eq 1 }).Count -eq 21
+    $okSecond = $second.Count -eq 1 -and (Get-Item (Join-Path $second[0].FullName 'CAREER_02\CAREER_02')).Length -eq 2
+    if ($r.Code -eq 0 -and $okSecond -and $firstIntact) { Pass 'backup collision goes to <stamp>-2' }
+    else { Fail 'backup collision goes to <stamp>-2' "exit $($r.Code), -2 dirs $($second.Count), earlier intact $firstIntact" }
+
+    # --- two sources with the same container name: second refused (exe batch.rs)
+    $dup = New-TempDir; $tmpRoots += $dup
+    $raceday = Join-Path $repo 'docs\re\pair_raceday\CAREER_02_360'
+    $r = Invoke-Converter @($pair, $raceday, '-OutRoot', $dup)
+    $t = Join-Path $dup 'CAREER_02\CAREER_02'
+    if ($r.Code -eq 1 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '8dd15c6cb5736cf14aa2694289d8480d' -and $r.Text -match 'also named') { Pass 'duplicate container name refused' }
+    else { Fail 'duplicate container name refused' "exit $($r.Code): $($r.Text)" }
+
     # --- flash root with no saves fails
     $empty = New-TempDir; $tmpRoots += $empty
     $r = Invoke-Converter @('-Flash', $empty, '-OutRoot', (Join-Path $empty 'out'))
@@ -157,6 +200,18 @@ try {
     $r = Invoke-Converter @($junk, $pair, '-OutRoot', $mixOut)
     if ($r.Code -eq 1 -and (Test-Path (Join-Path $mixOut 'CAREER_02\CAREER_02'))) { Pass 'partial failure converts the rest, exit 1' }
     else { Fail 'partial failure converts the rest, exit 1' "exit $($r.Code)" }
+
+    # --- unit: _to_pc_record on a 1-3 byte payload -> payload[4:] + 4 zeros
+    #     (Python grows it to 4 bytes; no committed save has one). Runs the
+    #     converter in-process (dry run) so the NfsPs.Save type is loaded here.
+    & $converter $pair -OutRoot $bad -DryRun *> $null
+    $m = [NfsPs.Save].GetMethod('ToPcRecord', [System.Reflection.BindingFlags]'NonPublic,Public,Static')
+    $rec = New-Object NfsPs.Rec
+    $rec.Payload = [byte[]](1, 2)
+    $threw = $null
+    try { [void]$m.Invoke($null, [object[]]@($rec.PSObject.BaseObject)) } catch { $threw = $_.Exception.InnerException.Message }
+    if (-not $threw -and $rec.Payload.Length -eq 4 -and -not ($rec.Payload | Where-Object { $_ })) { Pass 'short record payload framed like Python' }
+    else { Fail 'short record payload framed like Python' "threw '$threw', payload $($rec.Payload -join ',')" }
 }
 finally {
     foreach ($t in $tmpRoots) { Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue }

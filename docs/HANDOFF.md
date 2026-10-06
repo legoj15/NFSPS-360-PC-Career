@@ -11,9 +11,19 @@
 - DONE 77bd8d9: 18/18 on 5.1 and pwsh 7.7, ~0.7 s/save; README section.
   My first test draft expected source-file names; output correctly uses the
   STFS container name (game looks saves up by it) - test fixed.
-  Review fan-out ps-port-review-20261006-170056-b599 (shop26 Qwen 27B +
-  glm-flash) on 4dcbc3e..77bd8d9 - collect with opencode_wait_group,
-  verify findings, fix as follow-up commits.
+  Review ps-port-review (shop26 Qwen 27B + glm-flash, 4dcbc3e..77bd8d9),
+  verified + fixed in the follow-up commit, 22/22 on 5.1 and 7.7:
+  bare `-Flash F` (no colon) -> drive root; -Flash names case-insensitive
+  (exe parity); duplicate container names in one run refused (exe
+  batch.rs); 1-3 byte record payload framed like Python (GLM repro'd a
+  crash); tests for backup `<stamp>-2` and short records; .gitattributes
+  `*.rules eol=lf` + EOL-agnostic freshness test. REJECTED (probed):
+  "Join-Path 'F:' 'Content' is drive-relative" and "drive-root OutRoot
+  backs up drive-relative" - PowerShell Join-Path yields `F:\Content` /
+  `D:\SaveConverter backups`. OPEN: the only alias golden is a personal
+  gitignored save, so a fresh clone has no alias coverage in any of the
+  three suites; needs an anonymized alias fixture (name lives in the STFS
+  file name, the extra blob and the CON header).
 - Port leftovers worth a look: GAMEPLAY_U8_FIELDS is a 2-tuple iterated as
   offsets but its comment reads like a range (impl agent flagged; goldens
   pin the tuple behaviour, so only change with an in-game check).

@@ -1,0 +1,2 @@
+# generated rule table: byte-compared by tests/test_flat_rules.py
+*.rules text eol=lf

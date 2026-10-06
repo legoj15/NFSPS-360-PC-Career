@@ -851,10 +851,12 @@ namespace NfsPs
         static void ToPcRecord(Rec rec)
         {
             rec.Type = 1;
-            if (rec.Payload.Length > 0)
+            int len = rec.Payload.Length;
+            if (len > 0)
             {
-                byte[] n = new byte[rec.Payload.Length];
-                Buffer.BlockCopy(rec.Payload, 4, n, 0, n.Length - 4);
+                // payload[4:] + 4 zero bytes; a 1-3 byte payload grows to 4 (as in Python)
+                byte[] n = new byte[Math.Max(len, 4)];
+                if (len > 4) Buffer.BlockCopy(rec.Payload, 4, n, 0, len - 4);
                 rec.Payload = n;
             }
         }
@@ -1009,7 +1011,7 @@ function Backup-Existing([string]$root, [string]$name, [string]$stamp) {
 }
 
 # convert.py convert_one; throws on failure (nothing is written before the output is complete)
-function Convert-One([string]$path, $rules, [string]$outRoot, [string]$stamp) {
+function Convert-One([string]$path, $rules, [string]$outRoot, [string]$stamp, [hashtable]$claimed) {
     $leaf = Split-Path -Leaf $path
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "$path : source file not found" }
     $data = [System.IO.File]::ReadAllBytes($path)
@@ -1019,6 +1021,20 @@ function Convert-One([string]$path, $rules, [string]$outRoot, [string]$stamp) {
         throw "${leaf}: extra-blob CRC mismatch - the source file is corrupted; refusing to convert"
     }
     foreach ($prob in $bad) { Write-Host "! ${leaf}: $prob (CRCs are recomputed on write)" }
+
+    # write_pc_save: unsafe-name check
+    $name = $cont.Name
+    if (-not $name -or $name.IndexOfAny([char[]]'\/:') -ge 0 -or $name -eq '.' -or $name -eq '..') {
+        throw "unsafe save name '$name'"
+    }
+    # exe batch.rs: two saves in one run must not export to the same folder
+    # (key = the name Windows creates: case-insensitive, trailing dots/spaces dropped)
+    $key = $name.TrimEnd('.', ' ').ToLowerInvariant()
+    if ($claimed.ContainsKey($key)) {
+        throw "another selected save ($($claimed[$key])) is also named $name; converting both would overwrite it - convert it separately"
+    }
+    $claimed[$key] = $leaf
+
     $res = [NfsPs.Save]::ConvertSave($cont.Payload, $rules)
     [Array]::Copy((Get-TreeHash $res.Tree), 0, $res.Tree, 0, 16)
     $bytes = [NfsPs.Save]::BuildMc02($res.Extra, $res.Tree, $res.TreeSize)
@@ -1027,11 +1043,6 @@ function Convert-One([string]$path, $rules, [string]$outRoot, [string]$stamp) {
     foreach ($w in $res.Warnings) { Write-Host "      ! $w" }
     if ($DryRun) { Write-Host '[.] dry run - not writing'; return }
 
-    # write_pc_save: unsafe-name check
-    $name = $cont.Name
-    if (-not $name -or $name.IndexOfAny([char[]]'\/:') -ge 0 -or $name -eq '.' -or $name -eq '..') {
-        throw "unsafe save name '$name'"
-    }
     $backup = Backup-Existing $outRoot $name $stamp
     if ($backup) { Write-Host "[+] backed up existing save to $backup" }
     $folder = Join-Path $outRoot $name
@@ -1059,11 +1070,14 @@ $saves = @()
 if ($Source) { $saves += @($Source | ForEach-Object { Get-FullPath $_ }) }
 if ($Flash) {
     $found = @()
+    # a bare "F" means the drive root, not a folder named F in the current directory
+    if ($Flash -match '^[A-Za-z]:?$') { $Flash = $Flash.Substring(0, 1) + ':\' }
     try {
         $content = Join-Path $Flash 'Content'
         if (Test-Path -LiteralPath $content -PathType Container) {
+            # case-insensitive, like the exe (fatx discovery is_save_name)
             $found = @(Get-ChildItem -Path (Join-Path $content '*\*\0000000[12]\*') -File -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -clike 'CAREER_*' -or $_.Name -clike 'ALIAS_*' } |
+                Where-Object { $_.Name -like 'CAREER_*' -or $_.Name -like 'ALIAS_*' } |
                 Sort-Object FullName | ForEach-Object { $_.FullName })
         }
     } catch { $found = @() }
@@ -1095,8 +1109,9 @@ if (Test-Path -LiteralPath $rulesPath -PathType Leaf) {
 
 $stamp = [DateTime]::UtcNow.ToString('yyyy-MM-dd_HH-mm-ss', [System.Globalization.CultureInfo]::InvariantCulture)
 $failures = 0
+$claimed = @{}
 foreach ($s in $saves) {
-    try { Convert-One $s $rules $outRootFull $stamp }
+    try { Convert-One $s $rules $outRootFull $stamp $claimed }
     catch {
         $failures++
         [Console]::Error.WriteLine("[!] FAILED ${s}: $($_.Exception.Message)")
