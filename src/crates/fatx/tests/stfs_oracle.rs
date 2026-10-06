@@ -2,8 +2,8 @@
 //! These paths are tracked in git; a missing file is a broken checkout.
 
 use fatx::stfs::{
-    CON_MAGIC, ConHeader, DISPLAY_NAME_OFFSET, HEADER_SIZE_OFFSET, TITLE_ID_NFS_PROSTREET,
-    TITLE_ID_OFFSET,
+    CON_MAGIC, ConHeader, DISPLAY_NAME_LEN, DISPLAY_NAME_OFFSET, HEADER_SIZE_OFFSET,
+    TITLE_ID_NFS_PROSTREET, TITLE_ID_OFFSET, TITLE_NAME_OFFSET,
 };
 
 fn oracle(rel: &str) -> Vec<u8> {
@@ -36,12 +36,12 @@ fn both_oracles_carry_prostreet_title_id_at_0x360() {
 }
 
 #[test]
-fn parses_display_name_from_both_oracles() {
+fn parses_title_name_from_both_oracles() {
     for rel in ["c1_latest/CAREER_01_360", "pair/CAREER_02_360_fresh"] {
         let bytes = oracle(rel);
         let header = ConHeader::parse(&bytes).unwrap();
         assert_eq!(header.title_id, TITLE_ID_NFS_PROSTREET, "{rel}");
-        assert_eq!(header.display_name, "NFS ProStreet", "{rel}");
+        assert_eq!(header.title_name, "NFS ProStreet", "{rel}");
         assert_eq!(header.header_size, 0x971A, "{rel}");
         assert!(header.title_id_matches(&[TITLE_ID_NFS_PROSTREET]), "{rel}");
         assert!(
@@ -63,21 +63,58 @@ fn rejects_non_con_input() {
 }
 
 #[test]
-fn display_name_field_is_utf16be_nfs_prostreet_in_raw_bytes() {
+fn title_name_field_is_utf16be_nfs_prostreet_in_raw_bytes() {
     // Independent of the parser: the region at 0x1691 must decode as
     // UTF-16BE "NFS ProStreet" followed by NULs (verified by hexdump in
     // SPEC.md §7; this pins the byte layout, not just the pretty output).
     let bytes = oracle("c1_latest/CAREER_01_360");
-    let field = &bytes[DISPLAY_NAME_OFFSET..DISPLAY_NAME_OFFSET + 0x1A]; // 13 UTF-16BE chars
+    let field = &bytes[TITLE_NAME_OFFSET..TITLE_NAME_OFFSET + 0x1A]; // 13 UTF-16BE chars
     let expected: Vec<u8> = "NFS ProStreet"
         .chars()
         .flat_map(|c| [(c as u16 >> 8) as u8, (c as u16 & 0xFF) as u8])
         .collect();
     assert_eq!(field, &expected[..]);
     assert!(
-        bytes[DISPLAY_NAME_OFFSET + 0x1A..DISPLAY_NAME_OFFSET + 0x80]
+        bytes[TITLE_NAME_OFFSET + 0x1A..TITLE_NAME_OFFSET + 0x80]
             .iter()
             .all(|&b| b == 0),
         "rest of the name field is NUL padding"
     );
+}
+
+/// Decodes a UTF-16BE field up to its first NUL, independent of the parser.
+fn utf16be_until_nul(field: &[u8]) -> String {
+    let units: Vec<u16> = field
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|p| u16::from_be_bytes(*p))
+        .take_while(|&u| u != 0)
+        .collect();
+    String::from_utf16(&units).expect("valid UTF-16")
+}
+
+#[test]
+fn display_name_at_0x411_is_per_save_while_title_name_is_the_game() {
+    // 0x411 is the STFS display name (locale 0 of 18 x 0x80 B slots) and
+    // carries the per-save name; 0x1691 is the title name, the same game
+    // title on every save.
+    for (rel, want) in [
+        ("c1_latest/CAREER_01_360", "Career 01"),
+        ("pair/CAREER_02_360_fresh", "Career 02"),
+        ("alias_anon/ALIAS_360", "ANONYMOUS 1"),
+    ] {
+        let bytes = oracle(rel);
+        assert_eq!(DISPLAY_NAME_OFFSET, 0x411);
+        assert_eq!(
+            utf16be_until_nul(&bytes[DISPLAY_NAME_OFFSET..DISPLAY_NAME_OFFSET + DISPLAY_NAME_LEN]),
+            want,
+            "{rel}: display name"
+        );
+        assert_eq!(
+            ConHeader::parse(&bytes).unwrap().title_name,
+            "NFS ProStreet",
+            "{rel}: title name"
+        );
+    }
 }

@@ -1,5 +1,5 @@
 //! Minimal STFS `CON ` package header parsing — just enough to identify the
-//! title a save belongs to and read its display name.
+//! title a save belongs to and read its title name.
 //!
 //! Offsets are locked by the tracked oracles `docs/re/c1_latest/CAREER_01_360`
 //! and `docs/re/pair/CAREER_02_360_fresh` and match Party Buffalo's
@@ -14,10 +14,17 @@ pub const CON_MAGIC: &[u8; 4] = b"CON ";
 pub const HEADER_SIZE_OFFSET: usize = 0x340;
 /// Offset of the 4 raw title-ID bytes (`45 41 08 22` for ProStreet).
 pub const TITLE_ID_OFFSET: usize = 0x360;
-/// Offset of the UTF-16BE display name ("NFS ProStreet").
-pub const DISPLAY_NAME_OFFSET: usize = 0x1691;
-/// Length reserved for the display name.
+/// Offset of the STFS display name: 18 locale slots of [`DISPLAY_NAME_LEN`]
+/// bytes, UTF-16BE, NUL-padded. Slot 0 carries the per-save name ("Career
+/// 01", an alias save's player name). Not parsed by [`ConHeader`].
+pub const DISPLAY_NAME_OFFSET: usize = 0x411;
+/// Length of one display-name locale slot.
 pub const DISPLAY_NAME_LEN: usize = 0x80;
+/// Offset of the UTF-16BE title name — the game title ("NFS ProStreet"),
+/// identical on every save.
+pub const TITLE_NAME_OFFSET: usize = 0x1691;
+/// Length reserved for the title name.
+pub const TITLE_NAME_LEN: usize = 0x80;
 /// Volume-descriptor byte whose bit 0 selects the hash-table layout
 /// (clear = every hash table stored twice -> backing-block shift 1).
 pub const TABLE_SHIFT_OFFSET: usize = 0x37B;
@@ -34,8 +41,8 @@ pub const L1_SPAN: usize = 0x70E4;
 pub const TITLE_ID_NFS_PROSTREET: [u8; 4] = [0x45, 0x41, 0x08, 0x22];
 
 /// Minimum input length [`ConHeader::parse`] accepts: one byte past the
-/// display-name field.
-const MIN_LEN: usize = DISPLAY_NAME_OFFSET + DISPLAY_NAME_LEN;
+/// title-name field.
+const MIN_LEN: usize = TITLE_NAME_OFFSET + TITLE_NAME_LEN;
 
 /// The subset of the CON header this crate cares about.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,8 +51,9 @@ pub struct ConHeader {
     pub header_size: u32,
     /// Raw title-ID bytes at [`TITLE_ID_OFFSET`].
     pub title_id: [u8; 4],
-    /// Decoded display name (empty when the field is all NUL).
-    pub display_name: String,
+    /// Decoded title name at [`TITLE_NAME_OFFSET`] (empty when the field
+    /// is all NUL).
+    pub title_name: String,
 }
 
 impl ConHeader {
@@ -73,14 +81,13 @@ impl ConHeader {
         );
         let mut title_id = [0u8; 4];
         title_id.copy_from_slice(&data[TITLE_ID_OFFSET..TITLE_ID_OFFSET + 4]);
-        let display_name = decode_utf16be_nul_padded(
-            &data[DISPLAY_NAME_OFFSET..DISPLAY_NAME_OFFSET + DISPLAY_NAME_LEN],
-        );
+        let title_name =
+            decode_utf16be_nul_padded(&data[TITLE_NAME_OFFSET..TITLE_NAME_OFFSET + TITLE_NAME_LEN]);
 
         Ok(Self {
             header_size,
             title_id,
-            display_name,
+            title_name,
         })
     }
 

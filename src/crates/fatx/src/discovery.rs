@@ -23,7 +23,7 @@ pub const NAME_PREFIXES: [&str; 2] = ["CAREER_", "ALIAS_"];
 pub struct DiscoveredSave {
     /// Human-friendly per-save name: the STFS file-table name ("CAREER_01")
     /// when the package can be read, otherwise the FATX file name. Never the
-    /// CON display name — that is the game title ("NFS ProStreet") on every
+    /// CON title name — that is the game title ("NFS ProStreet") on every
     /// save and would label every row identically.
     pub friendly_name: String,
     /// Volume-relative source path, e.g.
@@ -124,7 +124,7 @@ pub fn discover_prostreet_saves_noted<R: Read + Seek>(
                         }
                     };
                     // per-save name from the STFS file table ("CAREER_01"),
-                    // NOT the CON display name — that is the game title
+                    // NOT the CON title name — that is the game title
                     // ("NFS ProStreet") on every save. Fall back to the FATX
                     // file name when the package is too damaged to name.
                     let friendly_name =

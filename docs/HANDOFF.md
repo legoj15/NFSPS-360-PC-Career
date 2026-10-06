@@ -1,5 +1,15 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-05, 21:30 EDT)
 
+## 2026-10-06 — fatx: 0x1691 relabelled TITLE name
+- `stfs::TITLE_NAME_OFFSET/LEN` (0x1691) + `ConHeader::title_name`;
+  `DISPLAY_NAME_OFFSET/LEN` now mean 0x411 (locale-0 slot, unparsed).
+  Oracles hold "Career 01"/"Career 02"/"ANONYMOUS 1" at 0x411, pinned in
+  tests/stfs_oracle.rs. SPEC.md §7 corrected. No behaviour change.
+- Pre-existing `cargo fmt --check` drift in fatx/nfssave-core files
+  (real_scan.rs, aligned.rs, device.rs, ...) - left untouched.
+- Delegation log: shop26 Qwen 27B review -> approve, 1 low (SPEC §7
+  "identical bytes" preamble), fixed.
+
 ## 2026-10-06 — anonymized alias golden fixture
 - `docs/re/alias_anon/ALIAS_360` (container `ALIAS_ANONYMOUS 1`), built by
   the re-runnable `docs/re/anonymize_alias.py` from the personal alias;

@@ -194,7 +194,8 @@ folders, not a parent)
 
 Empirically verified against the tracked oracles
 `docs/re/c1_latest/CAREER_01_360` and `docs/re/pair/CAREER_02_360_fresh`
-(identical bytes in both at these offsets), cross-checked with Party Buffalo's
+(identical bytes in both at these offsets, except the per-save display
+name at 0x411), cross-checked with Party Buffalo's
 `STFSOffsets` enum and the repo's own Python spec
 `scripts/python/nfssave/container360.py`:
 
@@ -205,10 +206,13 @@ Empirically verified against the tracked oracles
 | **0x360** | title ID, 4 raw bytes — `45 41 08 22` = **45410822 = NFS ProStreet** |
 | 0x37B | bit 0 = hash-table block separation (clear → tables stored twice, backing-block shift 1) |
 | 0x37E | u24 LE file-table block number (see `stfs::file_table_name`) |
-| 0x1691 | display name, UTF-16BE, NUL-padded (reads "NFS ProStreet") |
+| 0x411 | display name: 18 locale slots x 0x80 B, UTF-16BE, NUL-padded; slot 0 holds the per-save name ("Career 01", an alias save's player name). Not parsed. |
+| 0x1691 | title name, 0x80 B UTF-16BE, NUL-padded (reads "NFS ProStreet") |
 
-Per-save naming: the display name at 0x1691 is the GAME title on every save.
-The name that identifies the individual save ("CAREER_01") is the file name
+Per-save naming: the title name at 0x1691 is the GAME title on every save.
+The display name at 0x411 does vary per save (pinned by `stfs_oracle.rs`
+against all three tracked oracles) but is free text and, on alias saves, the
+player's name, so it is not used for naming. The name that identifies the individual save ("CAREER_01") is the file name
 inside the STFS file table (data block named by the 0x37E descriptor field;
 entry +0x00 = NUL-padded ASCII name) — verified on both tracked oracles, and
 it is what discovery reports as `friendly_name` and what the converter

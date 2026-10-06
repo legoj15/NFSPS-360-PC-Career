@@ -134,7 +134,7 @@ fn friendly_names_are_per_save() {
     assert!(!found.is_empty());
     for s in &found {
         // The STFS file-table name identifies the save ("CAREER_01"); the
-        // CON display name would read "NFS ProStreet" on every row.
+        // CON title name would read "NFS ProStreet" on every row.
         let file = s.source_path.rsplit('/').next().unwrap();
         let want = if file == "CAREER_02_360" { "CAREER_02" } else { "CAREER_01" };
         assert_eq!(s.friendly_name, want, "for {}", s.source_path);
@@ -142,7 +142,7 @@ fn friendly_names_are_per_save() {
 }
 
 /// A package too damaged to name falls back to its FATX file name, never
-/// the game-title display name.
+/// the game title name.
 #[test]
 fn friendly_name_falls_back_to_fatx_file_name() {
     let mut broken = vec![0u8; 0x1800];

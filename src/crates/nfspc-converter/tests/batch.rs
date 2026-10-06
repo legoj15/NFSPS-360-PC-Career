@@ -150,7 +150,7 @@ fn from_path_rejects_non_save_files() {
 }
 
 /// A discovered save whose CON wrapper cannot be parsed falls back to the
-/// FATX file name for the export — never the game-title display name, which
+/// FATX file name for the export — never the CON title name, which
 /// would label every failing save "NFS ProStreet" and collapse them into
 /// one export folder.
 #[test]

@@ -72,7 +72,7 @@ impl SaveInput {
 }
 
 /// Export-name fallback when the CON wrapper cannot be parsed: the FATX
-/// file name from the source path. Never the game-title display name
+/// file name from the source path. Never the CON title name
 /// ("NFS ProStreet"), which would collapse every failing save into one
 /// export folder.
 pub fn dirent_name_of(save: &DiscoveredSave) -> String {
