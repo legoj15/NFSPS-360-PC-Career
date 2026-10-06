@@ -1,5 +1,16 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-05, 21:30 EDT)
 
+## 2026-10-06 — no console window behind the GUI
+- Release exe is now GUI-subsystem; CLI paths attach to the parent console
+  (app/console.rs, details + cmd/PowerShell no-wait caveat in
+  docs/rust-app.md "Headless conversion mode"). Debug stays console.
+- Verified: `cargo test --release --test subsystem` failed before (CUI=3),
+  passes after; redirected --help/--bogus/--convert give output + exit codes
+  0/2/1; unredirected run in a fresh conhost prints into that console.
+  NOT verified by hand: double-click shows no console (expected by PE field).
+- dist/NFSPS-SaveConverter.exe is the OLD console build until rebuilt/copied.
+- Delegation log: none (orchestrator only); outside review below.
+
 ## 2026-10-05 night — USB sticks are FAT32, not FATX (read first)
 - User formatted a fresh 32 GB stick on the console and copied a save:
   result is plain FAT32, `F:\Content\E00001CFFAB204C4\45410822\00000001\CAREER_01`

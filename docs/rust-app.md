@@ -40,21 +40,37 @@ if the Windows SDK is missing it warns and builds WITHOUT the manifest
 
     NFSPS-SaveConverter.exe --convert <file-or-folder> --out <dir>
 
-(usage text at `src/crates/nfspc-converter/src/main.rs:12-27`)
+(usage text and parsing in `src/crates/nfspc-converter/src/app/cli.rs`)
+
+Console behaviour: release builds use the Windows GUI subsystem
+(`#![windows_subsystem]` in `main.rs`, gated on `not(debug_assertions)`), so
+double-clicking shows no console window. The CLI paths (`--convert`, `--help`,
+argument errors) call `app::console::attach_parent_console`: redirected
+stdout/stderr (pipes, files, `Command::output`, `Start-Process -Redirect*`)
+work as-is and exit codes are intact; otherwise output goes to the launching
+terminal's console. Caveat of any GUI-subsystem exe: interactive `cmd.exe`
+and PowerShell do not wait for it, so the prompt can return before the output
+and `%ERRORLEVEL%`/`$LASTEXITCODE` are not set — automation should redirect
+or use `Start-Process -Wait -PassThru`. If a console-native CLI is ever
+needed, ship a second console-subsystem bin rather than reverting this. A
+window-creation failure in the GUI path shows a message box
+(`console::error_box`). Debug builds stay console-subsystem for env_logger.
+`tests/subsystem.rs` checks the PE subsystem field; run it with
+`cargo test --release` to cover the release half.
 
 - `--convert` accepts a CON container, a raw MC02 save (either byte order),
   or a folder — folders are walked depth-bounded (`MAX_DEPTH = 5`) for
   `CAREER_*`/`ALIAS_*` files with the `CON ` magic, which also covers an
   extracted `Content` tree (`src/crates/nfspc-converter/src/app/sources.rs:1-15`).
 - `--out` is the export directory; writes `<out>/<NAME>/<NAME>`
-  (`main.rs:23-24`). Exports are written atomically: bytes land in
+  (`app/headless.rs`). Exports are written atomically: bytes land in
   `<target>.tmp` and are renamed over the target, so an interrupted write
   never truncates a previous good export (`nfssave-core` `write_pc_save`).
 - Exit code 0 only when every requested save converted; failures print to
   stderr with a nonzero exit. Per-file load failures report to stderr and
   the run continues with the remaining files, matching the GUI worker and
   the Python CLI (`app/headless.rs`).
-- No arguments launches the GUI; `--help`/`-h`/?` prints usage (`main.rs:53-56`).
+- No arguments launches the GUI; `--help`/`-h`/?` prints usage (`main.rs`).
 - Headless does NOT scan physical drives — manual file/folder input only
   (`app/headless.rs` uses `discover_manual`).
 

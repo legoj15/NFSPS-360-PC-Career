@@ -2,6 +2,7 @@
 
 pub mod batch;
 pub mod cli;
+pub mod console;
 pub mod destination;
 pub mod drivescan;
 pub mod elevation;
