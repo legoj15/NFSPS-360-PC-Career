@@ -19,8 +19,8 @@ fn usable(h: windows::core::Result<HANDLE>) -> Option<HANDLE> {
 }
 
 /// Points stdout/stderr at the parent terminal's console unless they are
-/// already redirected. A no-op in console-subsystem (debug) builds, where
-/// both handles are always set.
+/// already redirected. Normally a no-op in console-subsystem (debug) builds;
+/// a detached launch there has no handles, and the attach then simply fails.
 pub fn attach_parent_console() {
     // SAFETY: plain Win32 handle queries/assignments; no memory is shared.
     unsafe {
