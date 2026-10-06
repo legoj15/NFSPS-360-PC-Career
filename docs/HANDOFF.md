@@ -15,7 +15,14 @@
   `Extracted/` sources skip. New unit tests pin convert_extra's no-NUL
   branch (tests/test_extra.py, nfssave-core tests/test_extra.rs,
   Run-Tests.ps1) since every golden alias NUL-terminates its name.
-- Delegation log: none (orchestrator work).
+- Delegation log: review fan-out alias-anon-fixture (013197b..e37702d):
+  shop26 Qwen 27B -> 1 medium, REJECTED: "display name is at 0x1691, not
+  0x411" - the source save holds the player name UTF-16BE at 0x411 (STFS
+  display name, locale 0); 0x1691 is the STFS TITLE name. The fatx crate
+  (stfs.rs DISPLAY_NAME_OFFSET, SPEC.md §7) mislabels it - spun off as a
+  separate task. glm-flash -> partial (tool-calls; sandbox auto-reject),
+  its notes report pin, container name, identity scan and all three suites
+  green, no findings.
 
 ## 2026-10-06 — script ports: QuickBMS dropped, PowerShell pending
 - User dropped QuickBMS (no bignum for the tree hash, no JSON, 4th
