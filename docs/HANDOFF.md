@@ -48,6 +48,8 @@
   mismatched input replaced a save with no backup -> run_batch now keys on
   export_name(). Also fixed: stray spaces in the backup-failure message; a
   post-write failure now still reports where the backup went.
+  5a0402c (the export-name fix) has NOT had its own outside review yet;
+  next session: one shop26 + glm-flash pass on `git diff 7e8b21c..5a0402c`.
 - Deferred lows (round 3): backup copy is left behind when a conversion is
   refused (reason says where); drive-root out_root puts backups at
   <drive>\SaveConverter backups; nfssave-core write_pc_save removes the
