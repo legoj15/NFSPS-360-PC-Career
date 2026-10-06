@@ -62,5 +62,5 @@ Have the Rust toolkit installed. Enter the `src` folder, and run `cargo build --
 
 - `src/` — the Windows app (Rust).
 - `scripts/` — the cross-platform converter for other setups (one folder per
-  language; Python works today, quickBMS and PowerShell versions are planned).
+  language; Python works today, a PowerShell version is planned).
 - `docs/` — research notes and findings behind the converter.
