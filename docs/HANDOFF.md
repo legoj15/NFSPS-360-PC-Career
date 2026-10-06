@@ -26,12 +26,18 @@
   (CAREER_01 on F: and G: silently overwrote each other before).
 - User-confirmed: the console blocks copying another profile's save while
   signed in as a different profile, so cross-profile mixing is not a case.
-- Open: third-party review triad (shop26 + glm-flash) launched 21:36 on the
-  pre-filter snapshot; group review-an-uncommitted-change-20261005-213649-b47b.
-  Verify its findings and land fixes as follow-up commits.
+- Review round 1 (shop26 Qwen3.8-27B + glm-flash, 21:36-21:47): both flagged
+  the FATX button being clickable mid-conversion (fixed d7dc180), unbounded
+  reads of save-named files (fixed: <=16 MiB + CON magic), unsorted FATX-mode
+  report (fixed). Rejected: UAC freeze on UI thread (secure desktop anyway),
+  signed HINSTANCE check, GetLogicalDrives==0. GLM saw a pre-fix snapshot
+  (its dialog/case findings were already fixed).
+- Round 2 review of 84f2e46..d7dc180 launched after the commit; collect it
+  and land any confirmed findings as follow-ups.
 - Debt: the workspace is not rustfmt-clean (cargo fmt touches 9 untouched
   files); deliberately not mixed into this change.
-- Delegation log: none (orchestrator only).
+- Delegation log: opencode review triad shop26+glm-flash (round 1) ->
+  ok, 1 medium shared finding confirmed + fixed; no Anthropic agents spawned.
 
 ## CURRENT STATE (read first)
 VERIFIED IN-GAME: CAREER_01/02/03 resume at their saved point (incl. race
