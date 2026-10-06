@@ -40,6 +40,12 @@
   is COPIED to `<parent>/SaveConverter backups/<UTC stamp>/<NAME>/<NAME>`,
   then replaced (app/batch.rs back_up_existing). Copy, not move: a failed
   conversion leaves the game's save in place. Backup failure refuses that save.
+  Same-second runs fall through to `<stamp>-2`, ... (17396b5). Verified end
+  to end with the debug exe (two runs into a fake SAVE folder).
+- Round 3 review (shop26 + glm-flash) of d7dc180..2e69a4e launched 22:11,
+  group review-commits-294e334-and-20261005-221137-df33. Collect it next
+  (opencode_wait_group) and land confirmed findings as follow-ups. It did not
+  see 17396b5 (the same-second fix), which it was asked to look for.
 - Deferred lows: manual single-file pick reads the whole file on the UI
   thread and again at convert; write_pc_save accepts names safe_name would
   clean; no test for the FATX-mode combined sort (needs scan_drives to take
