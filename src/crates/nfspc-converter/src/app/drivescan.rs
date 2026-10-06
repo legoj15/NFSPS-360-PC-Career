@@ -42,6 +42,9 @@ pub fn scan_drives(include_fatx: bool) -> DriveScanReport {
         let mut raw = scan_physical_drives();
         report.saves.append(&mut raw.saves);
         report.notes.append(&mut raw.notes);
+        report
+            .saves
+            .sort_by(|a, b| a.source_path.cmp(&b.source_path));
     }
     report
 }
@@ -141,7 +144,7 @@ fn scan_one_root(root: &Path, report: &mut DriveScanReport) {
                     if !is_save_name(&name) {
                         continue;
                     }
-                    let bytes = match fs::read(file.path()) {
+                    let bytes = match read_save_package(&file.path()) {
                         Ok(b) => b,
                         Err(e) => {
                             report.notes.push(format!("{source_path}: skipped ({e})"));
@@ -158,6 +161,31 @@ fn scan_one_root(root: &Path, report: &mut DriveScanReport) {
             }
         }
     }
+}
+
+/// Upper bound for a save package read whole. Real careers are 823,296
+/// bytes and aliases 81,920; anything near this cap is not a save.
+pub const MAX_SAVE_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Reads a save-named file only if it is a plausible save package: at most
+/// [`MAX_SAVE_BYTES`] and starting with the `CON ` magic.
+fn read_save_package(path: &Path) -> std::io::Result<Vec<u8>> {
+    use std::io::{Error, ErrorKind};
+    let len = fs::metadata(path)?.len();
+    if len > MAX_SAVE_BYTES {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            format!("{len} bytes is too large for a save"),
+        ));
+    }
+    let bytes = fs::read(path)?;
+    if !bytes.starts_with(b"CON ") {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "not an Xbox 360 save package (no CON header)",
+        ));
+    }
+    Ok(bytes)
 }
 
 /// Scan every physical drive for raw FATX. Needs elevation. Blocking.

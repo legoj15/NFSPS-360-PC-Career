@@ -183,9 +183,10 @@ impl ConverterApp {
     }
 
     /// The "scan for FATX drives" button shows only after a finished
-    /// normal scan found nothing, and only until FATX mode is on.
+    /// normal scan found nothing, and only until FATX mode is on. Never
+    /// during a conversion: the relaunch closes this window mid-write.
     fn offer_fatx_scan(&self) -> bool {
-        !self.scanning && !self.fatx_mode && self.rows.is_empty()
+        !self.scanning && !self.converting && !self.fatx_mode && self.rows.is_empty()
     }
 
     /// FATX button click: scan here when elevated, else relaunch through
@@ -530,6 +531,12 @@ mod tests {
         app.scanning = true;
         assert!(!app.offer_fatx_scan(), "hidden while scanning");
         app.scanning = false;
+        app.converting = true;
+        assert!(
+            !app.offer_fatx_scan(),
+            "hidden while converting: the relaunch closes this window"
+        );
+        app.converting = false;
         app.fatx_mode = true;
         assert!(!app.offer_fatx_scan(), "hidden once FATX mode is on");
         let app = app_with_rows(vec![row("CAREER_01", true)]);

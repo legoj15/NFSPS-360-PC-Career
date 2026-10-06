@@ -144,3 +144,22 @@ fn old_container_format_is_reported_not_ignored() {
     assert_eq!(report.notes.len(), 1, "{:?}", report.notes);
     assert!(report.notes[0].contains("Xbox360"), "{}", report.notes[0]);
 }
+
+#[test]
+fn save_named_files_that_are_not_save_packages_are_noted_not_loaded() {
+    let stick = TempDir::new().unwrap();
+    put(stick.path(), &rel("CAREER_01"), &career());
+    // right name, wrong content: no CON magic
+    put(stick.path(), &rel("CAREER_02"), &[0x42u8; 0x2000]);
+    // right name and magic, absurd size: never read whole
+    let mut huge = b"CON ".to_vec();
+    huge.resize(nfspc_converter::app::drivescan::MAX_SAVE_BYTES as usize + 1, 0);
+    put(stick.path(), &rel("CAREER_03"), &huge);
+
+    let report = scan_volume_roots(&[stick.path().to_path_buf()]);
+    assert_eq!(report.saves.len(), 1, "{:?}", report.notes);
+    assert!(report.saves[0].source_path.ends_with("CAREER_01"));
+    assert_eq!(report.notes.len(), 2, "{:?}", report.notes);
+    assert!(report.notes.iter().any(|n| n.contains("CAREER_02")));
+    assert!(report.notes.iter().any(|n| n.contains("CAREER_03")));
+}

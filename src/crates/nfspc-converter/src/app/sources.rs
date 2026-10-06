@@ -13,8 +13,8 @@ use std::path::{Path, PathBuf};
 /// Maximum folder depth walked below the picked folder. An extracted dump
 /// root needs all five levels: `Content/<profile>/<titleID>/<type>/<file>`.
 pub const MAX_DEPTH: u32 = 5;
-/// File-name prefixes that mark a save file.
-pub const NAME_PREFIXES: [&str; 2] = ["CAREER_", "ALIAS_"];
+/// File-name prefixes that mark a save file (shared with the drive scans).
+pub use fatx::discovery::NAME_PREFIXES;
 
 /// One manually selected save file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,14 +48,8 @@ fn file_label(p: &Path) -> String {
 }
 
 fn has_save_prefix(name: &str) -> bool {
-    // Compare bytes, not chars: slicing `name[..p.len()]` panics when byte
-    // p.len() falls inside a multi-byte character (e.g. a CJK file name
-    // whose 7th byte is mid-character) and this runs on the UI thread.
-    let bytes = name.as_bytes();
-    NAME_PREFIXES.iter().any(|p| {
-        let pb = p.as_bytes();
-        bytes.len() >= pb.len() && bytes[..pb.len()].eq_ignore_ascii_case(pb)
-    })
+    // One rule for every discovery path (drive scans and manual picks).
+    fatx::discovery::is_save_name(name)
 }
 
 /// Accepts a single file or a folder and returns the saves found in it.
