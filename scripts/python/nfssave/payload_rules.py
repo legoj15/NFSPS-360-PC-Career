@@ -275,3 +275,45 @@ def convert_record(kind: str, rec, warnings: list | None = None) -> str:
 
 
 RULES, RULES_LOADED = _load_rules()
+
+
+FLAT_RULES_PATH = Path(__file__).parent.parent.parent / "powershell" / "fieldmaps.rules"
+
+
+def flat_rules_text(rules: dict | None = None) -> str:
+    """Flat, run-length text form of RULES for ports without a JSON parser.
+
+    Only what convert_payload_mapped distinguishes survives: C (copy class),
+    D (DIFF/ZERO: auto grammar); every other offset swaps. Lines:
+      chunk <kind> <id hex8> <ref_size hex | ->
+      <start hex> <end hex, exclusive> <C|D>     (word-aligned runs)
+    """
+    rules = RULES if rules is None else rules
+    lines = ["# generated from fieldmaps_parsed.json by "
+             "nfssave.payload_rules.write_flat_rules - do not edit"]
+    for kind in ("alias", "career"):
+        for cid in sorted(rules.get(kind, {})):
+            entry = rules[kind][cid]
+            ref = entry.get("ref_size")
+            lines.append(f"chunk {kind} {cid:08X} {'-' if ref is None else format(ref, 'X')}")
+            run = None  # [start, end, tag]
+            for off in sorted(entry["acts"]):
+                cls = entry["acts"][off]
+                tag = "C" if cls in COPY_CLASSES else "D" if cls in ("DIFF", "ZERO") else None
+                if run and (tag != run[2] or off != run[1]):
+                    lines.append(f"{run[0]:X} {run[1]:X} {run[2]}")
+                    run = None
+                if tag is None:
+                    continue
+                if run is None:
+                    run = [off, off + 4, tag]
+                else:
+                    run[1] = off + 4
+            if run:
+                lines.append(f"{run[0]:X} {run[1]:X} {run[2]}")
+    return "\n".join(lines) + "\n"
+
+
+def write_flat_rules(path: Path = FLAT_RULES_PATH) -> None:
+    """Regenerate the flat rules file (run after regenerate_rules)."""
+    path.write_text(flat_rules_text(), newline="\n")

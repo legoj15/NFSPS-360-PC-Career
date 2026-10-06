@@ -8,7 +8,19 @@
   and pwsh 7. Hot loops (CRC, swaps) in Add-Type C# 5; rule tables via a
   generated neutral format, not ConvertFrom-Json on the 3 MB file. Gate on
   the existing golden-md5 corpus (nfssave-core tests/test_golden.rs).
-  Awaiting user's go on target version.
+- User chose 5.1. In progress (uncommitted until green):
+  - `payload_rules.flat_rules_text/write_flat_rules` -> generated
+    `scripts/powershell/fieldmaps.rules` (36 KB, C/D runs; JSON 3 MB);
+    freshness + round-trip test `tests/test_flat_rules.py` (green).
+  - `scripts/powershell/tests/Run-Tests.ps1`: black-box runner, child process
+    of the same host (5.1 or pwsh); golden md5s, multi-source, dry run,
+    backup convention, -Flash walk, error exits. Failed before the port.
+  - Port `scripts/powershell/Convert-NfsSave.ps1` delegated to `impl`
+    (C# 5 Add-Type for hot loops, no --twin).
+- Python debt found (not fixed yet): convert.py PC_SAVE_ROOT hardcodes
+  `E:\legoj\Documents\...` (published repo!); `Path("F:")/"Content"` is
+  drive-relative (`F:Content`); write_pc_save overwrites with no backup
+  (exe backs up).
 
 ## 2026-10-06 — no console window behind the GUI
 - Release exe is now GUI-subsystem; CLI paths attach to the parent console
