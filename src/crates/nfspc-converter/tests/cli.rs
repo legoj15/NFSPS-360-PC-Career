@@ -58,3 +58,10 @@ fn fatx_button_scans_in_place_only_when_elevated() {
     assert_eq!(fatx_action(true), FatxAction::ScanHere);
     assert_eq!(fatx_action(false), FatxAction::Relaunch);
 }
+
+#[test]
+fn help_aliases() {
+    for h in ["-h", "/?"] {
+        assert_eq!(parse_args(&args(&[h])).unwrap(), Cli::Help, "{h}");
+    }
+}

@@ -229,3 +229,58 @@ fn duplicate_export_names_in_one_batch_are_refused() {
     };
     assert_eq!(written, expected, "the first save's output is kept");
 }
+
+fn raw_input(name: &str, bytes: Vec<u8>) -> SaveInput {
+    SaveInput {
+        label: format!("pick/{name}"),
+        name: name.into(),
+        bytes,
+    }
+}
+
+fn raw_payload() -> Vec<u8> {
+    parse_container(&fixture_bytes(), "fixture").unwrap().payload
+}
+
+/// Windows folds case and drops trailing dots/spaces, so these names land
+/// on the same file and must count as duplicates.
+#[test]
+fn duplicate_guard_matches_windows_name_folding() {
+    for (a, b) in [("CAREER_X", "career_x"), ("CAREER_Y", "CAREER_Y. "), ("ALIAS_Z", "alias_z.")] {
+        let out = TempDir::new().unwrap();
+        let r = run_batch(
+            vec![raw_input(a, raw_payload()), raw_input(b, raw_payload())],
+            out.path(),
+        );
+        assert!(
+            matches!(r.results[0].status, SaveStatus::Converted { .. }),
+            "{a}: {:?}",
+            r.results[0].status
+        );
+        assert!(
+            matches!(r.results[1].status, SaveStatus::Refused { .. }),
+            "{b} must be refused as a duplicate of {a}: {:?}",
+            r.results[1].status
+        );
+    }
+}
+
+/// A save that fails to convert does not claim its name: a later good save
+/// with the same name still converts.
+#[test]
+fn failed_save_does_not_claim_its_name() {
+    let out = TempDir::new().unwrap();
+    let r = run_batch(
+        vec![
+            raw_input("CAREER_Q", corrupted_mc02_bytes()),
+            raw_input("CAREER_Q", raw_payload()),
+        ],
+        out.path(),
+    );
+    assert!(matches!(r.results[0].status, SaveStatus::Refused { .. }));
+    assert!(
+        matches!(r.results[1].status, SaveStatus::Converted { .. }),
+        "{:?}",
+        r.results[1].status
+    );
+}

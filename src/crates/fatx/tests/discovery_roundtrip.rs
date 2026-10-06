@@ -338,3 +338,43 @@ fn save_names_are_recognised_by_prefix_case_insensitively() {
         assert!(!is_save_name(no), "{no}");
     }
 }
+
+#[test]
+fn oversized_save_entry_is_noted_not_read() {
+    let career = fatx::test_util::oracle_career_latest();
+    let good = save(PROFILE_A, "00000001", "CAREER_01_360");
+    let usb = FatxImageBuilder::new()
+        .cluster_size(0x1000)
+        .file(good.clone(), career.clone())
+        .file(save(PROFILE_C, "00000001", "CAREER_HUGE"), career)
+        .build_usb_image();
+
+    // Declare a size far above any real save (and above MAX_SAVE_BYTES).
+    let mut image = usb.image.clone();
+    let name_off = image
+        .windows(11)
+        .position(|w| w == b"CAREER_HUGE".as_slice())
+        .expect("dirent name present in the image");
+    let dirent = name_off - 2;
+    image[dirent + 0x30..dirent + 0x34].copy_from_slice(&0x7FFF_FFF0u32.to_be_bytes());
+
+    let mut cur = Cursor::new(image);
+    let drive = XboxDriveImage::probe(&mut cur, usb.image.len() as u64).unwrap();
+    let mut vol = fatx::FatxVolume::open(
+        &mut cur,
+        drive.data_partition.offset,
+        drive.data_partition.length,
+    )
+    .unwrap();
+
+    let report = fatx::discovery::discover_prostreet_saves_noted(&mut vol).unwrap();
+    assert_eq!(report.saves.len(), 1);
+    assert!(
+        report
+            .notes
+            .iter()
+            .any(|n| n.contains("CAREER_HUGE") && n.contains("too large")),
+        "{:?}",
+        report.notes
+    );
+}

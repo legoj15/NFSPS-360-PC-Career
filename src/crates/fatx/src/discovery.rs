@@ -12,6 +12,9 @@ use crate::fatx::{DirEntry, FatxVolume};
 pub const CONTENT_ROOT: &str = "Content";
 /// Per-title sub-folders that hold saves.
 pub const SAVE_TYPE_DIRS: [&str; 2] = ["00000001", "00000002"];
+/// Upper bound for a save read whole. Real careers are 823,296 bytes and
+/// aliases 81,920; anything near this cap is not a save.
+pub const MAX_SAVE_BYTES: u64 = 16 * 1024 * 1024;
 /// File-name prefixes that mark a ProStreet save.
 pub const NAME_PREFIXES: [&str; 2] = ["CAREER_", "ALIAS_"];
 
@@ -103,6 +106,13 @@ pub fn discover_prostreet_saves_noted<R: Read + Seek>(
                     }
                     let label = format!("{type_path}/{}", file.name);
                     if !is_save_name(&file.name) {
+                        continue;
+                    }
+                    if u64::from(file.size) > MAX_SAVE_BYTES {
+                        report.notes.push(format!(
+                            "{label}: skipped ({} bytes is too large for a save)",
+                            file.size
+                        ));
                         continue;
                     }
                     log::debug!("keeping {label}");

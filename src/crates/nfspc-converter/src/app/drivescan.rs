@@ -163,9 +163,7 @@ fn scan_one_root(root: &Path, report: &mut DriveScanReport) {
     }
 }
 
-/// Upper bound for a save package read whole. Real careers are 823,296
-/// bytes and aliases 81,920; anything near this cap is not a save.
-pub const MAX_SAVE_BYTES: u64 = 16 * 1024 * 1024;
+pub use fatx::discovery::MAX_SAVE_BYTES;
 
 /// Reads a save-named file only if it is a plausible save package: at most
 /// [`MAX_SAVE_BYTES`] and starting with the `CON ` magic.

@@ -174,6 +174,7 @@ impl ConverterApp {
     }
 
     fn add_manual(&mut self, paths: Vec<PathBuf>) {
+        self.manual_error = None;
         for p in paths {
             match discover_manual(&p) {
                 Ok(mut found) => self.manual.append(&mut found),
@@ -541,6 +542,18 @@ mod tests {
         assert!(!app.offer_fatx_scan(), "hidden once FATX mode is on");
         let app = app_with_rows(vec![row("CAREER_01", true)]);
         assert!(!app.offer_fatx_scan(), "hidden when saves were found");
+    }
+
+    /// A new pick replaces the previous pick's error line instead of
+    /// leaving a stale red message on screen.
+    #[test]
+    fn manual_error_is_cleared_by_the_next_pick() {
+        let mut app = app_with_rows(Vec::new());
+        let tmp = tempfile::TempDir::new().unwrap();
+        app.add_manual(vec![tmp.path().join("missing.bin")]);
+        assert!(app.manual_error.is_some());
+        app.add_manual(vec![tmp.path().to_path_buf()]); // empty folder: fine
+        assert!(app.manual_error.is_none(), "{:?}", app.manual_error);
     }
 
     /// A failed worker releases both progress flags.

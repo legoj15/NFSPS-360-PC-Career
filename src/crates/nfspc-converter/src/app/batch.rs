@@ -79,6 +79,13 @@ pub fn dirent_name_of(save: &DiscoveredSave) -> String {
     safe_name(dirent)
 }
 
+/// The name Windows actually creates for `name`: case-insensitive, with
+/// trailing dots and spaces dropped. Two inputs with the same key write the
+/// same file.
+fn windows_name_key(name: &str) -> String {
+    name.trim_end_matches(['.', ' ']).to_lowercase()
+}
+
 /// Keep a friendly name usable as a folder/file name.
 fn safe_name(raw: &str) -> String {
     let cleaned: String = raw
@@ -160,7 +167,7 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
     // two sticks) would silently overwrite the first.
     let mut claimed: HashMap<String, String> = HashMap::new();
     for input in inputs {
-        if let Some(owner) = claimed.get(&input.name.to_lowercase()) {
+        if let Some(owner) = claimed.get(&windows_name_key(&input.name)) {
             results.push(SaveResult {
                 status: SaveStatus::Refused {
                     reason: format!(
@@ -177,7 +184,7 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
         let status = match convert_input(&input, out_root) {
             Ok((chunks, warnings, target)) => {
                 any_converted = true;
-                claimed.insert(input.name.to_lowercase(), input.label.clone());
+                claimed.insert(windows_name_key(&input.name), input.label.clone());
                 SaveStatus::Converted {
                     chunks,
                     warnings,

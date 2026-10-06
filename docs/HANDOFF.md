@@ -32,12 +32,25 @@
   report (fixed). Rejected: UAC freeze on UI thread (secure desktop anyway),
   signed HINSTANCE check, GetLogicalDrives==0. GLM saw a pre-fix snapshot
   (its dialog/case findings were already fixed).
-- Round 2 review of 84f2e46..d7dc180 launched after the commit; collect it
-  and land any confirmed findings as follow-ups.
+- Review round 2 (same lanes, 21:49-21:58): fixed duplicate guard now folds
+  names like Windows (case + trailing dots/spaces), FATX path capped at
+  16 MiB like the volume scan, stale manual-pick error cleared, tests for
+  claim-on-success and help aliases.
+- OPEN DECISION (both reviewers, medium): export overwrites a same-named
+  save already in the output folder from a previous run (write_pc_save
+  replaces by design; default output is the live game save folder, so a
+  native PC CAREER_01 can be replaced). Options put to the user: back up the
+  existing file first / refuse / keep overwriting.
+- Deferred lows: manual single-file pick reads the whole file on the UI
+  thread and again at convert; write_pc_save accepts names safe_name would
+  clean; no test for the FATX-mode combined sort (needs scan_drives to take
+  roots).
 - Debt: the workspace is not rustfmt-clean (cargo fmt touches 9 untouched
   files); deliberately not mixed into this change.
 - Delegation log: opencode review triad shop26+glm-flash (round 1) ->
-  ok, 1 medium shared finding confirmed + fixed; no Anthropic agents spawned.
+  ok, 1 medium shared finding confirmed + fixed; round 2 -> 1 shared medium
+  (cross-run overwrite, pending user decision) + lows fixed; no Anthropic
+  agents spawned.
 
 ## CURRENT STATE (read first)
 VERIFIED IN-GAME: CAREER_01/02/03 resume at their saved point (incl. race
