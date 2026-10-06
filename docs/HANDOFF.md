@@ -8,7 +8,18 @@
   and pwsh 7. Hot loops (CRC, swaps) in Add-Type C# 5; rule tables via a
   generated neutral format, not ConvertFrom-Json on the 3 MB file. Gate on
   the existing golden-md5 corpus (nfssave-core tests/test_golden.rs).
-- User chose 5.1. In progress (uncommitted until green):
+- DONE 77bd8d9: 18/18 on 5.1 and pwsh 7.7, ~0.7 s/save; README section.
+  My first test draft expected source-file names; output correctly uses the
+  STFS container name (game looks saves up by it) - test fixed.
+  Review fan-out ps-port-review-20261006-170056-b599 (shop26 Qwen 27B +
+  glm-flash) on 4dcbc3e..77bd8d9 - collect with opencode_wait_group,
+  verify findings, fix as follow-up commits.
+- Port leftovers worth a look: GAMEPLAY_U8_FIELDS is a 2-tuple iterated as
+  offsets but its comment reads like a range (impl agent flagged; goldens
+  pin the tuple behaviour, so only change with an in-game check).
+- Delegation log: impl (Sonnet medium) -> ok first try, 0 escalations;
+  correctly stopped on my wrong test expectation instead of editing it.
+- History of the in-progress state:
   - `payload_rules.flat_rules_text/write_flat_rules` -> generated
     `scripts/powershell/fieldmaps.rules` (36 KB, C/D runs; JSON 3 MB);
     freshness + round-trip test `tests/test_flat_rules.py` (green).

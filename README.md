@@ -28,7 +28,19 @@ Instructions assume you are using the [community repack with the update and DLC]
 	- If a save with the same name was already there, the old
    one is copied to a **SaveConverter backups** folder next to it first.
 
-## Command line (other setups)
+## PowerShell (Windows, nothing to install)
+
+Download the repository, open the `scripts\powershell` folder, and run:
+
+    powershell -ExecutionPolicy Bypass -File Convert-NfsSave.ps1 "<path to a 360 save file>"
+
+Converted saves go straight into the game's save folder. Use `-OutRoot "<folder>"`
+to put them somewhere else, `-Flash F:` to convert every save on the flash
+drive at once, or `-DryRun` to check a save without writing anything. A save
+with the same name that is already there is copied to a **SaveConverter
+backups** folder first.
+
+## Python (other setups)
 
     python scripts/python/convert.py "<path to a 360 save file>"
 
@@ -62,5 +74,5 @@ Have the Rust toolkit installed. Enter the `src` folder, and run `cargo build --
 
 - `src/` — the Windows app (Rust).
 - `scripts/` — the cross-platform converter for other setups (one folder per
-  language; Python works today, a PowerShell version is planned).
+  language: Python and PowerShell).
 - `docs/` — research notes and findings behind the converter.
