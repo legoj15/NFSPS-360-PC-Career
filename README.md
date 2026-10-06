@@ -28,28 +28,32 @@ Instructions assume you are using the [community repack with the update and DLC]
 	- If a save with the same name was already there, the old
    one is copied to a **SaveConverter backups** folder next to it first.
 
-## PowerShell (Windows, nothing to install)
+## PowerShell (built into Windows)
 
 Download the repository, open the `scripts\powershell` folder, and run:
 
-    powershell -ExecutionPolicy Bypass -File Convert-NfsSave.ps1 "<path to a 360 save file>"
+    powershell -ExecutionPolicy Bypass -File Convert-NfsSave.ps1 "<save file or folder>"
 
-Converted saves go straight into the game's save folder. Use `-OutRoot "<folder>"`
-to put them somewhere else, `-Flash F:` to convert every save on the flash
-drive at once, or `-DryRun` to check a save without writing anything. A save
-with the same name that is already there is copied to a **SaveConverter
-backups** folder first.
+## Python (other setups and operating systems)
 
-## Python (other setups)
+    python scripts/python/convert.py "<save file or folder>"
 
-    python scripts/python/convert.py "<path to a 360 save file>"
+## Using the scripts
 
-Converted saves land in the game's save folder
-(`Documents\Need for Speed ProStreet\SAVE\NFS ProStreet`) — or pass
-`--out-root` to put them somewhere else first. Add `--flash F: --all` to
-convert every save on the 360-formatted flash drive at once. As with the
-Windows app, a save with the same name that is already there is copied to a
-**SaveConverter backups** folder first.
+- The converted saves are written to the folder you run the script from.
+  To choose another folder, add `-OutRoot "<folder>"` (PowerShell) or
+  `--out-root "<folder>"` (Python).
+- To read the saves straight from the flash drive you copied them to on the
+  Xbox 360, use `-Usb F:` (PowerShell) or `--usb F:` (Python), with your
+  flash drive's letter in place of `F:`.
+- If you run the script inside the game's folder (the one holding the `SAVE`
+  or `NFS ProStreet` folder), or point `-OutRoot` / `--out-root` there, the
+  saves are put in the right place automatically. A save with the same name
+  that is already there is copied to a **SaveConverter backups** folder first.
+- Otherwise, copy the converted `CAREER_..` and `ALIAS_..` folders into the
+  game's `SAVE\NFS ProStreet` folder yourself.
+- Add `-DryRun` (PowerShell) or `--dry-run` (Python) to check saves without
+  writing anything.
 
 After converting, launch the game and the career should appear in the
 load-menu after selecting your alias.

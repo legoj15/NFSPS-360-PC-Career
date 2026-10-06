@@ -1,5 +1,19 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-05, 21:30 EDT)
 
+## 2026-10-06 — script CLI redesign (user request)
+- Contract: docs/scripts-cli.md. Inputs = files or folders (recursive,
+  CAREER_/ALIAS_ + "CON " magic, skips backups) and --usb/-Usb (old
+  --flash/-Flash kept as alias). Default output = current directory (the
+  Documents lookup is gone); game folder auto-detected (R/SAVE/NFS ProStreet,
+  R/NFS ProStreet, or R named NFS ProStreet); plain-mode backups stay inside R.
+- DONE: Python (tests/test_cli.py, 53 green) and PowerShell (Run-Tests.ps1
+  36/36 on 5.1 + pwsh 7). README "Using the scripts" section rewritten.
+  R is created lazily by the first write (a run where every source fails
+  leaves nothing); an empty --usb/-Usb is one failure, other inputs still run.
+- Delegation log: impl (Sonnet medium) -> PowerShell CLI port, ok first try,
+  0 escalations; orchestrator aligned eager-mkdir and -Usb early-exit with
+  Python afterwards.
+
 ## 2026-10-06 — fatx: 0x1691 relabelled TITLE name
 - `stfs::TITLE_NAME_OFFSET/LEN` (0x1691) + `ConHeader::title_name`;
   `DISPLAY_NAME_OFFSET/LEN` now mean 0x411 (locale-0 slot, unparsed).

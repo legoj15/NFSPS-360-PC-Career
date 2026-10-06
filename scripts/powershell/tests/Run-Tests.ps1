@@ -24,11 +24,18 @@ function Pass([string]$name) { $script:passed++; Write-Host "  ok    $name" }
 function Fail([string]$name, [string]$why) { $script:failed++; Write-Host "  FAIL  $name - $why" -ForegroundColor Red }
 function Skip([string]$name, [string]$why) { $script:skipped++; Write-Host "  skip  $name - $why" -ForegroundColor Yellow }
 
-function Invoke-Converter([string[]]$ArgList) {
+function Invoke-Converter([string[]]$ArgList, [string]$WorkDir) {
     # 5.1 turns native stderr into ErrorRecords; under 'Stop' that would throw
     $ErrorActionPreference = 'Continue'
-    $out = & $hostExe -NoProfile -ExecutionPolicy Bypass -File $converter @ArgList 2>&1
-    return @{ Code = $LASTEXITCODE; Text = (($out | ForEach-Object { "$_" }) -join "`n") }
+    $oldCwd = [Environment]::CurrentDirectory
+    if ($WorkDir) { Push-Location -LiteralPath $WorkDir; [Environment]::CurrentDirectory = $WorkDir }
+    try {
+        $out = & $hostExe -NoProfile -ExecutionPolicy Bypass -File $converter @ArgList 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        if ($WorkDir) { Pop-Location; [Environment]::CurrentDirectory = $oldCwd }
+    }
+    return @{ Code = $code; Text = (($out | ForEach-Object { "$_" }) -join "`n") }
 }
 
 function Get-Md5Hex([string]$path) {
@@ -130,24 +137,30 @@ try {
     Copy-Item $pair (Join-Path $cdir 'CAREER_02')
     [System.IO.File]::WriteAllText((Join-Path $cdir 'name.txt'), 'not a save')
     $flOut = Join-Path $fl 'out'
-    $r = Invoke-Converter @('-Flash', $drive, '-OutRoot', $flOut)
+    $r = Invoke-Converter @('-Usb', $drive, '-OutRoot', $flOut)
     $t = Join-Path $flOut 'CAREER_02\CAREER_02'
-    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '8dd15c6cb5736cf14aa2694289d8480d') { Pass 'flash drive walk' }
-    else { Fail 'flash drive walk' "exit $($r.Code): $($r.Text)" }
+    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '8dd15c6cb5736cf14aa2694289d8480d') { Pass 'usb drive walk' }
+    else { Fail 'usb drive walk' "exit $($r.Code): $($r.Text)" }
+
+    # --- -Flash is kept as an alias of -Usb
+    $flOutA = Join-Path $fl 'out-alias'
+    $r = Invoke-Converter @('-Flash', $drive, '-OutRoot', $flOutA)
+    if ($r.Code -eq 0 -and (Test-Path (Join-Path $flOutA 'CAREER_02\CAREER_02'))) { Pass '-Flash still works as alias' }
+    else { Fail '-Flash still works as alias' "exit $($r.Code): $($r.Text)" }
 
     # --- bare drive letter (no colon) means that drive's root; names match
     #     case-insensitively like the exe (fatx discovery is_save_name)
     $letter = $null
     foreach ($l in [char[]]'QRSTUVWXYZ') { if (-not (Test-Path "${l}:\")) { $letter = "$l"; break } }
-    if (-not $letter) { Skip 'flash bare drive letter' 'no free drive letter for subst' }
+    if (-not $letter) { Skip 'usb bare drive letter' 'no free drive letter for subst' }
     else {
         Rename-Item (Join-Path $cdir 'CAREER_02') 'career_02'
         subst "${letter}:" $drive | Out-Null
         try {
-            $r = Invoke-Converter @('-Flash', $letter, '-OutRoot', (Join-Path $fl 'out2'))
+            $r = Invoke-Converter @('-Usb', $letter, '-OutRoot', (Join-Path $fl 'out2'))
             $t = Join-Path $fl 'out2\CAREER_02\CAREER_02'
-            if ($r.Code -eq 0 -and (Test-Path $t)) { Pass 'flash bare drive letter, lower-case name' }
-            else { Fail 'flash bare drive letter, lower-case name' "exit $($r.Code): $($r.Text)" }
+            if ($r.Code -eq 0 -and (Test-Path $t)) { Pass 'usb bare drive letter, lower-case name' }
+            else { Fail 'usb bare drive letter, lower-case name' "exit $($r.Code): $($r.Text)" }
         } finally { subst "${letter}:" /D | Out-Null }
     }
 
@@ -178,10 +191,96 @@ try {
     if ($r.Code -eq 1 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '8dd15c6cb5736cf14aa2694289d8480d' -and $r.Text -match 'also named') { Pass 'duplicate container name refused' }
     else { Fail 'duplicate container name refused' "exit $($r.Code): $($r.Text)" }
 
-    # --- flash root with no saves fails
+    # --- usb root with no saves fails
     $empty = New-TempDir; $tmpRoots += $empty
-    $r = Invoke-Converter @('-Flash', $empty, '-OutRoot', (Join-Path $empty 'out'))
-    if ($r.Code -ne 0) { Pass 'flash with no saves fails' } else { Fail 'flash with no saves fails' 'exit 0' }
+    $r = Invoke-Converter @('-Usb', $empty, '-OutRoot', (Join-Path $empty 'out'))
+    if ($r.Code -ne 0) { Pass 'usb with no saves fails' } else { Fail 'usb with no saves fails' 'exit 0' }
+
+    # --- folder input: walked recursively; only CAREER_/ALIAS_ files that start
+    #     with "CON " are picked (CAREER_99 is junk, notes.txt is not a save name)
+    $fi = New-TempDir; $tmpRoots += $fi
+    $fiIn = Join-Path $fi 'in'
+    New-Item -ItemType Directory -Force -Path (Join-Path $fiIn 'sub\deeper') | Out-Null
+    Copy-Item $pair (Join-Path $fiIn 'sub\deeper\CAREER_02')
+    [System.IO.File]::WriteAllText((Join-Path $fiIn 'sub\notes.txt'), 'not a save')
+    [System.IO.File]::WriteAllBytes((Join-Path $fiIn 'sub\CAREER_99'), [byte[]](0..255))
+    # a copy inside a "SaveConverter backups" folder must be skipped (would be a duplicate name)
+    New-Item -ItemType Directory -Force -Path (Join-Path $fiIn 'SaveConverter backups\2026-01-01_00-00-00\CAREER_02') | Out-Null
+    Copy-Item $pair (Join-Path $fiIn 'SaveConverter backups\2026-01-01_00-00-00\CAREER_02\CAREER_02')
+    $fiOut = Join-Path $fi 'out'
+    $r = Invoke-Converter @($fiIn, '-OutRoot', $fiOut)
+    $t = Join-Path $fiOut 'CAREER_02\CAREER_02'
+    $no99 = -not (Test-Path (Join-Path $fiOut 'CAREER_99'))
+    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '8dd15c6cb5736cf14aa2694289d8480d' -and $no99 -and $r.Text -notmatch 'CAREER_99') { Pass 'folder input picks CON saves only' }
+    else { Fail 'folder input picks CON saves only' "exit $($r.Code), no99 $no99 : $($r.Text)" }
+
+    # --- folder with no saves: exit 1 with a message
+    $fe = New-TempDir; $tmpRoots += $fe
+    [System.IO.File]::WriteAllText((Join-Path $fe 'readme.txt'), 'nothing here')
+    [System.IO.File]::WriteAllBytes((Join-Path $fe 'CAREER_77'), [byte[]](0..255))
+    $r = Invoke-Converter @($fe, '-OutRoot', (Join-Path $fe 'out'))
+    if ($r.Code -eq 1 -and $r.Text -match 'no saves') { Pass 'folder with no saves exits 1 with a message' }
+    else { Fail 'folder with no saves exits 1 with a message' "exit $($r.Code): $($r.Text)" }
+
+    # --- default output root is the current directory (plain mode)
+    $cw = New-TempDir; $tmpRoots += $cw
+    $r = Invoke-Converter @($pair) $cw
+    $t = Join-Path $cw 'CAREER_02\CAREER_02'
+    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '8dd15c6cb5736cf14aa2694289d8480d' -and $r.Text -match 'output folder') { Pass 'default output is the current directory' }
+    else { Fail 'default output is the current directory' "exit $($r.Code): $($r.Text)" }
+
+    # --- game folder detection: R\SAVE\NFS ProStreet, R\NFS ProStreet, R named NFS ProStreet
+    $gm = New-TempDir; $tmpRoots += $gm
+    $g1 = Join-Path $gm 'game'
+    New-Item -ItemType Directory -Force -Path (Join-Path $g1 'SAVE\NFS ProStreet') | Out-Null
+    $r = Invoke-Converter @($pair, '-OutRoot', $g1)
+    if ($r.Code -eq 0 -and (Test-Path (Join-Path $g1 'SAVE\NFS ProStreet\CAREER_02\CAREER_02')) -and $r.Text -match 'game save folder') { Pass 'game folder detected (R\SAVE\NFS ProStreet)' }
+    else { Fail 'game folder detected (R\SAVE\NFS ProStreet)' "exit $($r.Code): $($r.Text)" }
+
+    $g2 = Join-Path $gm 'savedir'
+    New-Item -ItemType Directory -Force -Path (Join-Path $g2 'NFS ProStreet') | Out-Null
+    $r = Invoke-Converter @($pair, '-OutRoot', $g2)
+    if ($r.Code -eq 0 -and (Test-Path (Join-Path $g2 'NFS ProStreet\CAREER_02\CAREER_02')) -and -not (Test-Path (Join-Path $g2 'CAREER_02')) -and $r.Text -match 'game save folder') { Pass 'game folder detected (R\NFS ProStreet)' }
+    else { Fail 'game folder detected (R\NFS ProStreet)' "exit $($r.Code): $($r.Text)" }
+
+    $g3 = Join-Path $gm 'x\NFS ProStreet'
+    New-Item -ItemType Directory -Force -Path $g3 | Out-Null
+    $r = Invoke-Converter @($pair, '-OutRoot', $g3)
+    if ($r.Code -eq 0 -and (Test-Path (Join-Path $g3 'CAREER_02\CAREER_02')) -and $r.Text -match 'game save folder') { Pass 'game folder detected (R named NFS ProStreet)' }
+    else { Fail 'game folder detected (R named NFS ProStreet)' "exit $($r.Code): $($r.Text)" }
+
+    # --- plain mode backup stays inside R, nothing written to R's parent
+    $pb = New-TempDir; $tmpRoots += $pb
+    $pbR = Join-Path $pb 'plain'
+    $pbOld = Join-Path $pbR 'CAREER_02\CAREER_02'
+    New-Item -ItemType Directory -Force -Path (Split-Path $pbOld) | Out-Null
+    [System.IO.File]::WriteAllBytes($pbOld, [byte[]](5, 6, 7))
+    $r = Invoke-Converter @($pair, '-OutRoot', $pbR)
+    $inside = @(Get-ChildItem -Recurse -File (Join-Path $pbR 'SaveConverter backups') -ErrorAction SilentlyContinue)
+    $parentClean = -not (Test-Path (Join-Path $pb 'SaveConverter backups'))
+    if ($r.Code -eq 0 -and $inside.Count -eq 1 -and $inside[0].Length -eq 3 -and $parentClean -and (Get-Md5Hex $pbOld) -eq '8dd15c6cb5736cf14aa2694289d8480d') { Pass 'plain mode backs up inside R' }
+    else { Fail 'plain mode backs up inside R' "exit $($r.Code), inside $($inside.Count), parentClean $parentClean : $($r.Text)" }
+
+    # --- missing -OutRoot is created; not on a dry run
+    $oc = New-TempDir; $tmpRoots += $oc
+    $ocR = Join-Path $oc 'a\b\new'
+    $r = Invoke-Converter @($pair, '-OutRoot', $ocR)
+    if ($r.Code -eq 0 -and (Test-Path (Join-Path $ocR 'CAREER_02\CAREER_02'))) { Pass '-OutRoot created when missing' }
+    else { Fail '-OutRoot created when missing' "exit $($r.Code): $($r.Text)" }
+    $ocD = Join-Path $oc 'dry\new'
+    $r = Invoke-Converter @($pair, '-OutRoot', $ocD, '-DryRun')
+    if ($r.Code -eq 0 -and -not (Test-Path (Join-Path $oc 'dry'))) { Pass '-OutRoot not created on dry run' }
+    else { Fail '-OutRoot not created on dry run' "exit $($r.Code): $($r.Text)" }
+    $ocF = Join-Path $oc 'fail\new'
+    $r = Invoke-Converter @((Join-Path $oc 'does-not-exist'), '-OutRoot', $ocF)
+    if ($r.Code -eq 1 -and -not (Test-Path (Join-Path $oc 'fail'))) { Pass '-OutRoot not created when every source fails' }
+    else { Fail '-OutRoot not created when every source fails' "exit $($r.Code): $($r.Text)" }
+
+    # --- an empty -Usb is one failure; the other inputs still convert
+    $ue = New-TempDir; $tmpRoots += $ue
+    $r = Invoke-Converter @($pair, '-Usb', (Join-Path $ue 'stick'), '-OutRoot', (Join-Path $ue 'out'))
+    if ($r.Code -eq 1 -and (Test-Path (Join-Path $ue 'out\CAREER_02\CAREER_02'))) { Pass 'empty -Usb does not stop other inputs' }
+    else { Fail 'empty -Usb does not stop other inputs' "exit $($r.Code): $($r.Text)" }
 
     # --- bad inputs: nonzero exit, nothing written
     $bad = New-TempDir; $tmpRoots += $bad

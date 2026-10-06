@@ -528,14 +528,17 @@ def utc_stamp(t: datetime | None = None) -> str:
     return t.astimezone(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
 
 
-def back_up_existing(save_root, name: str, stamp: str) -> Path | None:
+def back_up_existing(save_root, name: str, stamp: str, base=None) -> Path | None:
     """Copy <save_root>/<name>/<name> to
-    <parent of save_root>/SaveConverter backups/<stamp>[-N]/<name>/<name>.
-    Returns the backup path, or None when there was nothing to keep."""
+    <base>/SaveConverter backups/<stamp>[-N]/<name>/<name>; base defaults to
+    the parent of save_root. Returns the backup path, or None when there was
+    nothing to keep."""
     existing = Path(save_root) / name / name
     if not existing.is_file():
         return None
-    base = Path(save_root).absolute().parent  # not resolve(): batch.rs parity
+    if base is None:
+        base = Path(save_root).absolute().parent  # not resolve(): batch.rs parity
+    base = Path(base)
     # runs inside the same second share a stamp: never overwrite an earlier
     # backup, fall through to <stamp>-2, <stamp>-3, ...
     n = 1

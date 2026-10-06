@@ -18,12 +18,24 @@
   file -> every chunk converts in auto mode, with a warning.
   Not ported: the --twin re-save recovery path.
 
-  Writes <OutRoot>\<NAME>\<NAME>, NAME = the STFS file-table name. An existing
-  target is copied first to <parent of OutRoot>\SaveConverter backups\<UTC stamp>\<NAME>\<NAME>.
+  Inputs (positional): files and/or folders. A file is converted as given. A
+  folder is walked recursively; CAREER_* / ALIAS_* files whose first 4 bytes
+  are "CON " are picked (anything under a "SaveConverter backups" folder is
+  skipped). -Usb <drive-or-folder> (alias -Flash) takes the saves from a console
+  USB stick's Content\*\*\0000000[12]\ folders.
+
+  Output root R = -OutRoot, else the CURRENT DIRECTORY (created if missing,
+  not on -DryRun). The save folder S is R\SAVE\NFS ProStreet if it exists, else
+  R\NFS ProStreet if it exists, else R itself when R is named "NFS ProStreet"
+  (game mode), else R (plain mode). Writes S\<NAME>\<NAME>, NAME = the STFS
+  file-table name. An existing target is copied first to
+  <B>\SaveConverter backups\<UTC stamp>\<NAME>\<NAME>, B = the parent of S in
+  game mode and R itself in plain mode.
 
 .EXAMPLE
   .\Convert-NfsSave.ps1 Extracted\Career\CAREER_01 -OutRoot D:\out
-  .\Convert-NfsSave.ps1 -Flash F: -DryRun
+  .\Convert-NfsSave.ps1 C:\saves\from-xbox                (folder, output in the current directory)
+  .\Convert-NfsSave.ps1 -Usb F: -DryRun
 
 .NOTES
   Exit codes: 0 all ok, 1 a source failed (the rest still convert), 2 usage error.
@@ -33,7 +45,8 @@ param(
     [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
     [string[]]$Source,
     [string]$OutRoot,
-    [string]$Flash,
+    [Alias('Flash')]
+    [string]$Usb,
     [switch]$DryRun
 )
 
@@ -992,12 +1005,9 @@ function Get-FullPath([string]$p) {
 }
 
 # Same convention as nfspc-converter batch.rs back_up_existing.
-function Backup-Existing([string]$root, [string]$name, [string]$stamp) {
+function Backup-Existing([string]$root, [string]$base, [string]$name, [string]$stamp) {
     $existing = Join-Path (Join-Path $root $name) $name
     if (-not (Test-Path -LiteralPath $existing -PathType Leaf)) { return $null }
-    $full = [System.IO.Path]::GetFullPath($root).TrimEnd('\', '/')
-    $base = [System.IO.Path]::GetDirectoryName($full)
-    if (-not $base) { $base = $full }
     $n = 1
     while ($true) {
         $dir = if ($n -eq 1) { $stamp } else { "$stamp-$n" }
@@ -1011,7 +1021,7 @@ function Backup-Existing([string]$root, [string]$name, [string]$stamp) {
 }
 
 # convert.py convert_one; throws on failure (nothing is written before the output is complete)
-function Convert-One([string]$path, $rules, [string]$outRoot, [string]$stamp, [hashtable]$claimed) {
+function Convert-One([string]$path, $rules, [string]$outRoot, [string]$backupBase, [string]$stamp, [hashtable]$claimed) {
     $leaf = Split-Path -Leaf $path
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "$path : source file not found" }
     $data = [System.IO.File]::ReadAllBytes($path)
@@ -1043,7 +1053,7 @@ function Convert-One([string]$path, $rules, [string]$outRoot, [string]$stamp, [h
     foreach ($w in $res.Warnings) { Write-Host "      ! $w" }
     if ($DryRun) { Write-Host '[.] dry run - not writing'; return }
 
-    $backup = Backup-Existing $outRoot $name $stamp
+    $backup = Backup-Existing $outRoot $backupBase $name $stamp
     if ($backup) { Write-Host "[+] backed up existing save to $backup" }
     $folder = Join-Path $outRoot $name
     New-Item -ItemType Directory -Force -Path $folder | Out-Null
@@ -1066,14 +1076,50 @@ function Exit-Usage([string]$msg) {
 }
 
 # ---- main ------------------------------------------------------------------
+function Test-ConMagic([string]$path) {
+    try {
+        $fs = [System.IO.File]::Open($path, 'Open', 'Read', 'ReadWrite')
+        try {
+            $b = New-Object byte[] 4
+            $n = $fs.Read($b, 0, 4)
+            return ($n -eq 4 -and $b[0] -eq 0x43 -and $b[1] -eq 0x4F -and $b[2] -eq 0x4E -and $b[3] -eq 0x20)
+        } finally { $fs.Dispose() }
+    } catch { return $false }
+}
+
+# Recursive folder walk: CAREER_* / ALIAS_* files that start with "CON ".
+# Anything under a "SaveConverter backups" folder (relative to $dir) is skipped.
+function Find-SaveFiles([string]$dir) {
+    $root = $dir.TrimEnd('\', '/')
+    $hits = @(Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like 'CAREER_*' -or $_.Name -like 'ALIAS_*' } |
+        Where-Object {
+            $rel = $_.FullName.Substring([Math]::Min($root.Length, $_.FullName.Length))
+            -not (@($rel -split '[\\/]') -contains 'SaveConverter backups') -and (Test-ConMagic $_.FullName)
+        } | Sort-Object FullName | ForEach-Object { $_.FullName })
+    , $hits
+}
+
 $saves = @()
-if ($Source) { $saves += @($Source | ForEach-Object { Get-FullPath $_ }) }
-if ($Flash) {
+$failures = 0
+if ($Source) {
+    foreach ($p in $Source) {
+        $full = Get-FullPath $p
+        if (Test-Path -LiteralPath $full -PathType Container) {
+            $hits = Find-SaveFiles $full
+            if ($hits.Count -eq 0) {
+                $failures++
+                [Console]::Error.WriteLine("[!] no saves found in folder $full (looked for CAREER_*/ALIAS_* files starting with CON)")
+            } else { $saves += $hits }
+        } else { $saves += $full }
+    }
+}
+if ($Usb) {
     $found = @()
     # a bare "F" means the drive root, not a folder named F in the current directory
-    if ($Flash -match '^[A-Za-z]:?$') { $Flash = $Flash.Substring(0, 1) + ':\' }
+    if ($Usb -match '^[A-Za-z]:?$') { $Usb = $Usb.Substring(0, 1) + ':\' }
     try {
-        $content = Join-Path $Flash 'Content'
+        $content = Join-Path $Usb 'Content'
         if (Test-Path -LiteralPath $content -PathType Container) {
             # case-insensitive, like the exe (fatx discovery is_save_name)
             $found = @(Get-ChildItem -Path (Join-Path $content '*\*\0000000[12]\*') -File -ErrorAction SilentlyContinue |
@@ -1082,23 +1128,48 @@ if ($Flash) {
         }
     } catch { $found = @() }
     if ($found.Count -eq 0) {
-        [Console]::Error.WriteLine("no saves found under $Flash\Content")
-        exit 1
-    }
-    $saves += $found
+        $failures++
+        [Console]::Error.WriteLine("[!] no saves found under $Usb\Content")
+    } else { $saves += $found }
 }
 if ($saves.Count -eq 0) {
-    Exit-Usage 'usage: Convert-NfsSave.ps1 [-Source] <path[]> [-OutRoot <dir>] [-DryRun]  |  -Flash <drive-or-folder>'
+    if ($failures) { exit 1 }   # every input was a folder without saves (already reported)
+    Exit-Usage 'usage: Convert-NfsSave.ps1 <file-or-folder>... [-OutRoot <dir>] [-DryRun]  |  -Usb <drive-or-folder> [-OutRoot <dir>]  (output defaults to the current directory)'
 }
 
-if ($OutRoot) {
-    try { $outRootFull = [System.IO.Path]::GetFullPath((Get-FullPath $OutRoot)) }
-    catch { Exit-Usage "bad -OutRoot '$OutRoot': $($_.Exception.Message)" }
+# Output root R: -OutRoot, else the current directory.
+try {
+    $rArg = if ($OutRoot) { $OutRoot } else { (Get-Location).ProviderPath }
+    $rootFull = [System.IO.Path]::GetFullPath((Get-FullPath $rArg))
+} catch { Exit-Usage "bad -OutRoot '$OutRoot': $($_.Exception.Message)" }
+if ((Test-Path -LiteralPath $rootFull) -and -not (Test-Path -LiteralPath $rootFull -PathType Container)) {
+    Exit-Usage "-OutRoot '$rootFull' exists and is not a folder"
+}
+# a missing R is created by the first write (Convert-One), so a run where
+# every source fails leaves nothing behind
+
+# Save folder S (game mode) or R itself (plain mode); backups next to S in game mode.
+$rootTrim = $rootFull.TrimEnd('\', '/')
+$gameMode = $true
+if (Test-Path -LiteralPath (Join-Path $rootFull 'SAVE\NFS ProStreet') -PathType Container) {
+    $outRootFull = Join-Path $rootFull 'SAVE\NFS ProStreet'
+} elseif (Test-Path -LiteralPath (Join-Path $rootFull 'NFS ProStreet') -PathType Container) {
+    $outRootFull = Join-Path $rootFull 'NFS ProStreet'
+} elseif ((Split-Path -Leaf $rootTrim) -eq 'NFS ProStreet') {
+    $outRootFull = $rootFull
 } else {
-    $docs = [Environment]::GetFolderPath('MyDocuments')
-    $cand = if ($docs) { Join-Path $docs 'Need for Speed ProStreet\SAVE\NFS ProStreet' } else { $null }
-    if ($cand -and (Test-Path -LiteralPath $cand -PathType Container)) { $outRootFull = $cand }
-    else { Exit-Usage 'game save folder not found (Documents\Need for Speed ProStreet\SAVE\NFS ProStreet); pass -OutRoot' }
+    $gameMode = $false
+    $outRootFull = $rootFull
+}
+if ($gameMode) {
+    $sTrim = $outRootFull.TrimEnd('\', '/')
+    $backupBase = [System.IO.Path]::GetDirectoryName($sTrim)
+    if (-not $backupBase) { $backupBase = $sTrim }
+    Write-Host "[+] game save folder: $outRootFull"
+} else {
+    $backupBase = $outRootFull
+    Write-Host "[+] output folder: $outRootFull"
+    Write-Host "    (copy the converted folders into the game's SAVE\NFS ProStreet folder to use them)"
 }
 
 $rules = $null
@@ -1108,10 +1179,9 @@ if (Test-Path -LiteralPath $rulesPath -PathType Leaf) {
 }
 
 $stamp = [DateTime]::UtcNow.ToString('yyyy-MM-dd_HH-mm-ss', [System.Globalization.CultureInfo]::InvariantCulture)
-$failures = 0
 $claimed = @{}
 foreach ($s in $saves) {
-    try { Convert-One $s $rules $outRootFull $stamp $claimed }
+    try { Convert-One $s $rules $outRootFull $backupBase $stamp $claimed }
     catch {
         $failures++
         [Console]::Error.WriteLine("[!] FAILED ${s}: $($_.Exception.Message)")

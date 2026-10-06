@@ -1,10 +1,10 @@
-"""CLI behaviour of scripts/python/convert.py: default output folder, flash
-drive paths, and backups of replaced saves (same convention as the Windows
-app, src/crates/nfspc-converter/src/app/batch.rs back_up_existing)."""
+"""CLI behaviour of scripts/python/convert.py (contract: docs/scripts-cli.md):
+inputs (files, folders, USB drives), output-folder detection, and backups
+of replaced saves (game-folder convention shared with the Windows app,
+src/crates/nfspc-converter/src/app/batch.rs back_up_existing)."""
 
 import inspect
 import re
-import subprocess
 import sys
 from argparse import Namespace
 from datetime import datetime, timezone
@@ -17,7 +17,6 @@ import nfssave.convert as lib
 
 ROOT = Path(__file__).parent.parent
 PAIR_360 = ROOT / "docs/re/pair/CAREER_02_360_fresh"
-GAME_SUBDIR = Path("Need for Speed ProStreet") / "SAVE" / "NFS ProStreet"
 
 
 # --- 1. no author-specific default path ------------------------------------
@@ -31,34 +30,6 @@ def test_no_hardcoded_author_path():
 def test_write_pc_save_requires_explicit_root():
     param = inspect.signature(lib.write_pc_save).parameters["save_root"]
     assert param.default is inspect.Parameter.empty
-
-
-@pytest.mark.skipif(sys.platform != "win32", reason="shell known folders are Windows-only")
-def test_known_folder_documents_matches_shell():
-    # the fallback hid a wrong FOLDERID_Documents GUID: redirected Documents
-    # folders (e.g. moved to another drive) were never found
-    shell = subprocess.run(
-        ["powershell", "-NoProfile", "-Command",
-         "[Environment]::GetFolderPath('MyDocuments')"],
-        capture_output=True, text=True, check=True).stdout.strip()
-    assert cli.known_folder_documents() == Path(shell)
-
-
-def test_resolve_out_root_explicit_wins(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli, "documents_dir", lambda: tmp_path)
-    assert cli.resolve_out_root("X:/elsewhere") == "X:/elsewhere"
-
-
-def test_resolve_out_root_uses_documents(tmp_path, monkeypatch):
-    (tmp_path / GAME_SUBDIR).mkdir(parents=True)
-    monkeypatch.setattr(cli, "documents_dir", lambda: tmp_path)
-    assert Path(cli.resolve_out_root(None)) == tmp_path / GAME_SUBDIR
-
-
-def test_resolve_out_root_missing_game_folder(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli, "documents_dir", lambda: tmp_path)
-    with pytest.raises(SystemExit, match="--out-root"):
-        cli.resolve_out_root(None)
 
 
 # --- 2. bare drive letter means the drive root ------------------------------
@@ -173,3 +144,162 @@ def test_backup_failure_leaves_existing_untouched(tmp_path, monkeypatch, capsys)
     assert cli.main() == 1
     assert old.read_bytes() == b"previous career"
     assert "left it untouched" in capsys.readouterr().err
+
+
+# --- CLI redesign (docs/scripts-cli.md) --------------------------------------
+
+PAIR_MD5 = "8dd15c6cb5736cf14aa2694289d8480d"
+
+
+def _md5(p: Path) -> str:
+    import hashlib
+    return hashlib.md5(p.read_bytes()).hexdigest()
+
+
+def _run(monkeypatch, *argv) -> int:
+    monkeypatch.setattr(sys, "argv", ["convert.py", *map(str, argv)])
+    return cli.main()
+
+
+@pytest.mark.parametrize("layout, expect, game", [
+    ("plain", "", False),
+    ("SAVE/NFS ProStreet", "SAVE/NFS ProStreet", True),
+    ("NFS ProStreet", "NFS ProStreet", True),
+    ("save/nfs prostreet", "save/nfs prostreet", True),  # case-insensitive
+])
+def test_resolve_save_folder(tmp_path, layout, expect, game):
+    root = tmp_path / "R"
+    if layout != "plain":
+        (root / layout).mkdir(parents=True)
+    root.mkdir(exist_ok=True)
+    save, backup_base, is_game = cli.resolve_save_folder(root)
+    assert save == root / expect if expect else save == root
+    assert is_game is game
+    assert backup_base == (save.parent if game else root)
+
+
+def test_resolve_save_folder_root_is_save_folder(tmp_path):
+    root = tmp_path / "SAVE" / "NFS ProStreet"
+    root.mkdir(parents=True)
+    save, backup_base, is_game = cli.resolve_save_folder(root)
+    assert (save, backup_base, is_game) == (root, root.parent, True)
+
+
+def test_resolve_save_folder_bare_save_dir_is_plain(tmp_path):
+    # a generic SAVE folder without NFS ProStreet inside is not the game's
+    (tmp_path / "SAVE").mkdir()
+    save, backup_base, is_game = cli.resolve_save_folder(tmp_path)
+    assert (save, backup_base, is_game) == (tmp_path, tmp_path, False)
+
+
+def test_find_saves_in_folder(tmp_path):
+    sub = tmp_path / "a" / "b"
+    sub.mkdir(parents=True)
+    (sub / "CAREER_02").write_bytes(b"CON " + b"\0" * 16)
+    (sub / "alias_x").write_bytes(b"CON " + b"\0" * 16)
+    (sub / "CAREER_99").write_bytes(b"MC02" + b"\0" * 16)  # not a container
+    (sub / "notes.txt").write_bytes(b"CON hello")
+    bk = tmp_path / "SaveConverter backups" / "s" / "CAREER_01"
+    bk.mkdir(parents=True)
+    (bk / "CAREER_01").write_bytes(b"CON " + b"\0" * 16)
+    assert cli.find_saves_in(tmp_path) == sorted([sub / "CAREER_02", sub / "alias_x"])
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_default_output_is_current_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert _run(monkeypatch, PAIR_360) == 0
+    assert _md5(tmp_path / "CAREER_02" / "CAREER_02") == PAIR_MD5
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_folder_input(tmp_path, monkeypatch):
+    src = tmp_path / "in" / "deep"
+    src.mkdir(parents=True)
+    (src / "CAREER_02").write_bytes(PAIR_360.read_bytes())
+    (src / "CAREER_99").write_bytes(b"not a save")
+    out = tmp_path / "out"
+    assert _run(monkeypatch, tmp_path / "in", "--out-root", out) == 0
+    assert _md5(out / "CAREER_02" / "CAREER_02") == PAIR_MD5
+    assert not (out / "CAREER_99").exists()
+
+
+def test_folder_without_saves_fails(tmp_path, monkeypatch, capsys):
+    (tmp_path / "empty").mkdir()
+    assert _run(monkeypatch, tmp_path / "empty", "--out-root", tmp_path / "o") == 1
+    assert "no saves found" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+@pytest.mark.parametrize("layout", ["SAVE/NFS ProStreet", "NFS ProStreet"])
+def test_game_folder_detected(tmp_path, monkeypatch, capsys, layout):
+    game = tmp_path / "game"
+    (game / layout).mkdir(parents=True)
+    old = _seed(game / layout, "CAREER_02", b"old")
+    assert _run(monkeypatch, PAIR_360, "--out-root", game) == 0
+    assert _md5(old) == PAIR_MD5
+    assert "game save folder" in capsys.readouterr().out
+    backups = list((old.parent.parent.parent / lib.BACKUP_DIR).glob("*/CAREER_02/CAREER_02"))
+    assert [b.read_bytes() for b in backups] == [b"old"]
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_plain_output_backs_up_inside_root(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "plain"
+    _seed(out, "CAREER_02", b"old")
+    assert _run(monkeypatch, PAIR_360, "--out-root", out) == 0
+    backups = list((out / lib.BACKUP_DIR).glob("*/CAREER_02/CAREER_02"))
+    assert [b.read_bytes() for b in backups] == [b"old"]
+    assert not (tmp_path / lib.BACKUP_DIR).exists()
+    text = capsys.readouterr().out
+    assert "output folder" in text and "NFS ProStreet" in text
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_missing_out_root_created_but_not_on_dry_run(tmp_path, monkeypatch):
+    dry = tmp_path / "dry" / "x"
+    assert _run(monkeypatch, PAIR_360, "--out-root", dry, "--dry-run") == 0
+    assert not dry.exists()
+    real = tmp_path / "real" / "x"
+    assert _run(monkeypatch, PAIR_360, "--out-root", real) == 0
+    assert _md5(real / "CAREER_02" / "CAREER_02") == PAIR_MD5
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+@pytest.mark.parametrize("flag", ["--usb", "--flash"])
+def test_usb_walk(tmp_path, monkeypatch, flag):
+    stick = tmp_path / "stick"
+    d = stick / "Content" / "E00001CFFAB204C4" / "45410822" / "00000001"
+    d.mkdir(parents=True)
+    (d / "career_02").write_bytes(PAIR_360.read_bytes())
+    (d / "name.txt").write_text("not a save")
+    out = tmp_path / "out"
+    assert _run(monkeypatch, flag, stick, "--out-root", out) == 0
+    assert _md5(out / "CAREER_02" / "CAREER_02") == PAIR_MD5
+
+
+def test_usb_without_saves_fails(tmp_path, monkeypatch):
+    assert _run(monkeypatch, "--usb", tmp_path, "--out-root", tmp_path / "o") == 1
+    assert not (tmp_path / "o").exists()
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_empty_usb_does_not_stop_other_inputs(tmp_path, monkeypatch):
+    out = tmp_path / "out"
+    assert _run(monkeypatch, PAIR_360, "--usb", tmp_path / "stick", "--out-root", out) == 1
+    assert (out / "CAREER_02" / "CAREER_02").is_file()
+
+
+def test_no_input_is_usage_error(tmp_path, monkeypatch):
+    with pytest.raises(SystemExit) as e:
+        _run(monkeypatch, "--out-root", tmp_path)
+    assert e.value.code == 2
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_several_inputs(tmp_path, monkeypatch):
+    c1 = ROOT / "docs/re/c1_latest/CAREER_01_360"
+    out = tmp_path / "out"
+    assert _run(monkeypatch, PAIR_360, c1, "--out-root", out) == 0
+    assert (out / "CAREER_01" / "CAREER_01").is_file()
+    assert (out / "CAREER_02" / "CAREER_02").is_file()
