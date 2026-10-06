@@ -99,15 +99,20 @@ def load_twin(path: str) -> bytes:
     return data
 
 
+def windows_name_key(name: str) -> str:
+    """The folder name Windows actually creates: case-insensitive, trailing
+    dots/spaces dropped (exe batch.rs windows_name_key)."""
+    return name.rstrip(". ").casefold()
+
+
 def convert_one(src: Path, args, claimed: dict | None = None) -> None:
     """`claimed` (export name, casefolded -> source) refuses a second save
     with the same name in one batch instead of replacing the first."""
     cont = read_container(src)
-    if claimed is not None:
-        owner = claimed.setdefault(cont.name.casefold(), src)
-        if owner != src:
-            raise ValueError(f"another selected save ({owner}) is also named "
-                             f"{cont.name}; skipped")
+    key = windows_name_key(cont.name)
+    if claimed is not None and key in claimed:
+        raise ValueError(f"another selected save ({claimed[key]}) is also named "
+                         f"{cont.name}; skipped")
     mc02 = MC02.parse(cont.payload)
     bad = mc02.check()
     if "extra CRC mismatch" in bad:
@@ -133,6 +138,8 @@ def convert_one(src: Path, args, claimed: dict | None = None) -> None:
         print(f"      ! {w}")
     if args.dry_run:
         print("[.] dry run - not writing")
+        if claimed is not None:
+            claimed[key] = src
         return
     stamp = getattr(args, "backup_stamp", None) or utc_stamp()
     try:
@@ -146,12 +153,17 @@ def convert_one(src: Path, args, claimed: dict | None = None) -> None:
     target = write_pc_save(pc, cont.name, args.out_root)
     check = MC02.parse(target.read_bytes()).check()
     print(f"[+] wrote {target} {'(self-check OK)' if not check else check}")
+    if claimed is not None:  # only a converted save claims its name (exe batch.rs)
+        claimed[key] = src
 
 
 def collect_sources(inputs, usb) -> tuple[list[Path], list[str]]:
     """Files to convert, plus an error line per input that yielded none."""
     saves, errors = [], []
     for raw in inputs:
+        if not raw.strip():
+            errors.append("empty input path")  # Path("") would mean the cwd
+            continue
         p = Path(raw)
         if p.is_dir():
             found = find_saves_in(p)
@@ -165,7 +177,14 @@ def collect_sources(inputs, usb) -> tuple[list[Path], list[str]]:
         if not found:
             errors.append(f"no saves found under {flash_content_dir(usb)}")
         saves += found
-    return saves, errors
+    # overlapping inputs (a folder and a file inside it) convert each file once
+    seen, unique = set(), []
+    for p in saves:
+        k = str(p.absolute()).casefold()
+        if k not in seen:
+            seen.add(k)
+            unique.append(p)
+    return unique, errors
 
 
 def main() -> int:
@@ -191,7 +210,13 @@ def main() -> int:
         ap.error("give one or more save files or folders, or --usb DRIVE")
 
     saves, errors = collect_sources(args.sources, args.usb)
+    for e in errors:
+        print(f"[!] {e}", file=sys.stderr)
+    if not saves:
+        return 1
     root = Path(args.out_root) if args.out_root else Path.cwd()
+    if root.exists() and not root.is_dir():
+        ap.error(f"--out-root {root} exists and is not a folder")
     save_dir, backup_base, is_game = resolve_save_folder(root)
     args.out_root, args.backup_base = str(save_dir), backup_base
     args.backup_stamp = utc_stamp()  # one backup folder per run
@@ -203,8 +228,6 @@ def main() -> int:
               f"SAVE/{SAVE_DIR_NAME} folder, or rerun with --out-root <game folder>)")
 
     failures = len(errors)
-    for e in errors:
-        print(f"[!] {e}", file=sys.stderr)
     claimed = {}
     for p in saves:
         try:

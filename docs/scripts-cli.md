@@ -16,7 +16,16 @@ implement the same command line. Behaviour changes go in both, with tests in
   saves (CAREER_/ALIAS_, case-insensitive). Bare `F` / `F:` = drive root.
   Old spellings `--flash` / `-Flash` stay as aliases; Python's `--all` is a
   hidden no-op.
-- No input at all -> usage error, exit 2.
+- No input at all -> usage error, exit 2. An empty-string input is an error
+  for that input (it never means the current directory).
+- The collected list is de-duplicated by full path (case-insensitive), so
+  overlapping inputs (a folder plus a file inside it) convert each file once.
+- If every input failed to yield a save, exit 1 before printing the banner.
+- `--out-root` / `-OutRoot` that exists as a file -> usage error, exit 2.
+- Duplicate STFS names in one run: key = name with trailing dots/spaces
+  dropped, case-insensitive (exe `windows_name_key`); only a save that
+  converted (or passed a dry run) claims its name, so a failed save never
+  blocks a later good one with the same name.
 
 ## Output folder
 

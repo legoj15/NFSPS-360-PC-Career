@@ -1043,7 +1043,7 @@ function Convert-One([string]$path, $rules, [string]$outRoot, [string]$backupBas
     if ($claimed.ContainsKey($key)) {
         throw "another selected save ($($claimed[$key])) is also named $name; converting both would overwrite it - convert it separately"
     }
-    $claimed[$key] = $leaf
+    # only a converted save claims its name (exe batch.rs; set at both exits below)
 
     $res = [NfsPs.Save]::ConvertSave($cont.Payload, $rules)
     [Array]::Copy((Get-TreeHash $res.Tree), 0, $res.Tree, 0, 16)
@@ -1051,7 +1051,7 @@ function Convert-One([string]$path, $rules, [string]$outRoot, [string]$backupBas
     Write-Host "[+] $leaf ($($res.Kind)): $($res.Records) chunks"
     foreach ($c in $res.Chunks) { Write-Host "      - $c" }
     foreach ($w in $res.Warnings) { Write-Host "      ! $w" }
-    if ($DryRun) { Write-Host '[.] dry run - not writing'; return }
+    if ($DryRun) { Write-Host '[.] dry run - not writing'; $claimed[$key] = $leaf; return }
 
     $backup = Backup-Existing $outRoot $backupBase $name $stamp
     if ($backup) { Write-Host "[+] backed up existing save to $backup" }
@@ -1066,7 +1066,7 @@ function Convert-One([string]$path, $rules, [string]$outRoot, [string]$backupBas
         if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
     }
     $check = [NfsPs.Save]::CheckMc02([System.IO.File]::ReadAllBytes($target))
-    if ($check.Count -eq 0) { Write-Host "[+] wrote $target (self-check OK)" }
+    if ($check.Count -eq 0) { Write-Host "[+] wrote $target (self-check OK)"; $claimed[$key] = $leaf }
     else { throw "wrote $target but the self-check failed: $($check -join ', ')" }
 }
 
@@ -1104,6 +1104,7 @@ $saves = @()
 $failures = 0
 if ($Source) {
     foreach ($p in $Source) {
+        if (-not $p.Trim()) { $failures++; [Console]::Error.WriteLine('[!] empty input path'); continue }
         $full = Get-FullPath $p
         if (Test-Path -LiteralPath $full -PathType Container) {
             $hits = Find-SaveFiles $full
@@ -1132,6 +1133,9 @@ if ($Usb) {
         [Console]::Error.WriteLine("[!] no saves found under $Usb\Content")
     } else { $saves += $found }
 }
+# overlapping inputs (a folder and a file inside it) convert each file once
+$seen = @{}
+$saves = @($saves | Where-Object { $k = $_.ToLowerInvariant(); if ($seen.ContainsKey($k)) { $false } else { $seen[$k] = 1; $true } })
 if ($saves.Count -eq 0) {
     if ($failures) { exit 1 }   # every input was a folder without saves (already reported)
     Exit-Usage 'usage: Convert-NfsSave.ps1 <file-or-folder>... [-OutRoot <dir>] [-DryRun]  |  -Usb <drive-or-folder> [-OutRoot <dir>]  (output defaults to the current directory)'

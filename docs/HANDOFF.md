@@ -13,6 +13,19 @@
 - Delegation log: impl (Sonnet medium) -> PowerShell CLI port, ok first try,
   0 escalations; orchestrator aligned eager-mkdir and -Usb early-exit with
   Python afterwards.
+- Review scripts-cli-redesign (ab6c6de..bb0ed27): shop26 Qwen 27B + glm-flash
+  (high). REJECTED (probed): Qwen high "Find-SaveFiles `, $hits` breaks
+  multi-save folders / no-saves branch dead" - unary comma is the
+  no-unroll idiom; new 'folder with several saves' test passes on the old
+  code. FIXED in both scripts + tests: overlapping inputs de-duplicated;
+  claim only on success (exe parity); Python key folds trailing dots/spaces;
+  Python --out-root file -> exit 2; "" input rejected; no banner when every
+  input failed; tests for any-name file, --all no-op, named save folder E2E.
+  PowerShell "failed save does not claim" has no black-box test (no fixture
+  fails after the name check); Python pins it. Not fixed (low, pre-existing):
+  dry run with an unsafe STFS name exits 1 in PS, 0 in Python.
+  Python 63 green, Run-Tests.ps1 40/40 on 5.1 + pwsh 7.
+- Decision: the Windows app keeps its Documents auto-detection (user).
 
 ## 2026-10-06 — fatx: 0x1691 relabelled TITLE name
 - `stfs::TITLE_NAME_OFFSET/LEN` (0x1691) + `ConHeader::title_name`;

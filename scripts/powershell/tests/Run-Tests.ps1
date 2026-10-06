@@ -222,6 +222,30 @@ try {
     if ($r.Code -eq 1 -and $r.Text -match 'no saves') { Pass 'folder with no saves exits 1 with a message' }
     else { Fail 'folder with no saves exits 1 with a message' "exit $($r.Code): $($r.Text)" }
 
+    # --- review follow-ups (scripts-cli-redesign; same cases in tests/test_cli.py)
+    $rf = New-TempDir; $tmpRoots += $rf
+    $rfIn = Join-Path $rf 'in'
+    New-Item -ItemType Directory -Force -Path (Join-Path $rfIn 'sub') | Out-Null
+    Copy-Item $pair (Join-Path $rfIn 'sub\CAREER_02')
+    Copy-Item (Join-Path $repo 'docs\re\c1_latest\CAREER_01_360') (Join-Path $rfIn 'CAREER_01')
+    $r = Invoke-Converter @($rfIn, '-OutRoot', (Join-Path $rf 'o1'))
+    $okA = (Test-Path (Join-Path $rf 'o1\CAREER_02\CAREER_02')) -and (Test-Path (Join-Path $rf 'o1\CAREER_01\CAREER_01'))
+    if ($r.Code -eq 0 -and $okA) { Pass 'folder with several saves' } else { Fail 'folder with several saves' "exit $($r.Code): $($r.Text)" }
+
+    $r = Invoke-Converter @($rfIn, (Join-Path $rfIn 'sub'), (Join-Path $rfIn 'sub\CAREER_02'), '-OutRoot', (Join-Path $rf 'o2'))
+    if ($r.Code -eq 0 -and -not (Test-Path (Join-Path $rf 'o2\SaveConverter backups'))) { Pass 'overlapping inputs convert once' }
+    else { Fail 'overlapping inputs convert once' "exit $($r.Code): $($r.Text)" }
+
+    $anyName = Join-Path $rf 'my save.bin'
+    Copy-Item $pair $anyName
+    $r = Invoke-Converter @($anyName, '-OutRoot', (Join-Path $rf 'o3'))
+    $t = Join-Path $rf 'o3\CAREER_02\CAREER_02'
+    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '8dd15c6cb5736cf14aa2694289d8480d') { Pass 'file input with any name' }
+    else { Fail 'file input with any name' "exit $($r.Code): $($r.Text)" }
+
+    $r = Invoke-Converter @($pair, '-OutRoot', $anyName)
+    if ($r.Code -eq 2) { Pass '-OutRoot that is a file is a usage error' } else { Fail '-OutRoot that is a file is a usage error' "exit $($r.Code)" }
+
     # --- default output root is the current directory (plain mode)
     $cw = New-TempDir; $tmpRoots += $cw
     $r = Invoke-Converter @($pair) $cw

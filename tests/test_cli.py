@@ -303,3 +303,103 @@ def test_several_inputs(tmp_path, monkeypatch):
     assert _run(monkeypatch, PAIR_360, c1, "--out-root", out) == 0
     assert (out / "CAREER_01" / "CAREER_01").is_file()
     assert (out / "CAREER_02" / "CAREER_02").is_file()
+
+
+# --- review follow-ups: scripts-cli-redesign (Qwen 27B + GLM flash) ---------
+
+C1_360 = ROOT / "docs/re/c1_latest/CAREER_01_360"
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_folder_with_several_saves(tmp_path, monkeypatch):
+    src = tmp_path / "in"
+    src.mkdir()
+    (src / "CAREER_02").write_bytes(PAIR_360.read_bytes())
+    (src / "CAREER_01").write_bytes(C1_360.read_bytes())
+    out = tmp_path / "out"
+    assert _run(monkeypatch, src, "--out-root", out) == 0
+    assert _md5(out / "CAREER_02" / "CAREER_02") == PAIR_MD5
+    assert (out / "CAREER_01" / "CAREER_01").is_file()
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_file_input_any_name(tmp_path, monkeypatch):
+    f = tmp_path / "my save.bin"
+    f.write_bytes(PAIR_360.read_bytes())
+    out = tmp_path / "out"
+    assert _run(monkeypatch, f, "--out-root", out) == 0
+    assert _md5(out / "CAREER_02" / "CAREER_02") == PAIR_MD5
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_overlapping_inputs_convert_once(tmp_path, monkeypatch):
+    src = tmp_path / "in"
+    (src / "sub").mkdir(parents=True)
+    (src / "sub" / "CAREER_02").write_bytes(PAIR_360.read_bytes())
+    out = tmp_path / "out"
+    assert _run(monkeypatch, src, src / "sub", src / "sub" / "CAREER_02",
+                "--out-root", out) == 0
+    assert not (out / lib.BACKUP_DIR).exists()
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_failed_save_does_not_claim_its_name(tmp_path, monkeypatch):
+    # exe parity (nfspc-converter tests/batch.rs failed_save_does_not_claim_its_name)
+    real = cli.convert_payload
+    calls = []
+
+    def flaky(*a, **k):  # the first save fails mid-conversion
+        calls.append(1)
+        if len(calls) == 1:
+            raise ValueError("boom")
+        return real(*a, **k)
+    monkeypatch.setattr(cli, "convert_payload", flaky)
+    claimed = {}
+    args = Namespace(out_root=str(tmp_path / "out"), dry_run=False, twin=None, backup_stamp="s")
+    with pytest.raises(ValueError, match="boom"):
+        cli.convert_one(PAIR_360, args, claimed)
+    cli.convert_one(PAIR_360, args, claimed)
+    assert _md5(tmp_path / "out" / "CAREER_02" / "CAREER_02") == PAIR_MD5
+
+
+def test_claim_key_folds_like_windows():
+    assert cli.windows_name_key("CAREER_02. ") == cli.windows_name_key("career_02")
+
+
+def test_out_root_is_a_file_is_usage_error(tmp_path, monkeypatch):
+    f = tmp_path / "file"
+    f.write_bytes(b"x")
+    with pytest.raises(SystemExit) as e:
+        _run(monkeypatch, PAIR_360, "--out-root", f)
+    assert e.value.code == 2
+
+
+def test_empty_string_input_is_not_cwd(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "CAREER_02").write_bytes(PAIR_360.read_bytes())
+    assert _run(monkeypatch, "", "--out-root", tmp_path / "o") == 1
+    assert not (tmp_path / "o").exists()
+
+
+def test_all_inputs_failed_prints_no_banner(tmp_path, monkeypatch, capsys):
+    (tmp_path / "empty").mkdir()
+    assert _run(monkeypatch, tmp_path / "empty", "--out-root", tmp_path / "o") == 1
+    assert "output folder" not in capsys.readouterr().out
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_old_all_flag_still_accepted(tmp_path, monkeypatch):
+    stick = tmp_path / "stick"
+    d = stick / "Content" / "P" / "45410822" / "00000001"
+    d.mkdir(parents=True)
+    (d / "CAREER_02").write_bytes(PAIR_360.read_bytes())
+    assert _run(monkeypatch, "--flash", stick, "--all", "--out-root", tmp_path / "o") == 0
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_named_save_folder_end_to_end(tmp_path, monkeypatch):
+    s = tmp_path / "SAVE" / "NFS ProStreet"
+    _seed(s, "CAREER_02", b"old")
+    assert _run(monkeypatch, PAIR_360, "--out-root", s) == 0
+    backups = list((tmp_path / "SAVE" / lib.BACKUP_DIR).glob("*/CAREER_02/CAREER_02"))
+    assert [b.read_bytes() for b in backups] == [b"old"]
