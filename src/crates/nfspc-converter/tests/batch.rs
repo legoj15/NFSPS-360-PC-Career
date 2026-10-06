@@ -375,3 +375,54 @@ fn failed_conversion_leaves_the_existing_save_in_place() {
     assert!(matches!(r.results[0].status, SaveStatus::Refused { .. }));
     assert_eq!(fs::read(&existing).unwrap(), b"native PC career");
 }
+
+/// Guard and backup must key on the name the converter actually writes (the
+/// CON file-table name), not on a caller-supplied SaveInput.name.
+#[test]
+fn con_inputs_are_keyed_by_their_package_name() {
+    let tmp = TempDir::new().unwrap();
+    let out = game_like_out(&tmp);
+    let real = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
+    let existing = out.join(&real.name).join(&real.name);
+    fs::create_dir_all(existing.parent().unwrap()).unwrap();
+    fs::write(&existing, b"native PC career").unwrap();
+
+    let mut a = real.clone();
+    a.name = "SOMETHING_ELSE".into();
+    let mut b = real.clone();
+    b.name = "YET_ANOTHER".into();
+    b.label = "second".into();
+    let r = run_batch(vec![a, b], &out);
+
+    assert!(matches!(r.results[0].status, SaveStatus::Converted { .. }));
+    assert!(
+        matches!(r.results[1].status, SaveStatus::Refused { .. }),
+        "same package name must be a duplicate: {:?}",
+        r.results[1].status
+    );
+    let backups = files_under(&tmp.path().join("SAVE").join("SaveConverter backups"));
+    assert_eq!(backups.len(), 1, "native save must be backed up");
+    assert_eq!(fs::read(&backups[0]).unwrap(), b"native PC career");
+}
+
+#[test]
+fn backup_failure_refuses_cleanly_and_keeps_the_original() {
+    let tmp = TempDir::new().unwrap();
+    let out = game_like_out(&tmp);
+    let input = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
+    let existing = out.join(&input.name).join(&input.name);
+    fs::create_dir_all(existing.parent().unwrap()).unwrap();
+    fs::write(&existing, b"native PC career").unwrap();
+    // A FILE where the backup folder should go makes the backup fail.
+    fs::write(tmp.path().join("SAVE").join("SaveConverter backups"), b"x").unwrap();
+
+    let r = run_batch(vec![input], &out);
+    match &r.results[0].status {
+        SaveStatus::Refused { reason } => {
+            assert!(reason.contains("left it untouched"), "{reason}");
+            assert!(!reason.contains("  "), "stray spacing: {reason:?}");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(fs::read(&existing).unwrap(), b"native PC career");
+}

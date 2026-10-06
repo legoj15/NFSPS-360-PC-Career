@@ -42,10 +42,17 @@
   conversion leaves the game's save in place. Backup failure refuses that save.
   Same-second runs fall through to `<stamp>-2`, ... (17396b5). Verified end
   to end with the debug exe (two runs into a fake SAVE folder).
-- Round 3 review (shop26 + glm-flash) of d7dc180..2e69a4e launched 22:11,
-  group review-commits-294e334-and-20261005-221137-df33. Collect it next
-  (opencode_wait_group) and land confirmed findings as follow-ups. It did not
-  see 17396b5 (the same-second fix), which it was asked to look for.
+- Review round 3 (22:11-22:21): same-second backup collision (already fixed
+  in 17396b5); GLM high CONFIRMED + fixed: guard/backup keyed on
+  SaveInput.name while convert_one writes the CON file-table name, so a
+  mismatched input replaced a save with no backup -> run_batch now keys on
+  export_name(). Also fixed: stray spaces in the backup-failure message; a
+  post-write failure now still reports where the backup went.
+- Deferred lows (round 3): backup copy is left behind when a conversion is
+  refused (reason says where); drive-root out_root puts backups at
+  <drive>\SaveConverter backups; nfssave-core write_pc_save removes the
+  target before rename (std rename already replaces on Windows) - widens a
+  crash window; a directory at <out>/<NAME>/<NAME> is skipped by the backup.
 - Deferred lows: manual single-file pick reads the whole file on the UI
   thread and again at convert; write_pc_save accepts names safe_name would
   clean; no test for the FATX-mode combined sort (needs scan_drives to take
@@ -54,7 +61,8 @@
   files); deliberately not mixed into this change.
 - Delegation log: opencode review triad shop26+glm-flash (round 1) ->
   ok, 1 medium shared finding confirmed + fixed; round 2 -> 1 shared medium
-  (cross-run overwrite, pending user decision) + lows fixed; no Anthropic
+  (cross-run overwrite -> backup-then-replace, user decision) + lows fixed;
+  round 3 -> 1 confirmed high (export-name key) fixed; no Anthropic
   agents spawned.
 
 ## CURRENT STATE (read first)

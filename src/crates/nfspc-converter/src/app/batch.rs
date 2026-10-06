@@ -225,14 +225,15 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
     let mut claimed: HashMap<String, String> = HashMap::new();
     let stamp = utc_stamp(SystemTime::now());
     for input in inputs {
-        if let Some(owner) = claimed.get(&windows_name_key(&input.name)) {
+        // Guard and backup key on the name the converter will write.
+        let name = export_name(&input);
+        if let Some(owner) = claimed.get(&windows_name_key(&name)) {
             results.push(SaveResult {
                 status: SaveStatus::Refused {
                     reason: format!(
-                        "another selected save ({owner}) is also named {}; \
+                        "another selected save ({owner}) is also named {name}; \
                          converting both would overwrite it - deselect one \
-                         and convert it separately",
-                        input.name
+                         and convert it separately"
                     ),
                 },
                 label: input.label,
@@ -242,14 +243,14 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
         // A same-named save already in the folder (from an earlier run, or
         // the user's native PC career) is copied aside first; the copy is
         // left in place, so a failed conversion leaves the game untouched.
-        let backup = match back_up_existing(out_root, &input.name, &stamp) {
+        let backup = match back_up_existing(out_root, &name, &stamp) {
             Ok(b) => b,
             Err(e) => {
                 results.push(SaveResult {
                     status: SaveStatus::Refused {
                         reason: format!(
-                            "an existing {} could not be backed up ({e});                              left it untouched",
-                            input.name
+                            "an existing {name} could not be backed up ({e}); \
+                             left it untouched"
                         ),
                     },
                     label: input.label,
@@ -257,16 +258,15 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
                 continue;
             }
         };
+        let backup_note = backup
+            .as_ref()
+            .map(|b| format!("previous {name} backed up to {}", b.display()));
         let status = match convert_input(&input, out_root) {
             Ok((chunks, mut warnings, target)) => {
                 any_converted = true;
-                claimed.insert(windows_name_key(&input.name), input.label.clone());
-                if let Some(b) = backup {
-                    warnings.push(format!(
-                        "replaced an existing {}; previous file backed up to {}",
-                        input.name,
-                        b.display()
-                    ));
+                claimed.insert(windows_name_key(&name), input.label.clone());
+                if let Some(note) = backup_note {
+                    warnings.push(format!("replaced an existing save; {note}"));
                 }
                 SaveStatus::Converted {
                     chunks,
@@ -274,8 +274,13 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
                     target,
                 }
             }
+            // A failure after the write (post-write self-check) can leave
+            // the target replaced, so never hide where the backup went.
             Err(e) => SaveStatus::Refused {
-                reason: e.to_string(),
+                reason: match backup_note {
+                    Some(note) => format!("{e} ({note})"),
+                    None => e.to_string(),
+                },
             },
         };
         results.push(SaveResult {
@@ -289,6 +294,19 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
         results,
         exported_to,
     }
+}
+
+/// The name the converter writes `<root>/<name>/<name>` under: the CON
+/// file-table name for packages (what `convert_one` uses), else
+/// `input.name`.
+fn export_name(input: &SaveInput) -> String {
+    if is_con_bytes(&input.bytes)
+        && let Ok(c) = parse_container(&input.bytes, &input.label)
+        && !c.name.is_empty()
+    {
+        return c.name;
+    }
+    input.name.clone()
 }
 
 fn convert_input(
