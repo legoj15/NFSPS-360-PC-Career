@@ -16,6 +16,10 @@
 - Also fixed: tests/test_extra.py test_used_matches_tree failed in any
   checkout without the gitignored Extracted/ (now skips that subtest).
 - Delegation log: none (orchestrator did it; serial, tightly scoped).
+- Review (opencode triad 17:38, shop26 Qwen 27B + glm-flash): shop26 timed
+  out (45 min) with no findings; GLM confirmed parity for all lengths, 1 low
+  DEFERRED: PS RehashGameplay throws on < 0x24 B where py/rs grow the buffer
+  - unreachable (FixRacedayBlock refuses < 0x2DC first).
 
 ## 2026-10-09 — Race Day crash + alias never loading (all VERIFIED IN-GAME)
 Final state (committed together):
