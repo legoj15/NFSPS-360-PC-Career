@@ -781,26 +781,41 @@ namespace NfsPs
             }
         }
 
-        static void CopySwap16(byte[] src, byte[] o, int at, int len)
+        // Python slice semantics for the struct fixes: o[a:b] = f(src[a:b]) clamps to
+        // the payload end (src and o always have the same length), so fixed offsets
+        // past a short (corrupt-size) record are partial or empty, never a throw.
+        static void CopyNat(byte[] src, byte[] o, int a, int b)
         {
-            for (int i = 0; i < len; i += 2) { o[at + i] = src[at + i + 1]; o[at + i + 1] = src[at + i]; }
+            int hi = Math.Min(b, src.Length);
+            if (a < hi) Buffer.BlockCopy(src, a, o, a, hi - a);
+        }
+
+        // o[a:b] = swap16s(src[a:b]): u16 pairs from a; a trailing odd byte copies through
+        static void Swap16Nat(byte[] src, byte[] o, int a, int b)
+        {
+            int hi = Math.Min(b, src.Length);
+            for (int i = a; i < hi; i += 2)
+            {
+                if (i + 1 < hi) { o[i] = src[i + 1]; o[i + 1] = src[i]; }
+                else o[i] = src[i];
+            }
         }
 
         // convert_decal_entry: all u16s swap except the 4 bytes at +6..+9
         static void ConvertDecal(byte[] src, byte[] o, int at, int step)
         {
-            CopySwap16(src, o, at, 6);
-            Copy(src, at + 6, o, at + 6, 4);
-            CopySwap16(src, o, at + 10, step - 10);
+            Swap16Nat(src, o, at, at + 6);
+            CopyNat(src, o, at + 6, at + 10);
+            Swap16Nat(src, o, at + 10, at + step);
         }
 
         // fix_blueprint_set: one customization set at 360 payload offset s
         static void FixBlueprintSet(byte[] src, byte[] o, int s)
         {
-            for (int k = 0; k < 12; k++) CopySwap16(src, o, s + 0x194 + k * 12, 4);
+            for (int k = 0; k < 12; k++) { int p = s + 0x194 + k * 12; Swap16Nat(src, o, p, p + 4); }
             for (int k = 0; k < 20; k++) ConvertDecal(src, o, s + 0x240 + k * 26, 26);
             for (int k = 0; k < 20; k++) ConvertDecal(src, o, s + 0x450 + k * 14, 14);
-            Copy(src, s + 0x574, o, s + 0x574, 0x628 - 0x574);
+            CopyNat(src, o, s + 0x574, s + 0x628);
         }
 
         static readonly int[] BlueprintSets = new int[] { 0x0, 0x7B4, 0xF68 };
@@ -811,21 +826,20 @@ namespace NfsPs
             for (int r = 0; r < 80; r++)
             {
                 int rec = 0x2680 + r * 0x1870 + 4;
-                Copy(src, rec, o, rec, 4);
-                o[rec + 4] = src[rec + 5]; o[rec + 5] = src[rec + 4];
-                o[rec + 6] = src[rec + 7]; o[rec + 7] = src[rec + 6];
+                CopyNat(src, o, rec, rec + 4);
+                Swap16Nat(src, o, rec + 4, rec + 8);   // two u16s
                 foreach (int bp in BlueprintSets)
                 {
                     int rec0 = rec + bp;
-                    for (int s = rec0 + 0x3C; s < rec0 + 0x186; s += 2) { o[s] = src[s + 1]; o[s + 1] = src[s]; }
-                    Copy(src, rec0 + 0x186, o, rec0 + 0x186, 0x190 - 0x186);
+                    Swap16Nat(src, o, rec0 + 0x3C, rec0 + 0x186);
+                    CopyNat(src, o, rec0 + 0x186, rec0 + 0x190);
                     FixBlueprintSet(src, o, rec0);
                 }
             }
             for (int k = 0; k < 410; k++)
             {
                 int p = 0x14 + k * 24 + 20 + 4;
-                Copy(src, p, o, p, 4);
+                CopyNat(src, o, p, p + 4);
             }
         }
 
@@ -849,8 +863,11 @@ namespace NfsPs
         // fix_raceday_block: GameplayData in-progress race-day block (0x2E0..end)
         static void FixRacedayBlock(byte[] src, byte[] o, List<string> warnings)
         {
-            Copy(src, 0x1F4 + 4, o, 0x1F4 + 4, 4);
-            Copy(src, 0x2D0 + 4, o, 0x2D0 + 4, 4);
+            CopyNat(src, o, 0x1F4 + 4, 0x1F4 + 8);
+            CopyNat(src, o, 0x2D0 + 4, 0x2D0 + 8);
+            if (src.Length < 0x2D4 + 8)
+                throw new InvalidOperationException("GameplayData chunk too short (" + Hex(src.Length)
+                    + " B) to hold the race-day state - the source file is corrupted");
             bool active = U32BeAt(src, 0x2D4) != 0;
             int end = active ? RacedayBlockEnd(src) : 0x2E0;
             if (end >= 0)
@@ -868,7 +885,7 @@ namespace NfsPs
                 warnings.Add("GameplayData: active race day but block end not found - race day will not resume");
                 return;
             }
-            Copy(src, 0x300 + 4, o, 0x300 + 4, 0x310 - 0x300);
+            CopyNat(src, o, 0x300 + 4, 0x310 + 4);
             bool prevKind = false;
             for (int p = 0x314 + 4; p < end; p += 4)
             {

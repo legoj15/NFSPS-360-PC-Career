@@ -359,6 +359,83 @@ try {
     $got = $m.Invoke($null, [object[]]@(, $x))
     if ((($got | ForEach-Object { $_.ToString('x2') }) -join '') -eq (($want | ForEach-Object { $_.ToString('x2') }) -join '')) { Pass 'alias extra without NUL converted like Python' }
     else { Fail 'alias extra without NUL converted like Python' "got $(($got | ForEach-Object { $_.ToString('x2') }) -join '')" }
+
+    # --- crafted short records (same fixtures and pins as
+    #     src/crates/nfssave-core/tests/test_short_records.rs, md5s from the Python):
+    #     the tracked CAREER_01_360 with one record's payload replaced, tree
+    #     rebuilt big-endian, MC02 header CRCs recomputed
+    $crcM = [NfsPs.Save].GetMethod('Crc', [type[]]@([byte[]], [int], [int]))
+    function New-ShortRecordMc02([uint32]$recId, [byte[]]$payload) {
+        $mc = [NfsPs.Save]::ParseContainer([System.IO.File]::ReadAllBytes($c1), 'c1').Payload
+        $rd = { param([byte[]]$b, [int]$o) ([uint32]$b[$o] -shl 24) -bor ([uint32]$b[$o + 1] -shl 16) -bor ([uint32]$b[$o + 2] -shl 8) -bor [uint32]$b[$o + 3] }
+        $sub = { param([byte[]]$b, [int]$at, [int]$n) $r = [byte[]]::new($n); [Array]::Copy($b, $at, $r, 0, $n); , $r }
+        $wr = { param([byte[]]$b, [int]$o, [uint32]$v) for ($k = 0; $k -lt 4; $k++) { $b[$o + $k] = [byte](($v -shr (24 - 8 * $k)) -band 0xFF) } }
+        $extraSize = [int](& $rd $mc 8); $treeSize = [int](& $rd $mc 12)
+        $tree = & $sub $mc (0x1C + $extraSize) ($mc.Length - 0x1C - $extraSize)
+        $magic = 0x14; while ((& $rd $tree $magic) -ne 0x59F2D89B) { $magic += 4 }
+        $end = 0x48 + [int](& $rd $tree ($magic + 4))
+        $body = New-Object System.IO.MemoryStream
+        $o = 0x48
+        while ($o + 12 -le $end) {
+            $size = [int](& $rd $tree ($o + 8))
+            $p = if ((& $rd $tree ($o + 4)) -eq $recId) { $payload } else { & $sub $tree ($o + 12) $size }
+            $h = & $sub $tree $o 12; & $wr $h 8 $p.Length
+            $body.Write($h, 0, 12); $body.Write($p, 0, $p.Length)
+            $o += 12 + $size
+        }
+        $nt = [byte[]]::new($treeSize)
+        [Array]::Copy($tree, $nt, 0x48)
+        & $wr $nt ($magic + 4) ([uint32]$body.Length)
+        $b = $body.ToArray(); [Array]::Copy($b, 0, $nt, 0x48, $b.Length)
+        $post = [Math]::Min($tree.Length - $end, $treeSize - 0x48 - $b.Length)
+        if ($post -gt 0) { [Array]::Copy($tree, $end, $nt, 0x48 + $b.Length, $post) }
+        $out = [byte[]]::new(0x1C + $extraSize + $treeSize)
+        [Array]::Copy($mc, $out, 0x1C + $extraSize)
+        [Array]::Copy($nt, 0, $out, 0x1C + $extraSize, $treeSize)
+        & $wr $out 4 ([uint32]$out.Length)
+        & $wr $out 0x14 ([uint32]$crcM.Invoke($null, [object[]]@($nt, 0, $treeSize)))
+        & $wr $out 0x18 ([uint32]$crcM.Invoke($null, [object[]]@($out, 0, 0x18)))
+        , $out
+    }
+    function Get-BytesMd5([byte[]]$b) {
+        $md5 = [System.Security.Cryptography.MD5]::Create()
+        try { (($md5.ComputeHash($b) | ForEach-Object { $_.ToString('x2') }) -join '') } finally { $md5.Dispose() }
+    }
+    # Convert-One's tail (tree hash + MC02 build) without the container/CLI layer
+    function Convert-Mc02([byte[]]$mc) {
+        $rules = [NfsPs.Save]::LoadRules([System.IO.File]::ReadAllText((Join-Path $here '..\fieldmaps.rules')))
+        $res = [NfsPs.Save]::ConvertSave($mc, $rules)
+        [Array]::Copy((Get-TreeHash $res.Tree), 0, $res.Tree, 0, 16)
+        , [NfsPs.Save]::BuildMc02($res.Extra, $res.Tree, $res.TreeSize)
+    }
+    # the tree hash lives in converter-script functions/variables, not the C#
+    # type: define them here from the converter's own top-level statements
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $converter).Path, [ref]$null, [ref]$null)
+    foreach ($st in $ast.EndBlock.Statements) {
+        $isFn = $st -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $st.Name -in @('ConvertFrom-HexString', 'Get-TreeHash')
+        $isKey = $st -is [System.Management.Automation.Language.AssignmentStatementAst] -and "$($st.Left)" -match '^\$script:Tree[EN]$'
+        if ($isFn -or $isKey) { Invoke-Expression $st.Extent.Text }
+    }
+
+    $cardb = New-ShortRecordMc02 0x47A07113 ([byte[]](0..255))
+    $fx = Get-BytesMd5 $cardb
+    if ($fx -ne '5fe66a67dffda37ec3e632f52c67b7b0') { Fail 'short CARDB record converts like Python' "fixture drift: $fx" }
+    else {
+        $got = $null
+        try { $got = Get-BytesMd5 (Convert-Mc02 $cardb) } catch { $got = "threw: $($_.Exception.Message)" }
+        if ($got -eq 'bdb741bf7b157b60c6f7d327bde5dee1') { Pass 'short CARDB record converts like Python' }
+        else { Fail 'short CARDB record converts like Python' "got $got" }
+    }
+
+    $gp = New-ShortRecordMc02 0x3B309E09 ([byte[]](@(0x11) * 0x2D8))
+    $fx = Get-BytesMd5 $gp
+    if ($fx -ne 'acd56e6ada2458d1efc25a22e6876ae7') { Fail 'GameplayData below race-day state refused' "fixture drift: $fx" }
+    else {
+        $msg = $null
+        try { [void](Convert-Mc02 $gp) } catch { $msg = $_.Exception.Message }
+        if ($msg -match 'GameplayData chunk too short \(0x2d8 B\) .*source file is corrupted') { Pass 'GameplayData below race-day state refused' }
+        else { Fail 'GameplayData below race-day state refused' "got '$msg'" }
+    }
 }
 finally {
     foreach ($t in $tmpRoots) { Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue }

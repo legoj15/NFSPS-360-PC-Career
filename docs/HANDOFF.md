@@ -1,5 +1,22 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-09)
 
+## 2026-10-09 — PS short-record clamping (GLM review follow-up)
+- Convert-NfsSave.ps1 C#: FixCarDbParts / FixBlueprintSet / ConvertDecal now
+  write through CopyNat / Swap16Nat (Python slice clamping, like Rust
+  py_slice/copy_nat/put_mapped), so a CARDB record shorter than the fixed
+  offsets (base 0x2684...) converts instead of throwing ArgumentException.
+  FixRacedayBlock refuses a GameplayData payload < 0x2DC with the Rust
+  message ("GameplayData chunk too short (0x.. B) to hold the race-day
+  state - the source file is corrupted"); its fixed copies clamp too.
+- Tests (written first, both failed): Run-Tests.ps1 builds the same crafted
+  fixtures as test_short_records.rs in-process (New-ShortRecordMc02; tree
+  hash functions lifted from the converter's AST) - short CARDB -> md5
+  bdb741bf..., 0x2D8 GameplayData -> refusal message. 39/39 on 5.1 and 7
+  (42/42 with Extracted/ present), cargo test --workspace green, pytest green.
+- Also fixed: tests/test_extra.py test_used_matches_tree failed in any
+  checkout without the gitignored Extracted/ (now skips that subtest).
+- Delegation log: none (orchestrator did it; serial, tightly scoped).
+
 ## 2026-10-09 — Race Day crash + alias never loading (all VERIFIED IN-GAME)
 Final state (committed together):
 - RACE DAY CRASH (main-menu Race Day, converted CAREER_01): null deref at

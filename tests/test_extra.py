@@ -55,6 +55,9 @@ class ExtraUsedSize(unittest.TestCase):
                     "docs/re/c1_latest/CAREER_01_360"):
             p = root / src
             with self.subTest(source=src):
+                # personal saves are gitignored (absent in worktrees/CI)
+                if src.startswith("Extracted/") and not p.exists():
+                    self.skipTest(f"source not present: {src}")
                 pc = convert_payload(MC02.parse(read_container(p).payload), ConversionReport())
                 t = Tree.parse(pc.tree, big=False)
                 self.assertEqual(struct.unpack_from("<I", pc.extra, 4)[0], t.used)
