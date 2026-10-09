@@ -9,8 +9,8 @@ Regenerate (needs the personal save):
     python docs/re/anonymize_alias.py Extracted/Alias/ALIAS_360 docs/re/alias_anon/ALIAS_360 "ANONYMOUS 1"
 
 The output is byte-deterministic. Converted output (md5
-`8ae3d82a3c9cb1c9500d6fcce8c01b9d`) differs from the personal golden
-(`578a10cb...`) only in the MC02 CRC words, the extra-blob name, the PC tree
+`4056c0e2a577f9facdd412c1c6e91db3`) differs from the personal golden
+(`5f04f3ff...`) only in the MC02 CRC words, the extra-blob name, the PC tree
 hash and the UserProfile name (verified 2026-10-06).
 
 Changed vs the source: player name in file table, CON display name, MC02 extra

@@ -63,7 +63,7 @@ namespace NfsPs
 {
     public sealed class Rule { public int RefSize; public byte[] Cls; }   // Cls[word]: 0 swap, 1 copy, 2 diff/zero
     public sealed class Container { public string Name; public byte[] Payload; }
-    public sealed class Rec { public uint Type; public uint Id; public byte[] Payload; }
+    public sealed class Rec { public uint Type; public uint Id; public byte[] Payload; public byte[] Tail = new byte[0]; }
     public sealed class SaveResult
     {
         public string Kind;
@@ -374,12 +374,17 @@ namespace NfsPs
                 bool zero = r.Type == 0 && r.Id == 0 && s == 0;
                 if (o2 + 12 + s > end || zero) { stopped = o2; break; }
                 r.Payload = Slice(tree, o2 + 12, o2 + 12 + s);
+                r.Tail = TailAfter(tree, o2 + 12 + s, big);
                 records.Add(r);
                 o2 += 12 + s;
             }
             if (stopped < 0) stopped = o2;
             long gap = Math.Max(0, end - stopped);
-            if (gap > 0) records.AddRange(ReAfterGap(tree, stopped, end, big));
+            if (gap > 0)
+            {
+                if (records.Count > 0) records[records.Count - 1].Tail = new byte[0];   // noise, not a value
+                records.AddRange(ReAfterGap(tree, stopped, end, big));
+            }
             Tree t = new Tree();
             t.Noise = Slice(tree, 0, 0x10);
             t.Count = count;
@@ -389,6 +394,14 @@ namespace NfsPs
             t.Used = used;
             t.Gap = gap;
             return t;
+        }
+
+        // Record.tail (360 only): the word after the payload = the last node's value
+        static byte[] TailAfter(byte[] tree, long at, bool big)
+        {
+            if (!big) return new byte[0];
+            long a = Math.Min(at, (long)tree.Length);
+            return Slice(tree, a, Math.Min(a + 4, (long)tree.Length));
         }
 
         // Tree._reafter_gap: internal-gap recovery.
@@ -409,6 +422,7 @@ namespace NfsPs
                     bool zero = r.Type == 0 && r.Id == 0 && s == 0;
                     if (off + 12 + s > end || zero) { ok = false; break; }
                     r.Payload = Slice(tree, off + 12, off + 12 + s);
+                    r.Tail = TailAfter(tree, off + 12 + s, big);
                     recs.Add(r);
                     off += 12 + s;
                 }
@@ -710,7 +724,13 @@ namespace NfsPs
             for (int p = 8; p < src.Length - 3; p += 4)
             {
                 uint zero = Rd32(src, p - 8, true), ln = Rd32(src, p - 4, true);
-                if (zero == 0 && ln >= 1 && ln <= 0x400) Copy(src, p, o, p, 4);
+                if (zero == 0 && ln >= 1 && ln <= 0x400)
+                {
+                    Copy(src, p, o, p, 4);
+                    // one-byte node [u8][0 0 0]: value stays natural (a u32 swap reads 0 on PC)
+                    if (ln == 1 && p + 8 <= src.Length && src[p + 5] == 0 && src[p + 6] == 0 && src[p + 7] == 0)
+                        Copy(src, p + 4, o, p + 4, 4);
+                }
             }
         }
 
@@ -860,18 +880,39 @@ namespace NfsPs
             }
         }
 
-        // _to_pc_record: [id][size][flags=1][content + 4 junk bytes], same total size
-        static void ToPcRecord(Rec rec)
+        // alias_tail: PC last payload word from the 360 Record.tail when the payload
+        // ends in a node header [0][len 1..4][flag]; u8 node natural, else u32 swap
+        static byte[] AliasTail(byte[] src, byte[] tail)
+        {
+            byte[] w = new byte[4];
+            int n = src.Length;
+            if (tail.Length != 4 || n < 12) return w;
+            uint zero = Rd32(src, n - 12, true), ln = Rd32(src, n - 8, true);
+            if (zero != 0 || ln < 1 || ln > 4) return w;
+            if (ln == 1 && tail[1] == 0 && tail[2] == 0 && tail[3] == 0) return (byte[])tail.Clone();
+            w[0] = tail[3]; w[1] = tail[2]; w[2] = tail[1]; w[3] = tail[0];
+            return w;
+        }
+
+        // PC_PAYLOAD_SIZES: VideoSettings drops two 360-only trailing nodes
+        const uint VideoSettingsId = 0xC3EC4947;
+        const int VideoSettingsPcSize = 0x74;
+
+        // _to_pc_record: [id][size][flags=1][content + last word], same total size
+        static void ToPcRecord(Rec rec, byte[] last)
         {
             rec.Type = 1;
             int len = rec.Payload.Length;
             if (len > 0)
             {
-                // payload[4:] + 4 zero bytes; a 1-3 byte payload grows to 4 (as in Python)
+                // payload[4:] + last word; a 1-3 byte payload grows to 4 (as in Python)
                 byte[] n = new byte[Math.Max(len, 4)];
                 if (len > 4) Buffer.BlockCopy(rec.Payload, 4, n, 0, len - 4);
+                Buffer.BlockCopy(last, 0, n, n.Length - 4, 4);
                 rec.Payload = n;
             }
+            if (rec.Id == VideoSettingsId && rec.Payload.Length > VideoSettingsPcSize)
+                rec.Payload = Slice(rec.Payload, 0, VideoSettingsPcSize);
         }
 
         static string ChunkName(uint id)
@@ -907,7 +948,7 @@ namespace NfsPs
                 if (mode == "auto" && rec.Payload.Length > 0x1000 && rec.Id != GameplayId)
                     rep.Warnings.Add("chunk " + ChunkName(rec.Id) + " (" + Hex(rec.Payload.Length)
                         + " B) converted in auto mode (no fieldmap)");
-                ToPcRecord(rec);
+                ToPcRecord(rec, rep.Kind == "alias" ? AliasTail(src, rec.Tail) : new byte[4]);
                 RehashGameplay(rec);
                 pc.Records.Add(rec);
             }

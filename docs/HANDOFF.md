@@ -1,4 +1,29 @@
-# Handoff — NFSPS 360 -> PC converter (updated 2026-10-05, 21:30 EDT)
+# Handoff — NFSPS 360 -> PC converter (updated 2026-10-09)
+
+## 2026-10-09 — converted alias: options read as off, HUD gauge hidden
+- User report: with a converted alias, the race speed/RPM gauge never
+  shows, camera = bumper, ABS/TCS/ESC off, assists casual on every launch;
+  a fresh PC alias is fine. Ruled out in the game install first (FusionFix
+  aspect/SimRate, FE_ATTRIB.BIN, HUD .bun) by the game-folder session.
+- Byte-level cause (personal alias vs fresh PC `ALIAS_TEST`), 3 bugs:
+  1. len-1 property nodes were u32-swapped: 30+ on/off options (Gameplay,
+     Video, PlayerSettings0-3, OnlineUserProfile) read 0 on PC.
+  2. VideoSettings kept two 360-only trailing nodes (180 vs native 116 B).
+  3. Every record's last data word was zeroed: the 360 stores it in the
+     word the parser called the next record's "type" (FORMAT-NOTES).
+- Fix in all three converters (Python, Rust core, PowerShell), byte-exact:
+  fix_node_flags keeps [u8][000] node data natural; Record.tail +
+  alias_tail (aliases only); VideoSettings trimmed to 0x74. Career outputs
+  unchanged (all career goldens identical); alias goldens updated.
+  Tests: tests/test_alias_settings.py, nfssave-core
+  tests/test_alias_settings.rs (failed before, pass after), Run-Tests.ps1
+  goldens. NOT yet verified in-game: which option hides the HUD gauge is
+  unknown; the fix restores every option, the user must confirm.
+- Not fixed, worth a look: AudioSettings node 8 carries 360 heap fill
+  0xAAAAAAAA as its f32 (~ -3e-13, PC default 0); PCControllerSettings is
+  still a size-0 filler (PC fills defaults); careers' FECareer last word
+  (360 constant 0x2848) left zero.
+- Delegation log: none (orchestrator only, serial scoped work).
 
 ## 2026-10-06 — script CLI redesign (user request)
 - Contract: docs/scripts-cli.md. Inputs = files or folders (recursive,

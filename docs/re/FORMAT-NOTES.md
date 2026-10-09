@@ -89,11 +89,23 @@ post region: directory/hash table (360 alias: 475 cells [h1][h2][FFFFFFFF][0]);
   no twins exist for CAREER_02/03, which ship without them; the game
   fills defaults). PCControllerSettings (alias 0x39156567) remains
   PC-only (absent from both 360 files AND the 360 twin).
-- The first u32 of each record header ("type") is UNINITIALIZED HEAP on
-  both platforms (0x01310001 etc. are stale bytes; PC garbage includes
-  0x10101001/0x3F39E000). Value-preserving swap-through is safe; the
-  loaders do not gate on it (PC sample has 0xBF2383CA on a top-level
-  record).
+- CORRECTED 2026-10-09: the 360 word read as a record's header "type" is
+  NOT heap junk. Both platforms tile records as [id][size][body], body =
+  [flag word (u8 + 3 junk)][nodes...][last data word]; the 360 writes
+  [id][size] one word later, so the word before each [id] is the PREVIOUS
+  record's last data word (the first one is the root record's flag word;
+  the last record's is post[0:4]). Parsers keep it as Record.tail.
+  Alias proof: personal 360 alias tails AudioSettings=3,
+  PlayerSettings0=2, OnlineUserProfile u8 1 = the PC last node values.
+  Converter carries it for aliases only; career FECareer's tail is a
+  constant 0x2848 on 360 vs 0 in both native PC pairs (left zero).
+  The PC [flags] slot is the same flag word (native 'aaaaaa01').
+- Property node grammar: [u32 0][u32 len][flag word][data, padded to 4].
+  len 1 = u8 at the first data byte, [u8][00 00 00] on 360; must stay
+  natural (a u32 swap made every alias on/off option read 0 on PC).
+- VideoSettings (alias 0xC3EC4947): 360 payload has two extra trailing
+  8-byte nodes (0.5, 1.0) vs PC; native PC payload is 0x74 B and the
+  converter trims to it.
 - 360 alias post-records directory table: 475 cells [h1][h2][FFFFFFFF][0];
   hashes do not reference record ids.
 - PC stores award names as plain strings inside 0x4E8AA143 where 360

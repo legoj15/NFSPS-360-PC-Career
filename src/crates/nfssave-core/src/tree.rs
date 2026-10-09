@@ -43,6 +43,20 @@ pub struct Record {
     pub id: u32,
     pub size: u32,
     pub payload: Vec<u8>,
+    /// 360 only: the word after the payload. Records tile as [id][size]
+    /// [flag word + nodes][last data word], so this word (read as the next
+    /// record's header "type") is the last node's value. Empty when noise
+    /// follows (damaged region).
+    pub tail: Vec<u8>,
+}
+
+/// `tree[off+12+s .. off+16+s]` clamped to the buffer (Python slice), 360 only.
+fn tail_after(tree: &[u8], off: usize, s: usize, big: bool) -> Vec<u8> {
+    if !big {
+        return Vec::new();
+    }
+    let a = (off + 12 + s).min(tree.len());
+    tree[a..(a + 4).min(tree.len())].to_vec()
 }
 
 #[derive(Clone, Debug, Default)]
@@ -132,12 +146,16 @@ impl Tree {
                 id: i,
                 size: s,
                 payload: tree[off + 12..off + 12 + s as usize].to_vec(),
+                tail: tail_after(tree, off, s as usize, big),
             });
             off += 12 + s as usize;
         }
         let stopped = stopped.unwrap_or(off);
         let gap = end.saturating_sub(stopped);
         if gap != 0 {
+            if let Some(last) = records.last_mut() {
+                last.tail.clear(); // noise, not a value
+            }
             records.extend(Self::reafter_gap(tree, stopped, end, big));
         }
         Ok(Tree {
@@ -186,6 +204,7 @@ impl Tree {
                     id: i,
                     size: s,
                     payload: tree[off + 12..off + 12 + s as usize].to_vec(),
+                    tail: tail_after(tree, off, s as usize, big),
                 });
                 off += 12 + s as usize;
             }

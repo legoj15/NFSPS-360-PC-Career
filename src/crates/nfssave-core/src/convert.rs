@@ -211,6 +211,12 @@ pub fn fix_node_flags(src: &[u8], out: &mut [u8]) {
         let ln = u32::from_be_bytes(src[o - 4..o].try_into().unwrap());
         if zero == 0 && (1..=0x400).contains(&ln) {
             out[o..o + 4].copy_from_slice(&src[o..o + 4]);
+            // one-byte node: the value is the first data byte on both
+            // platforms ([u8][0 0 0]); a u32 swap reads back as 0 on PC
+            // (every alias on/off option). Nonzero pad = not a u8 node.
+            if ln == 1 && py_slice(src, o + 5, o + 8) == [0, 0, 0] {
+                copy_nat(src, out, o + 4, o + 8);
+            }
         }
     }
 }
@@ -541,25 +547,61 @@ pub fn rehash_gameplay(rec: &mut Record) {
     rec.payload = p;
 }
 
+/// PC last payload word of an alias record, from the 360 `Record::tail`.
+///
+/// Both platforms store [flag word][nodes...][last data word]; the 360
+/// writes the last word after the record (see `tree::Record::tail`). Carried
+/// only when the payload ends in a node header [0][len 1..4][flag], so the
+/// word is that node's value: u8 node -> natural, else u32 swap. Verified
+/// on the personal alias vs a fresh PC alias (AudioSettings 3,
+/// PlayerSettings0 2). Careers keep zeros: their one tail-carrying node
+/// (FECareer) holds a 360 constant 0x2848 where native PC saves hold 0.
+pub fn alias_tail(src: &[u8], tail: &[u8]) -> [u8; 4] {
+    if tail.len() != 4 || src.len() < 12 {
+        return [0; 4];
+    }
+    let n = src.len();
+    let zero = u32::from_be_bytes(src[n - 12..n - 8].try_into().unwrap());
+    let ln = u32::from_be_bytes(src[n - 8..n - 4].try_into().unwrap());
+    if zero != 0 || !(1..=4).contains(&ln) {
+        return [0; 4];
+    }
+    let t: [u8; 4] = tail.try_into().unwrap();
+    if ln == 1 && t[1..] == [0, 0, 0] {
+        t
+    } else {
+        [t[3], t[2], t[1], t[0]]
+    }
+}
+
+/// Chunks whose PC layout is a strict prefix of the 360 one: PC-framed
+/// payload size of the native PC savable. VideoSettings: the 360 adds two
+/// trailing 8-byte nodes (0.5, 1.0) after the last PC node (native PC
+/// alias: 0x74 B).
+pub const PC_PAYLOAD_SIZES: [(u32, usize); 1] = [(0xC3EC_4947, 0x74)];
+
 /// Re-frame a converted record for PC-native emission.
 ///
-/// 360 records: [junk word][id][size][payload = marker word + content].
-/// PC records:  [id][size][flags=1][payload = content + 4 junk bytes] with
-/// the same total size (native saves keep size == 360 size; their payload
-/// carries a trailing junk word). The 360 marker word maps onto the PC
+/// 360 records: [prev record's last word][id][size][payload = marker word,
+/// content]. PC records: [id][size][flags=1][payload = content, last word]
+/// with the same total size. The 360 marker word maps onto the PC
 /// flags slot; we emit the native flags pattern 0x00000001 instead.
-pub fn to_pc_record(rec: &mut Record) {
+/// `last` is the converted last word (`alias_tail`; zeros otherwise).
+pub fn to_pc_record(rec: &mut Record, last: [u8; 4]) {
     rec.flags = 0x0000_0001;
     if !rec.payload.is_empty() {
         // Python `payload[4:]` is empty for payloads shorter than 4 bytes;
-        // the trailing junk word still lands, so the result is 4 zero bytes.
+        // the trailing word still lands, so the result is 4 bytes.
         let mut p = if rec.payload.len() < 4 {
             Vec::new()
         } else {
             rec.payload[4..].to_vec()
         };
-        p.extend_from_slice(&[0, 0, 0, 0]);
+        p.extend_from_slice(&last);
         rec.payload = p;
+    }
+    if let Some(&(_, size)) = PC_PAYLOAD_SIZES.iter().find(|(id, _)| *id == rec.id) {
+        rec.payload.truncate(size);
     }
 }
 
@@ -656,7 +698,12 @@ pub fn convert_tree(
                 rec.payload.len()
             ));
         }
-        to_pc_record(rec);
+        let last = if kind == "alias" {
+            alias_tail(&src, &rec.tail)
+        } else {
+            [0; 4]
+        };
+        to_pc_record(rec, last);
         rehash_gameplay(rec);
         pc.records.push(rec.clone());
     }
@@ -686,7 +733,7 @@ pub fn convert_tree(
             } else {
                 let id = trec.id;
                 convert_record(&kind, &mut trec, Some(&mut report.warnings));
-                to_pc_record(&mut trec);
+                to_pc_record(&mut trec, [0; 4]);
                 report.warnings.push(format!(
                     "record {} recovered from re-save twin (console copy damaged)",
                     chunk_name(id)
@@ -746,6 +793,7 @@ pub fn convert_tree(
                 id: 0x3915_6567,
                 size: 0,
                 payload: Vec::new(),
+                tail: Vec::new(),
             },
         );
         pc.count = pc.records.len() as u32;

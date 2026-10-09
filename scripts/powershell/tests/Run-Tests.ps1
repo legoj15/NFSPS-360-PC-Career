@@ -56,11 +56,11 @@ $cases = @(
     @('Extracted\Career\CAREER_01', '7b7e1893047b01b00f7037ef54ceca44', 'CAREER_01'),
     @('docs\re\pair\CAREER_02_360_fresh', '8dd15c6cb5736cf14aa2694289d8480d', 'CAREER_02'),
     @('Extracted\Career\CAREER_03', '0dcfed80eab3dfcc246499b07ae54c37', 'CAREER_03'),
-    @('Extracted\Alias\ALIAS_360', '578a10cb583785bb6cb00fa64bc69439', 'ALIAS_JOSHUA S 10'),
+    @('Extracted\Alias\ALIAS_360', '5f04f3fffe924d75b28ba5f631f867dd', 'ALIAS_JOSHUA S 10'),
     @('docs\re\c1_latest\CAREER_01_360', '718b6b6b8494decde59eb6b1defcc01d', 'CAREER_01'),
     @('docs\re\pair_raceday\CAREER_02_360', '2bb7d00963509e71d6eaeccbed496b65', 'CAREER_02'),
     # anonymized copy of the personal alias save (docs\re\alias_anon\README.md)
-    @('docs\re\alias_anon\ALIAS_360', '8ae3d82a3c9cb1c9500d6fcce8c01b9d', 'ALIAS_ANONYMOUS 1')
+    @('docs\re\alias_anon\ALIAS_360', '4056c0e2a577f9facdd412c1c6e91db3', 'ALIAS_ANONYMOUS 1')
 )
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion) ($hostExe)"
@@ -340,7 +340,7 @@ try {
     $rec = New-Object NfsPs.Rec
     $rec.Payload = [byte[]](1, 2)
     $threw = $null
-    try { [void]$m.Invoke($null, [object[]]@($rec.PSObject.BaseObject)) } catch { $threw = $_.Exception.InnerException.Message }
+    try { [void]$m.Invoke($null, [object[]]@($rec.PSObject.BaseObject, [byte[]]::new(4))) } catch { $threw = $_.Exception.InnerException.Message }
     if (-not $threw -and $rec.Payload.Length -eq 4 -and -not ($rec.Payload | Where-Object { $_ })) { Pass 'short record payload framed like Python' }
     else { Fail 'short record payload framed like Python' "threw '$threw', payload $($rec.Payload -join ',')" }
 

@@ -166,6 +166,11 @@ def fix_node_flags(src: bytes, out: bytearray) -> None:
         zero, ln = struct.unpack_from(">II", src, o - 8)
         if zero == 0 and 1 <= ln <= 0x400:
             out[o:o + 4] = src[o:o + 4]
+            # one-byte node: the value is the first data byte on both
+            # platforms ([u8][0 0 0]); a u32 swap reads back as 0 on PC
+            # (every alias on/off option). Nonzero pad = not a u8 node.
+            if ln == 1 and src[o + 5:o + 8] == b"\0\0\0":
+                out[o + 4:o + 8] = src[o + 4:o + 8]
 
 
 CARDB_PACKED = (0x7C980, 0x90660)   # region holding 8-byte packed entries
@@ -366,18 +371,48 @@ def rehash_gameplay(rec) -> None:
     rec.payload = bytes(p)
 
 
-def _to_pc_record(rec) -> None:
+def alias_tail(src: bytes, tail: bytes) -> bytes:
+    """PC last payload word of an alias record, from the 360 Record.tail.
+
+    Both platforms store [flag word][nodes...][last data word]; the 360
+    writes the last word after the record (see tree.Record.tail). Carried
+    only when the payload ends in a node header [0][len 1..4][flag], so the
+    word is that node's value: u8 node -> natural, else u32 swap. Verified
+    on the personal alias vs a fresh PC alias (AudioSettings 3,
+    PlayerSettings0 2). Careers keep zeros: their one tail-carrying node
+    (FECareer) holds a 360 constant 0x2848 where native PC saves hold 0.
+    """
+    if len(tail) != 4 or len(src) < 12:
+        return bytes(4)
+    zero, ln = struct.unpack_from(">II", src, len(src) - 12)
+    if zero != 0 or not 1 <= ln <= 4:
+        return bytes(4)
+    if ln == 1 and tail[1:] == b"\0\0\0":
+        return tail
+    return tail[::-1]
+
+
+def _to_pc_record(rec, last: bytes = bytes(4)) -> None:
     """Re-frame a converted record for PC-native emission.
 
-    360 records: [junk word][id][size][payload = marker word + content].
-    PC records:  [id][size][flags=1][payload = content + 4 junk bytes] with
-    the same total size (native saves keep size == 360 size; their payload
-    carries a trailing junk word). The 360 marker word maps onto the PC
+    360 records: [prev record's last word][id][size][payload = marker word
+    + content]. PC records:  [id][size][flags=1][payload = content + last
+    word] with the same total size. The 360 marker word maps onto the PC
     flags slot; we emit the native flags pattern 0x00000001 instead.
+    `last` is the converted last word (alias_tail; zeros otherwise).
     """
     rec.type = 0x00000001
     if rec.payload:
-        rec.payload = rec.payload[4:] + b"\x00\x00\x00\x00"
+        rec.payload = rec.payload[4:] + last
+    size = PC_PAYLOAD_SIZES.get(rec.id)
+    if size is not None and len(rec.payload) > size:
+        rec.payload = rec.payload[:size]
+
+
+# chunks whose PC layout is a strict prefix of the 360 one: PC-framed payload
+# size of the native PC savable. VideoSettings: the 360 adds two trailing
+# 8-byte nodes (0.5, 1.0) after the last PC node (native PC alias: 0x74 B).
+PC_PAYLOAD_SIZES = {0xC3EC4947: 0x74}
 
 
 def validate_twin(src: Tree, twin: Tree, warnings: list) -> None:
@@ -431,7 +466,7 @@ def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = No
             report.warnings.append(
                 f"chunk {CHUNK_NAMES.get(rec.id, hex(rec.id))} ({len(rec.payload):#x} B) "
                 "converted in auto mode (no fieldmap)")
-        _to_pc_record(rec)
+        _to_pc_record(rec, alias_tail(src, rec.tail) if report.kind == "alias" else bytes(4))
         rehash_gameplay(rec)
         pc.records.append(rec)
     if twin is not None:

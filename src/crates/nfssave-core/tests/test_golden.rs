@@ -36,7 +36,7 @@ fn cases() -> Vec<(PathBuf, &'static str)> {
         ),
         (
             r.join("Extracted/Alias/ALIAS_360"),
-            "578a10cb583785bb6cb00fa64bc69439",
+            "5f04f3fffe924d75b28ba5f631f867dd",
         ),
         (
             r.join("docs/re/c1_latest/CAREER_01_360"),
@@ -49,7 +49,7 @@ fn cases() -> Vec<(PathBuf, &'static str)> {
         // anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
         (
             r.join("docs/re/alias_anon/ALIAS_360"),
-            "8ae3d82a3c9cb1c9500d6fcce8c01b9d",
+            "4056c0e2a577f9facdd412c1c6e91db3",
         ),
     ]
 }
