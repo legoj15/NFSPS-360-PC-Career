@@ -4,7 +4,7 @@
 //! whole span (classic trailing console damage: the record chain stops early,
 //! `gap != 0`, the twin path activates). Every digest below was produced by
 //! the Python reference converter (`scripts/python/nfssave`) on the same
-//! fixtures, run on 2026-10-05.
+//! fixtures, run on 2026-10-05 (digests refreshed 2026-10-09 for the race-day progress fix).
 
 mod common;
 
@@ -86,7 +86,7 @@ fn twin_merge_recovers_damaged_tail_matching_python() {
         Some(&twin),
     )
     .unwrap();
-    assert_eq!(md5(&pc.to_bytes().unwrap()), "03a78274decc7e8d792c7fed5e6d8742");
+    assert_eq!(md5(&pc.to_bytes().unwrap()), "f60c9680ff3354a008fb74e2c3a6f2a2");
     assert_eq!(report.records, 9);
     assert!(
         report
@@ -110,7 +110,7 @@ fn empty_twin_slice_is_treated_as_no_twin() {
         Some(&[]),
     )
     .unwrap_or_else(|e| panic!("empty twin must be ignored, not fail: {e}"));
-    assert_eq!(md5(&pc.to_bytes().unwrap()), "510a441d09c1eec4e9dbf943768ff831");
+    assert_eq!(md5(&pc.to_bytes().unwrap()), "a3720d7babc27661780a2da8ae833a73");
     assert_eq!(report.records, 8);
     assert!(
         report
@@ -136,7 +136,7 @@ fn twin_merge_duplicate_ids_last_wins_like_python() {
         Some(&twin),
     )
     .unwrap();
-    assert_eq!(md5(&pc.to_bytes().unwrap()), "dd1f047120979da848fb53ee28647341");
+    assert_eq!(md5(&pc.to_bytes().unwrap()), "aa02bcb1058250b9402ea074d952f368");
     assert_eq!(report.records, 10);
     assert_eq!(
         report.chunk_list.iter().filter(|c| **c == "UnlockSystem").count(),

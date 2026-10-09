@@ -35,3 +35,26 @@ class ConvertExtraNoNul(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExtraUsedSize(unittest.TestCase):
+    """Extra word 1 = the tree's used size, on every native PC save (career
+    and alias). The converter inserts a size-0 PCControllerSettings record
+    into aliases (+12 bytes), so the 360 value no longer matches; the PC
+    then silently refused the alias and ran on a default 'Player' profile
+    (whose first in-game save wrote ALIAS_Player + a career named
+    CAREER_<0xAA>)."""
+
+    def test_used_matches_tree(self):
+        import struct
+        from nfssave import MC02, read_container
+        from nfssave.convert import ConversionReport, convert_payload
+        from nfssave.tree import Tree
+        root = Path(__file__).parent.parent
+        for src in ("Extracted/Alias/ALIAS_360", "docs/re/alias_anon/ALIAS_360",
+                    "docs/re/c1_latest/CAREER_01_360"):
+            p = root / src
+            with self.subTest(source=src):
+                pc = convert_payload(MC02.parse(read_container(p).payload), ConversionReport())
+                t = Tree.parse(pc.tree, big=False)
+                self.assertEqual(struct.unpack_from("<I", pc.extra, 4)[0], t.used)

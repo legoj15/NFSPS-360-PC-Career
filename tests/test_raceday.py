@@ -92,5 +92,50 @@ class GameplayHashTests(unittest.TestCase):
                 self.assertEqual(blob[:16], hashlib.md5(blob[16:]).digest())
 
 
+PROGRESS_FIRST, PROGRESS_LAST, PROGRESS_LEN = 0xA70EA9B0, 0xFA5D360A, 90
+
+
+def _progress(p: bytes) -> dict:
+    """Race-day progress table in a PC GameplayData payload:
+    90 x [u32 race-day key][u32 state][u32 score]."""
+    import struct
+    last = 12 * (PROGRESS_LEN - 1)
+    o = p.find(struct.pack("<I", PROGRESS_FIRST))
+    while o >= 0 and (o + last + 4 > len(p)
+                      or struct.unpack_from("<I", p, o + last)[0] != PROGRESS_LAST):
+        o = p.find(struct.pack("<I", PROGRESS_FIRST), o + 1)
+    assert o >= 0, "progress table not found"
+    return {k: (s, v) for k, s, v in
+            (struct.unpack_from("<III", p, o + 12 * i) for i in range(PROGRESS_LEN))}
+
+
+class RaceDayProgressTests(unittest.TestCase):
+    """Some race days carry 360-only state the PC never writes (five are
+    the custom race-day slots). Converted tables must match the native PC
+    side of both matched pairs."""
+
+    def test_matches_native_pairs(self):
+        pairs = [(R360, RPC),
+                 (ROOT / "docs/re/pair/CAREER_02_360_fresh",
+                  ROOT / "docs/re/pair/CAREER_02_pc_native")]
+        for src, nat in pairs:
+            with self.subTest(source=src.name):
+                conv = _progress(_gp(Tree.parse(convert_payload(
+                    MC02.parse(read_container(src).payload), ConversionReport()).tree,
+                    big=False)))
+                want = _progress(_gp(Tree.parse(MC02.parse(nat.read_bytes()).tree, big=False)))
+                bad = {hex(k): (conv[k], want[k]) for k in want if conv[k] != want[k]}
+                self.assertEqual(bad, {})
+
+    def test_console_only_race_days_cleared(self):
+        from nfssave.convert import CONSOLE_ONLY_RACEDAYS
+        src = ROOT / "docs/re/c1_latest/CAREER_01_360"   # deep career, Race Day crash
+        conv = _progress(_gp(Tree.parse(convert_payload(
+            MC02.parse(read_container(src).payload), ConversionReport()).tree, big=False)))
+        for k, state in CONSOLE_ONLY_RACEDAYS.items():
+            self.assertEqual(conv[k], (state, 0), hex(k))
+        self.assertIn(0x8F7CCCE0, CONSOLE_ONLY_RACEDAYS)   # the hub in the crash dump
+
+
 if __name__ == "__main__":
     unittest.main()

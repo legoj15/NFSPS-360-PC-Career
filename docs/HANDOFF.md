@@ -1,4 +1,69 @@
-# Handoff — NFSPS 360 -> PC converter (updated 2026-10-05, 21:30 EDT)
+# Handoff — NFSPS 360 -> PC converter (updated 2026-10-09)
+
+## 2026-10-09 — Race Day crash + alias never loading (all VERIFIED IN-GAME)
+Final state (committed together):
+- RACE DAY CRASH (main-menu Race Day, converted CAREER_01): null deref at
+  nfs.exe 0x7F6480 on an FEMapHub with 0 events. Hubs 0x10..0x14 = the 5
+  CUSTOM race-day slots (career [0xAB9DC8]+0xB0 = 8F7CCCE0 46AE8E2F C8A0888E
+  0A6C2097 AF51A403; built for all slots by 0x56BA80). Live breakpoints on
+  the CustomRaceDayMemcard loader (vtable 0x96F1D4 slot 3 = 0x5473E0) showed
+  slot 0's record parsed with name/GUID/settings but ZERO events.
+  Cause: the string heuristic left the [0][len] header after a NUL-padded
+  race-day name big-endian (len 0x04000000) -> event list dropped.
+  Fixes: fix_node_flags swaps every [0][len] header; CustomRaceDayMemcard
+  string nodes copy structurally (node_spans + fix_custom_raceday_strings;
+  GUIDs were half-swapped). VERIFIED: Race Day opens, custom race day loads.
+- RECORD TAIL WORDS (general): a 360 record's final value sits in the NEXT
+  record's header slot (last record: first word of post). Was zeroed; now
+  carried (tail_word: swap after a u32 node / raw blob, natural otherwise,
+  GameplayData zero). E.g. CRD last event flag 1, FECareer 0x2848, alias
+  AudioSettings 3 / PlayerSettings 2 (native PC tails are small LE values).
+- RACE-DAY PROGRESS TABLE (GameplayData, 90 x [key][state][score], first key
+  0xA70EA9B0, last 0xFA5D360A): CONSOLE_ONLY_RACEDAYS resets 17 entries the
+  360 always marks (even fresh, no custom race days) and the PC never writes
+  (every PC save 0/2, score 0; a PC save after creating a race day left them
+  untouched). 5 of them are the custom slots. NOT the crash cause (first
+  in-game test still crashed). Open: meaning of the other 11 keys' 360 state.
+- ALIAS NEVER LOADED ON PC (pre-existing): extra word 1 (used tree size) was
+  patched for careers only; aliases kept 0x3204 vs tree 0x3210 (+12 from the
+  inserted size-0 PCControllerSettings) -> PC silently used a default
+  'Player' profile; its first in-game save wrote ALIAS_Player + a career
+  named CAREER_<0xAA> (= PC uninit fill). FIXED for all MC02 files.
+  VERIFIED: JOSHUA S 10 loads, no popup. Untouched alias header diffs:
+  word 0 = 360 vtable 0x8209E9A8 (native 0x974BAC; careers load with it),
+  0xAA fill after the name.
+- User's SAVE folder: installed CAREER_01 + alias from this code; strays in
+  SAVE/SaveConverter backups/2026-10-09_strays/ (2x ALIAS_Player, CAREER_ª).
+- Oracle: docs/re/pair_customrd/ (PC-written custom race day; MAC in GUID
+  anonymized, see its README). The PC writes the same CRD layout as the 360:
+  header [u32][count<=5]; per race day [slot][13 u32: mode, 3 x (car key,
+  flag), ...][GUID 25 B = 4 junk + 21][name 36 B = 4 junk + 32][NumEvents]
+  [(event key, u32) x N].
+- RE facts: 0x5322F0/0x5321D0 (CRD record read/write) are SecuROM-VM bytecode
+  (push/pushfd/ret into 0x1166690) - don't try to read them; use live
+  breakpoints on the unprotected callers instead. 0x532820 is the shared
+  race-day TEXT parser (GUID:, RaceName:, NumEvents:...), not the memcard path.
+- Tools added (docs/re): vsdbg.ps1 (live VS state via EnvDTE, PS 5.1),
+  vsgo.ps1 (resume to next breakpoint + eval), vsmem.ps1 / vsstack.ps1 (dump
+  memory/stack via VS), procmem.ps1 / procscan.ps1 (ReadProcessMemory read /
+  string scan, no debugger), vscode.ps1 (memory save via VS), calls.py
+  (direct call sites), rdtable.py (progress table side by side).
+  Breakpoints: Debugger.Breakpoints.Add("0x005473F9") binds by address.
+  When attached via Attach-to-Process, expression eval after Break() fails
+  (0x89711006); use breakpoints or procmem instead.
+- Review (opencode triad, 16:31, shop26 Qwen 27B + glm-flash): shop26 timed
+  out with no findings; GLM 10 lows/1 medium. REJECTED: "[0][len] scan
+  reverses values to BE" (it writes the swapped form, a no-op for u32 data).
+  FIXED: stale golden docstrings (py + rs), PS TailWord dead condition, test
+  helper bounds. DEFERRED (low): last record's tail is zeroed whenever the
+  tree has a gap, even a recovered internal one. Spun off (pre-existing,
+  medium): PS FEPlayerCarDB fixes throw on short records where py/rs clamp.
+  The alias used-size fix landed after the review (one line x3, goldens).
+- Delegation log: impl (Sonnet medium) x2 -> Rust + PowerShell ports of the
+  progress table, node framing, CRD strings and tail words; ok first try
+  both rounds, 0 escalations; used Python replace scripts on Rust sources
+  once (aborted, redone with Edit) and once on non-literal Rust text.
+  Orchestrator: all RE/debugging, Python reference, alias fix port.
 
 ## 2026-10-06 — script CLI redesign (user request)
 - Contract: docs/scripts-cli.md. Inputs = files or folders (recursive,

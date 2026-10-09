@@ -205,12 +205,69 @@ pub const CARDB_TABLE_SLOT: usize = 20;
 /// ... The flag word follows each [0][len] pair; its first byte is the
 /// flag, the other three are heap junk. A blanket u32 swap moves the flag
 /// byte to the end of the word.
+///
+/// The [0][len] header itself must always swap. The string heuristic can
+/// swallow it: a NUL-padded name node runs into the next header and the
+/// word grid rounds it in, leaving len big-endian (0x04000000 on PC). The
+/// PC then drops that node and everything after it - custom race days
+/// lost their event lists and the Race Day menu crashed (nfs.exe 0x7F6480).
 pub fn fix_node_flags(src: &[u8], out: &mut [u8]) {
     for o in (8..src.len().saturating_sub(3)).step_by(4) {
         let zero = u32::from_be_bytes(src[o - 8..o - 4].try_into().unwrap());
         let ln = u32::from_be_bytes(src[o - 4..o].try_into().unwrap());
         if zero == 0 && (1..=0x400).contains(&ln) {
+            for i in 0..4 {
+                out[o - 4 + i] = src[o - 1 - i];
+            }
             out[o..o + 4].copy_from_slice(&src[o..o + 4]);
+        }
+    }
+}
+
+pub const CUSTOM_RACEDAY_ID: u32 = 0xD548_266C;
+
+/// (offset, length) of each node's data in a 360 property-node stream.
+///
+/// The first value sits at `start` (after the 360 marker word); every later
+/// node is [u32 0][u32 len][flag word][data], its header on the u32 grid
+/// after the previous data (junk bytes may sit in between).
+pub fn node_spans(src: &[u8], start: usize) -> Vec<(usize, usize)> {
+    let be = |o: usize| u32::from_be_bytes(src[o..o + 4].try_into().unwrap());
+    let mut spans = vec![(start, 4)];
+    let mut o = start + 4;
+    while o + 12 <= src.len() {
+        let mut h = (o + 3) & !3;
+        let mut found = false;
+        while h + 8 <= src.len() {
+            let ln = be(h + 4);
+            if be(h) == 0 && 0 < ln && ln <= 0x400 {
+                found = true;
+                break;
+            }
+            h += 4;
+        }
+        if !found {
+            break;
+        }
+        let ln = be(h + 4) as usize;
+        let d = h + 12;
+        if d + ln > src.len() {
+            break;
+        }
+        spans.push((d, ln));
+        o = d + ln;
+    }
+    spans
+}
+
+/// CustomRaceDayMemcard nodes are u32 values (swapped by the generic
+/// pass) or strings: GUID (25 B) and name (36 B), each [4 junk][chars, NUL].
+/// String nodes copy byte for byte; the generic string heuristic misses
+/// GUIDs followed by a junk byte and half-swapped them.
+pub fn fix_custom_raceday_strings(src: &[u8], out: &mut [u8]) {
+    for (d, ln) in node_spans(src, 4) {
+        if ln > 4 {
+            copy_nat(src, out, d, d + ln);
         }
     }
 }
@@ -496,15 +553,79 @@ pub fn fix_raceday_block(src: &[u8], out: &mut [u8], warnings: &mut Vec<String>)
     Ok(())
 }
 
+/// Race-day progress table in GameplayData: 90 x [u32 key][u32 state][u32 score],
+/// after the race-day block (position varies). Located by its first and last key.
+pub const PROGRESS_FIRST: u32 = 0xA70EA9B0;
+pub const PROGRESS_LAST: u32 = 0xFA5D360A;
+pub const PROGRESS_LEN: usize = 90;
+
+/// Race days the 360 marks with console-only state (bits 0x04/0x08/0x10 and a
+/// score, even in a fresh career with no custom race days) that the PC never
+/// writes: every PC save has them at state 0 or 2, score 0 - fresh, mid-career
+/// and 100%, and a PC save made after creating a custom race day left them
+/// untouched. Five (state 0 here: 8F7CCCE0 46AE8E2F C8A0888E 0A6C2097
+/// AF51A403) are the custom race-day SLOTS (career [0xAB9DC8]+0xB0); they are
+/// not in gameplay.bin. Values = native PC side of the matched pairs;
+/// 0x8DA1975B from the PC 100% save. (Not the Race Day crash cause - that was
+/// the CustomRaceDayMemcard node framing, see fix_node_flags.)
+pub const CONSOLE_ONLY_RACEDAYS: [(u32, u32); 17] = [
+    (0xB48C11C4, 2), (0x0A6C2097, 0), (0xF841FB9F, 2), (0x8DA1975B, 0),
+    (0x8F7CCCE0, 0), (0x92407122, 2), (0x5C838C1A, 0), (0xAF51A403, 0),
+    (0xDDCEF290, 2), (0x46AE8E2F, 0), (0xB3F02D70, 2), (0x8FEB3CC6, 2),
+    (0xC8A0888E, 0), (0x66705CF6, 2), (0x150B07D4, 2), (0xD663D2A8, 2),
+    (0x21471712, 2),
+];
+
+/// Offset of the race-day progress table in a little-endian payload.
+pub fn progress_table_offset(p: &[u8]) -> Option<usize> {
+    let first = PROGRESS_FIRST.to_le_bytes();
+    let word = |at: usize| u32::from_le_bytes(p[at..at + 4].try_into().unwrap());
+    let mut from = 0;
+    while let Some(i) = p[from..].windows(4).position(|w| w == first) {
+        let o = from + i;
+        let last = o + 12 * (PROGRESS_LEN - 1);
+        if last + 4 <= p.len() && word(last) == PROGRESS_LAST {
+            return Some(o);
+        }
+        from = o + 1;
+    }
+    None
+}
+
+/// Reset console-only race days to their PC-native state (see
+/// CONSOLE_ONLY_RACEDAYS). Operates on the already-swapped payload.
+pub fn fix_raceday_progress(out: &mut [u8], warnings: &mut Vec<String>) {
+    let Some(o) = progress_table_offset(out) else {
+        warnings.push(
+            "GameplayData: race-day progress table not found - \
+             the PC Race Day menu may crash"
+                .to_string(),
+        );
+        return;
+    };
+    for i in 0..PROGRESS_LEN {
+        let e = o + 12 * i;
+        let key = u32::from_le_bytes(out[e..e + 4].try_into().unwrap());
+        if let Some(&(_, state)) = CONSOLE_ONLY_RACEDAYS.iter().find(|(k, _)| *k == key) {
+            out[e + 4..e + 8].copy_from_slice(&state.to_le_bytes());
+            out[e + 8..e + 12].fill(0);
+        }
+    }
+}
+
 pub fn apply_struct_fixes(rec: &mut Record, src: &[u8], warnings: &mut Vec<String>) -> Result<()> {
     let mut out = rec.payload.clone();
     if rec.id == GAMEPLAY_ID {
         fix_raceday_block(src, &mut out, warnings)?;
+        fix_raceday_progress(&mut out, warnings);
     } else if rec.id == CARDB_ID {
         fix_cardb_parts(src, &mut out);
         fix_cardb_packed(src, &mut out);
     } else if !RAW_BLOB_IDS.contains(&rec.id) {
         fix_node_flags(src, &mut out);
+        if rec.id == CUSTOM_RACEDAY_ID {
+            fix_custom_raceday_strings(src, &mut out);
+        }
     }
     rec.payload = out;
     Ok(())
@@ -543,23 +664,55 @@ pub fn rehash_gameplay(rec: &mut Record) {
 
 /// Re-frame a converted record for PC-native emission.
 ///
-/// 360 records: [junk word][id][size][payload = marker word + content].
-/// PC records:  [id][size][flags=1][payload = content + 4 junk bytes] with
-/// the same total size (native saves keep size == 360 size; their payload
-/// carries a trailing junk word). The 360 marker word maps onto the PC
-/// flags slot; we emit the native flags pattern 0x00000001 instead.
-pub fn to_pc_record(rec: &mut Record) {
+/// 360 records: [prev tail word][id][size][payload = marker word + content].
+/// PC records:  [id][size][flags=1][payload = content + tail word] with
+/// the same total size. The 360 marker word maps onto the PC flags slot;
+/// we emit the native flags pattern 0x00000001 instead. The tail word is
+/// the record's final value, which the 360 stores in the NEXT record's
+/// header slot (see tail_word).
+pub fn to_pc_record_with(rec: &mut Record, tail: [u8; 4]) {
     rec.flags = 0x0000_0001;
     if !rec.payload.is_empty() {
         // Python `payload[4:]` is empty for payloads shorter than 4 bytes;
-        // the trailing junk word still lands, so the result is 4 zero bytes.
+        // the tail word still lands, so the result is just the tail.
         let mut p = if rec.payload.len() < 4 {
             Vec::new()
         } else {
             rec.payload[4..].to_vec()
         };
-        p.extend_from_slice(&[0, 0, 0, 0]);
+        p.extend_from_slice(&tail);
         rec.payload = p;
+    }
+}
+
+/// `to_pc_record_with` and a zero tail word (the twin path).
+pub fn to_pc_record(rec: &mut Record) {
+    to_pc_record_with(rec, [0; 4]);
+}
+
+/// PC byte order for a record's final word, taken from the 360 word at
+/// the next record's header slot (`spill`, big-endian as stored).
+///
+/// Verified: CAREER_01 CustomRaceDayMemcard spills 0x00000001 (its last
+/// event flag; the PC-written race day ends 01 00 00 00 too) and FECareer
+/// spills 0x2848 in every 360 sample. Node streams ending in a u32 node
+/// ([0][4][flag] before the spill) swap it; raw memcpy blobs swap like the
+/// rest of the blob; anything else (a string node running into the spill)
+/// stays natural. GameplayData keeps zero: its 360 buffer is trimmed, so
+/// the spilled word is 360-only padding.
+pub fn tail_word(rec_id: u32, src: &[u8], spill: &[u8]) -> [u8; 4] {
+    let Ok(sp) = <[u8; 4]>::try_from(spill) else {
+        return [0; 4];
+    };
+    if rec_id == GAMEPLAY_ID {
+        return [0; 4];
+    }
+    let n = src.len();
+    let u32_node_end = n >= 12 && src[n - 12..n - 4] == [0, 0, 0, 0, 0, 0, 0, 4];
+    if RAW_BLOB_IDS.contains(&rec_id) || u32_node_end {
+        [sp[3], sp[2], sp[1], sp[0]]
+    } else {
+        sp
     }
 }
 
@@ -628,7 +781,20 @@ pub fn convert_tree(
         gap: 0,
     };
     let kind = report.kind.clone();
-    for rec in tree360.records.iter_mut() {
+    // a 360 record's final word sits in the next record's header slot; the
+    // last record's in the word after the record area (unless that is noise)
+    let mut spills: Vec<Vec<u8>> = tree360
+        .records
+        .iter()
+        .skip(1)
+        .map(|r| r.flags.to_be_bytes().to_vec())
+        .collect();
+    spills.push(if tree360.gap == 0 {
+        tree360.post.iter().take(4).copied().collect()
+    } else {
+        Vec::new()
+    });
+    for (rec, spill) in tree360.records.iter_mut().zip(spills) {
         normalize_gameplay(rec, &mut report.warnings);
         let src = rec.payload.clone();
         let mode: &str = if rec.id == GAMEPLAY_ID {
@@ -656,7 +822,7 @@ pub fn convert_tree(
                 rec.payload.len()
             ));
         }
-        to_pc_record(rec);
+        to_pc_record_with(rec, tail_word(rec.id, &src, &spill));
         rehash_gameplay(rec);
         pc.records.push(rec.clone());
     }
@@ -800,11 +966,12 @@ pub fn convert_payload(
             })
     })?;
     // native PC saves carry the built tree's used size in the extra blob
-    // (word 1); copy it through so the loader sees a consistent pair
+    // (word 1), careers and aliases alike; copy it through so the loader sees
+    // a consistent pair. Aliases need it most: the inserted size-0
+    // PCControllerSettings record adds 12 bytes, and a stale value made the
+    // PC skip the alias and run on a default 'Player' profile.
     let mut extra = convert_extra(&mc02_be.extra)?;
-    if extra.len() == 28 {
-        extra[4..8].copy_from_slice(&used.to_le_bytes());
-    }
+    extra[4..8].copy_from_slice(&used.to_le_bytes());
     let th = tree_hash(&tree_bytes);
     tree_bytes[0..16].copy_from_slice(&th);
     Ok(MC02::new(

@@ -1,7 +1,8 @@
 """Golden regression tests: source containers -> byte-exact verified output.
 
-Regression pins for the current converter (2026-10-04 evening: STFS block
-map, node flag words, u16 car part slots). NOT yet verified in-game - see
+Regression pins for the current converter (last moved 2026-10-09: race-day
+progress table, node [0][len] headers, CustomRaceDayMemcard strings, record
+tail words, alias extra used size). Verification state lives in
 docs/HANDOFF.md. Any diff here means the converter changed behavior.
 
 Run:  python -m unittest discover tests
@@ -23,14 +24,14 @@ PAIR_360 = ROOT / "docs/re/pair/CAREER_02_360_fresh"
 
 # (source path, golden md5)
 CASES = [
-    (ROOT / "Extracted/Career/CAREER_01", "7b7e1893047b01b00f7037ef54ceca44"),
-    (PAIR_360, "8dd15c6cb5736cf14aa2694289d8480d"),
-    (ROOT / "Extracted/Career/CAREER_03", "0dcfed80eab3dfcc246499b07ae54c37"),
-    (ROOT / "Extracted/Alias/ALIAS_360", "578a10cb583785bb6cb00fa64bc69439"),
-    (ROOT / "docs/re/c1_latest/CAREER_01_360", "718b6b6b8494decde59eb6b1defcc01d"),
-    (ROOT / "docs/re/pair_raceday/CAREER_02_360", "2bb7d00963509e71d6eaeccbed496b65"),
+    (ROOT / "Extracted/Career/CAREER_01", "0cce08c3c9a502b9275657d62166e932"),
+    (PAIR_360, "00f9d4427e18486eef546be07a5b2744"),
+    (ROOT / "Extracted/Career/CAREER_03", "1c71bb3f1425a7c6a60d02f96798e7ff"),
+    (ROOT / "Extracted/Alias/ALIAS_360", "02efaff0f7f60b73e0d93fbbe62ed4f3"),
+    (ROOT / "docs/re/c1_latest/CAREER_01_360", "e5ddeef1cf4314ff9929743f69062e9d"),
+    (ROOT / "docs/re/pair_raceday/CAREER_02_360", "a7b6ae96d15222948b31fdb27a7b8fda"),
     # anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
-    (ROOT / "docs/re/alias_anon/ALIAS_360", "8ae3d82a3c9cb1c9500d6fcce8c01b9d"),
+    (ROOT / "docs/re/alias_anon/ALIAS_360", "42b389645cc9d7e3db296de6ee67e8fa"),
 ]
 
 PERSONAL = ROOT / "Extracted"

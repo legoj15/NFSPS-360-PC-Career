@@ -91,7 +91,7 @@ fn cardb_fixes_clamp_on_short_payload() {
 /// F3: a 0x1000-byte GameplayData record runs the whole per-record pipeline
 /// with clamped rehash/raceday handling. Digest and payload md5 are the
 /// Python's (its output length stays 4096; it warns about the missing
-/// race-day block end).
+/// race-day block end and progress table).
 #[test]
 fn gameplay_short_pipeline_matches_python() {
     let mut payload = vec![0x11u8; 0x1000];
@@ -116,6 +116,9 @@ fn gameplay_short_pipeline_matches_python() {
         vec![
             "GameplayData: active race day but block end not found - \
              race day will not resume"
+                .to_string(),
+            "GameplayData: race-day progress table not found - \
+             the PC Race Day menu may crash"
                 .to_string()
         ]
     );
@@ -173,7 +176,7 @@ fn gameplay_0x2e0_tail_matches_python() {
     let pc = convert_crafted(&data).unwrap();
     assert_eq!(
         md5(&pc.to_bytes().unwrap()),
-        "20d1112d7b983a8307c38c48a5799a8b"
+        "bb30e797dc0b6fd926c6ccac55510bba"
     );
 }
 
@@ -186,8 +189,8 @@ fn gameplay_0x2e0_tail_matches_python() {
 fn gameplay_zero_state_window_matches_python() {
     // len -> (crafted fixture md5, converted output md5)
     let pinned = [
-        (0x2DCusize, "d90b6f6931545fba07971c4fdb4908d7", "8baa3ff65e78db8f749653c8a3e60123"),
-        (0x2E0, "e4882a46c79271139bb47dd4dcd59a9c", "ee244d674d61003421aab04ee01979b2"),
+        (0x2DCusize, "d90b6f6931545fba07971c4fdb4908d7", "44138608e8501861891b389bca18daa9"),
+        (0x2E0, "e4882a46c79271139bb47dd4dcd59a9c", "48dab5bcf0227d68679ccaf79e8c0ade"),
     ];
     for len in 0x2DC..0x2E4 {
         let mut payload = vec![0x11u8; len];
@@ -259,7 +262,7 @@ fn short_cardb_record_matches_python() {
     let pc = convert_crafted(&data).unwrap();
     assert_eq!(
         md5(&pc.to_bytes().unwrap()),
-        "3a61ad38ac2a5fed7398327a74c2ccfc"
+        "bdb741bf7b157b60c6f7d327bde5dee1"
     );
 }
 

@@ -1,9 +1,10 @@
 //! Port of tests/test_golden.py: golden regression tests — source containers
 //! -> byte-exact verified output.
 //!
-//! Regression pins for the converter (2026-10-04 evening: STFS block map,
-//! node flag words, u16 car part slots). Any diff here means the converter
-//! changed behavior. Golden md5 pins are kept EXACTLY as written.
+//! Regression pins for the converter (last moved 2026-10-09: race-day
+//! progress table, node [0][len] headers, CustomRaceDayMemcard strings,
+//! record tail words, alias extra used size). Any diff here means the
+//! converter changed behavior. Golden md5 pins are kept EXACTLY as written.
 
 mod common;
 
@@ -24,32 +25,32 @@ fn cases() -> Vec<(PathBuf, &'static str)> {
     vec![
         (
             r.join("Extracted/Career/CAREER_01"),
-            "7b7e1893047b01b00f7037ef54ceca44",
+            "0cce08c3c9a502b9275657d62166e932",
         ),
         (
             r.join("docs/re/pair/CAREER_02_360_fresh"),
-            "8dd15c6cb5736cf14aa2694289d8480d",
+            "00f9d4427e18486eef546be07a5b2744",
         ),
         (
             r.join("Extracted/Career/CAREER_03"),
-            "0dcfed80eab3dfcc246499b07ae54c37",
+            "1c71bb3f1425a7c6a60d02f96798e7ff",
         ),
         (
             r.join("Extracted/Alias/ALIAS_360"),
-            "578a10cb583785bb6cb00fa64bc69439",
+            "02efaff0f7f60b73e0d93fbbe62ed4f3",
         ),
         (
             r.join("docs/re/c1_latest/CAREER_01_360"),
-            "718b6b6b8494decde59eb6b1defcc01d",
+            "e5ddeef1cf4314ff9929743f69062e9d",
         ),
         (
             r.join("docs/re/pair_raceday/CAREER_02_360"),
-            "2bb7d00963509e71d6eaeccbed496b65",
+            "a7b6ae96d15222948b31fdb27a7b8fda",
         ),
         // anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
         (
             r.join("docs/re/alias_anon/ALIAS_360"),
-            "8ae3d82a3c9cb1c9500d6fcce8c01b9d",
+            "42b389645cc9d7e3db296de6ee67e8fa",
         ),
     ]
 }

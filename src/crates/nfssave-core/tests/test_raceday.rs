@@ -5,11 +5,13 @@
 
 mod common;
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
 use nfssave_core::convert::{
-    ConversionReport, convert_decal_entry, convert_payload, raceday_block_end,
+    CONSOLE_ONLY_RACEDAYS, ConversionReport, PROGRESS_LEN, convert_decal_entry, convert_payload,
+    progress_table_offset, raceday_block_end,
 };
 use nfssave_core::tree::Tree;
 use nfssave_core::{MC02, read_container};
@@ -158,4 +160,61 @@ fn converted_blob_md5() {
             src.display()
         );
     }
+}
+
+/// Race-day progress table of a PC GameplayData payload:
+/// 90 x [u32 key][u32 state][u32 score], keyed by race-day key.
+fn progress(p: &[u8]) -> HashMap<u32, (u32, u32)> {
+    let o = progress_table_offset(p).expect("progress table not found");
+    let word = |at: usize| u32::from_le_bytes(p[at..at + 4].try_into().unwrap());
+    (0..PROGRESS_LEN)
+        .map(|i| {
+            let e = o + 12 * i;
+            (word(e), (word(e + 4), word(e + 8)))
+        })
+        .collect()
+}
+
+/// Some race days carry 360-only state (no events on PC; five do not exist
+/// in the PC gameplay database at all). The PC Race Day map builds a hub for
+/// each and crashes reading event 0 (nfs.exe 0x7F6480). Converted tables must
+/// match the native PC side of both matched pairs.
+#[test]
+fn progress_matches_native_pairs() {
+    let pairs = [
+        (r360(), rpc()),
+        (
+            root().join("docs/re/pair/CAREER_02_360_fresh"),
+            root().join("docs/re/pair/CAREER_02_pc_native"),
+        ),
+    ];
+    for (src, nat) in pairs {
+        if !src.is_file() || !nat.is_file() {
+            eprintln!("skipped: pair absent ({})", src.display());
+            continue;
+        }
+        let conv = progress(&gp(&conv_tree(&src), GAMEPLAY));
+        let raw = fs::read(&nat).unwrap();
+        let want = progress(&gp(
+            &Tree::parse(&MC02::parse(&raw).unwrap().tree, false).unwrap(),
+            GAMEPLAY,
+        ));
+        for (k, v) in &want {
+            assert_eq!(conv[k], *v, "{:#x} in {}", k, src.display());
+        }
+    }
+}
+
+#[test]
+fn console_only_race_days_cleared() {
+    let src = root().join("docs/re/c1_latest/CAREER_01_360"); // deep career, Race Day crash
+    if !src.is_file() {
+        eprintln!("skipped: {} absent", src.display());
+        return;
+    }
+    let conv = progress(&gp(&conv_tree(&src), GAMEPLAY));
+    for &(k, state) in &CONSOLE_ONLY_RACEDAYS {
+        assert_eq!(conv[&k], (state, 0), "{k:#x}");
+    }
+    assert!(CONSOLE_ONLY_RACEDAYS.iter().any(|&(k, _)| k == 0x8F7CCCE0)); // hub in the crash dump
 }

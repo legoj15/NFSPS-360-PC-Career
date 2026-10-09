@@ -704,14 +704,63 @@ namespace NfsPs
             return o;
         }
 
-        // fix_node_flags: flag word after each [0][len] pair stays natural
+        // fix_node_flags: flag word after each [0][len] pair stays natural; the
+        // [0][len] header itself always swaps (the string heuristic can swallow it:
+        // a NUL-padded name node runs into the next header, leaving len big-endian,
+        // and the PC drops that node and everything after it - custom race days lost
+        // their event lists, Race Day menu crash at nfs.exe 0x7F6480)
         static void FixNodeFlags(byte[] src, byte[] o)
         {
             for (int p = 8; p < src.Length - 3; p += 4)
             {
                 uint zero = Rd32(src, p - 8, true), ln = Rd32(src, p - 4, true);
-                if (zero == 0 && ln >= 1 && ln <= 0x400) Copy(src, p, o, p, 4);
+                if (zero == 0 && ln >= 1 && ln <= 0x400)
+                {
+                    for (int i = 0; i < 4; i++) o[p - 4 + i] = src[p - 1 - i];
+                    Copy(src, p, o, p, 4);
+                }
             }
+        }
+
+        const uint CustomRacedayId = 0xD548266C;
+
+        // node_spans: (offset, length) of each node's data in a 360 property-node
+        // stream. The first value sits at start (after the 360 marker word); every
+        // later node is [u32 0][u32 len][flag word][data], its header on the u32 grid
+        // after the previous data (junk bytes may sit in between).
+        static List<int[]> NodeSpans(byte[] src, int start)
+        {
+            List<int[]> spans = new List<int[]>();
+            spans.Add(new int[] { start, 4 });
+            int o = start + 4;
+            while (o + 12 <= src.Length)
+            {
+                int h = (o + 3) & ~3;
+                bool found = false;
+                while (h + 8 <= src.Length)
+                {
+                    uint l = Rd32(src, h + 4, true);
+                    if (Rd32(src, h, true) == 0 && l > 0 && l <= 0x400) { found = true; break; }
+                    h += 4;
+                }
+                if (!found) break;
+                int ln = (int)Rd32(src, h + 4, true);
+                int d = h + 12;
+                if (d + ln > src.Length) break;
+                spans.Add(new int[] { d, ln });
+                o = d + ln;
+            }
+            return spans;
+        }
+
+        // fix_custom_raceday_strings: CustomRaceDayMemcard nodes are u32 values
+        // (swapped by the generic pass) or strings: GUID (25 B) and name (36 B), each
+        // [4 junk][chars, NUL]. String nodes copy byte for byte; the generic string
+        // heuristic misses GUIDs followed by a junk byte and half-swapped them.
+        static void FixCustomRacedayStrings(byte[] src, byte[] o)
+        {
+            foreach (int[] sp in NodeSpans(src, 4))
+                if (sp[1] > 4) Copy(src, sp[0], o, sp[0], sp[1]);
         }
 
         // convert_packed_entry / fix_cardb_packed
@@ -837,12 +886,68 @@ namespace NfsPs
             o[e2 - 4] = 0; o[e2 - 3] = 0; o[e2 - 2] = 0; o[e2 - 1] = 0;
         }
 
+        // Race-day progress table in GameplayData: 90 x [u32 key][u32 state][u32 score],
+        // after the race-day block (position varies). Located by its first and last key.
+        const uint ProgressFirst = 0xA70EA9B0, ProgressLast = 0xFA5D360A;
+        const int ProgressLen = 90;
+
+        // Race days the 360 marks with console-only state (bits 0x04/0x08/0x10 and a
+        // score, even in a fresh career) but the PC never plays: every PC save has
+        // them at state 0 or 2, score 0 - fresh, mid-career and 100%. Five of them
+        // (state 0 here) do not exist in the PC gameplay database at all. Left as is,
+        // the PC Race Day map builds a hub for each with zero events and crashes on
+        // event 0 (nfs.exe 0x7F6480; crash hub 0x8F7CCCE0). Values = native PC side of
+        // the matched pairs; 0x8DA1975B from the PC 100% save.
+        static readonly uint[] ConsoleOnlyRaceDays = {
+            0xB48C11C4, 0x0A6C2097, 0xF841FB9F, 0x8DA1975B, 0x8F7CCCE0, 0x92407122,
+            0x5C838C1A, 0xAF51A403, 0xDDCEF290, 0x46AE8E2F, 0xB3F02D70, 0x8FEB3CC6,
+            0xC8A0888E, 0x66705CF6, 0x150B07D4, 0xD663D2A8, 0x21471712 };
+        static readonly uint[] ConsoleOnlyStates = { 2, 0, 2, 0, 0, 2, 0, 0, 2, 0, 2, 2, 0, 2, 2, 2, 2 };
+
+        // progress_table_offset: offset of the table in a little-endian payload, or -1
+        static int ProgressTableOffset(byte[] p)
+        {
+            for (int o = 0; o + 4 <= p.Length; o++)
+            {
+                if (Rd32(p, o, false) != ProgressFirst) continue;
+                int last = o + 12 * (ProgressLen - 1);
+                if (last + 4 <= p.Length && Rd32(p, last, false) == ProgressLast) return o;
+            }
+            return -1;
+        }
+
+        // fix_raceday_progress: reset console-only race days to their PC-native state
+        static void FixRacedayProgress(byte[] o, List<string> warnings)
+        {
+            int t = ProgressTableOffset(o);
+            if (t < 0)
+            {
+                warnings.Add("GameplayData: race-day progress table not found - the PC Race Day menu may crash");
+                return;
+            }
+            for (int i = 0; i < ProgressLen; i++)
+            {
+                int e = t + 12 * i;
+                uint key = Rd32(o, e, false);
+                for (int j = 0; j < ConsoleOnlyRaceDays.Length; j++)
+                    if (ConsoleOnlyRaceDays[j] == key)
+                    {
+                        Wr32(o, e + 4, ConsoleOnlyStates[j], false);
+                        Wr32(o, e + 8, 0, false);
+                    }
+            }
+        }
+
         static void ApplyStructFixes(Rec rec, byte[] src, List<string> warnings)
         {
             byte[] o = (byte[])rec.Payload.Clone();
-            if (rec.Id == GameplayId) FixRacedayBlock(src, o, warnings);
+            if (rec.Id == GameplayId) { FixRacedayBlock(src, o, warnings); FixRacedayProgress(o, warnings); }
             else if (rec.Id == CarDbId) { FixCarDbParts(src, o); FixCarDbPacked(src, o); }
-            else FixNodeFlags(src, o);
+            else
+            {
+                FixNodeFlags(src, o);
+                if (rec.Id == CustomRacedayId) FixCustomRacedayStrings(src, o);
+            }
             rec.Payload = o;
         }
 
@@ -860,18 +965,39 @@ namespace NfsPs
             }
         }
 
-        // _to_pc_record: [id][size][flags=1][content + 4 junk bytes], same total size
-        static void ToPcRecord(Rec rec)
+        // _to_pc_record: [id][size][flags=1][content + tail word], same total size.
+        // The tail word is the record's final value, which the 360 stores in the NEXT
+        // record's header slot (see TailWord).
+        static void ToPcRecord(Rec rec, byte[] tail)
         {
             rec.Type = 1;
             int len = rec.Payload.Length;
             if (len > 0)
             {
-                // payload[4:] + 4 zero bytes; a 1-3 byte payload grows to 4 (as in Python)
+                // payload[4:] + tail; a 1-3 byte payload grows to 4 (as in Python)
                 byte[] n = new byte[Math.Max(len, 4)];
                 if (len > 4) Buffer.BlockCopy(rec.Payload, 4, n, 0, len - 4);
+                Buffer.BlockCopy(tail, 0, n, n.Length - 4, 4);
                 rec.Payload = n;
             }
+        }
+
+        // tail_word: PC byte order for a record's final word, taken from the 360 word
+        // at the next record's header slot (spill, big-endian as stored). Verified:
+        // CAREER_01 CustomRaceDayMemcard spills 0x00000001 (its last event flag; the
+        // PC-written race day ends 01 00 00 00 too) and FECareer spills 0x2848 in
+        // every 360 sample. Node streams ending in a u32 node ([0][4][flag] before the
+        // spill) swap it; raw memcpy blobs swap like the rest of the blob; anything
+        // else (a string node running into the spill) stays natural. GameplayData
+        // keeps zero: its 360 buffer is trimmed, so the spilled word is 360-only padding.
+        static byte[] TailWord(uint recId, byte[] src, byte[] spill)
+        {
+            if (recId == GameplayId || spill.Length != 4) return new byte[4];
+            int n = src.Length;
+            bool u32NodeEnd = n >= 12 && Rd32(src, n - 12, true) == 0 && Rd32(src, n - 8, true) == 4;
+            if (recId == CarDbId || u32NodeEnd)   // RAW_BLOB_IDS minus GameplayData (returned above)
+                return new byte[] { spill[3], spill[2], spill[1], spill[0] };
+            return spill;
         }
 
         static string ChunkName(uint id)
@@ -892,8 +1018,20 @@ namespace NfsPs
             pc.Records = new List<Rec>();
             pc.Pre = new byte[0];
             pc.Post = t.Post.Length > 0 ? ConvertAuto(t.Post, null, "chunk") : new byte[0];
+            // a 360 record's final word sits in the next record's header slot; the
+            // last record's in the word after the record area (unless that is noise)
+            List<byte[]> spills = new List<byte[]>();
+            for (int i = 1; i < t.Records.Count; i++)
+            {
+                byte[] w = new byte[4];
+                Wr32(w, 0, t.Records[i].Type, true);
+                spills.Add(w);
+            }
+            spills.Add(t.Gap == 0 ? Slice(t.Post, 0, Math.Min(4, t.Post.Length)) : new byte[0]);
+            int ri = 0;
             foreach (Rec rec in t.Records)
             {
+                byte[] spill = spills[ri++];
                 NormalizeGameplay(rec, rep.Warnings);
                 byte[] src = rec.Payload;
                 string mode;
@@ -907,7 +1045,7 @@ namespace NfsPs
                 if (mode == "auto" && rec.Payload.Length > 0x1000 && rec.Id != GameplayId)
                     rep.Warnings.Add("chunk " + ChunkName(rec.Id) + " (" + Hex(rec.Payload.Length)
                         + " B) converted in auto mode (no fieldmap)");
-                ToPcRecord(rec);
+                ToPcRecord(rec, TailWord(rec.Id, src, spill));
                 RehashGameplay(rec);
                 pc.Records.Add(rec);
             }
@@ -953,7 +1091,10 @@ namespace NfsPs
             long used = 0;
             foreach (Rec r in pc.Records) used += 12 + r.Payload.Length;
             byte[] extra = ConvertExtra(m.Extra);
-            if (extra.Length == 28) Wr32(extra, 4, (uint)used, false);
+            // extra word 1 = tree used size on careers AND aliases; a stale
+            // alias value (12 B short of the inserted PCControllerSettings)
+            // made the PC skip the alias for a default 'Player' profile
+            Wr32(extra, 4, (uint)used, false);
             rep.Extra = extra;
             rep.Tree = tree;
             rep.TreeSize = m.TreeSize;

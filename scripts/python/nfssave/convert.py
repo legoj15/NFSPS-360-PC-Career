@@ -161,11 +161,57 @@ def fix_node_flags(src: bytes, out: bytearray) -> None:
     ... The flag word follows each [0][len] pair; its first byte is the
     flag, the other three are heap junk. A blanket u32 swap moves the flag
     byte to the end of the word.
+
+    The [0][len] header itself must always swap. The string heuristic can
+    swallow it: a NUL-padded name node runs into the next header and the
+    word grid rounds it in, leaving len big-endian (0x04000000 on PC). The
+    PC then drops that node and everything after it - custom race days
+    lost their event lists and the Race Day menu crashed (nfs.exe 0x7F6480).
     """
     for o in range(8, len(src) - 3, 4):
         zero, ln = struct.unpack_from(">II", src, o - 8)
         if zero == 0 and 1 <= ln <= 0x400:
+            out[o - 4:o] = src[o - 4:o][::-1]
             out[o:o + 4] = src[o:o + 4]
+
+
+CUSTOM_RACEDAY_ID = 0xD548266C
+
+
+def node_spans(src: bytes, start: int = 4) -> list[tuple[int, int]]:
+    """(offset, length) of each node's data in a 360 property-node stream.
+
+    The first value sits at `start` (after the 360 marker word); every later
+    node is [u32 0][u32 len][flag word][data], its header on the u32 grid
+    after the previous data (junk bytes may sit in between).
+    """
+    spans = [(start, 4)]
+    o = start + 4
+    while o + 12 <= len(src):
+        h = (o + 3) & ~3
+        while h + 8 <= len(src):
+            zero, ln = struct.unpack_from(">II", src, h)
+            if zero == 0 and 0 < ln <= 0x400:
+                break
+            h += 4
+        else:
+            break
+        d = h + 12
+        if d + ln > len(src):
+            break
+        spans.append((d, ln))
+        o = d + ln
+    return spans
+
+
+def fix_custom_raceday_strings(src: bytes, out: bytearray) -> None:
+    """CustomRaceDayMemcard nodes are u32 values (swapped by the generic
+    pass) or strings: GUID (25 B) and name (36 B), each [4 junk][chars, NUL].
+    String nodes copy byte for byte; the generic string heuristic misses
+    GUIDs followed by a junk byte and half-swapped them."""
+    for d, ln in node_spans(src):
+        if ln > 4:
+            out[d:d + ln] = src[d:d + ln]
 
 
 CARDB_PACKED = (0x7C980, 0x90660)   # region holding 8-byte packed entries
@@ -335,15 +381,67 @@ def fix_raceday_block(src: bytes, out: bytearray, warnings: list) -> None:
     out[e - 4:e] = bytes(4)
 
 
+# Race-day progress table in GameplayData: 90 x [u32 key][u32 state][u32 score],
+# after the race-day block (position varies). Located by its first and last key.
+PROGRESS_FIRST, PROGRESS_LAST, PROGRESS_LEN = 0xA70EA9B0, 0xFA5D360A, 90
+
+# Race days the 360 marks with console-only state (bits 0x04/0x08/0x10 and a
+# score, even in a fresh career with no custom race days) that the PC never
+# writes: every PC save has them at state 0 or 2, score 0 - fresh, mid-career
+# and 100%, and a PC save made after creating a custom race day left them
+# untouched. Five (state 0 here: 8F7CCCE0 46AE8E2F C8A0888E 0A6C2097
+# AF51A403) are the custom race-day SLOTS (career [0xAB9DC8]+0xB0); they are
+# not in gameplay.bin. Values = native PC side of the matched pairs;
+# 0x8DA1975B from the PC 100% save. (Not the Race Day crash cause - that was
+# the CustomRaceDayMemcard node framing, see fix_node_flags.)
+CONSOLE_ONLY_RACEDAYS = {
+    0xB48C11C4: 2, 0x0A6C2097: 0, 0xF841FB9F: 2, 0x8DA1975B: 0,
+    0x8F7CCCE0: 0, 0x92407122: 2, 0x5C838C1A: 0, 0xAF51A403: 0,
+    0xDDCEF290: 2, 0x46AE8E2F: 0, 0xB3F02D70: 2, 0x8FEB3CC6: 2,
+    0xC8A0888E: 0, 0x66705CF6: 2, 0x150B07D4: 2, 0xD663D2A8: 2,
+    0x21471712: 2,
+}
+
+
+def progress_table_offset(p: bytes) -> int | None:
+    """Offset of the race-day progress table in a little-endian payload."""
+    first = struct.pack("<I", PROGRESS_FIRST)
+    o = p.find(first)
+    while o >= 0:
+        last = o + 12 * (PROGRESS_LEN - 1)
+        if last + 4 <= len(p) and struct.unpack_from("<I", p, last)[0] == PROGRESS_LAST:
+            return o
+        o = p.find(first, o + 1)
+    return None
+
+
+def fix_raceday_progress(out: bytearray, warnings: list) -> None:
+    """Reset console-only race days to their PC-native state (see
+    CONSOLE_ONLY_RACEDAYS). Operates on the already-swapped payload."""
+    o = progress_table_offset(out)
+    if o is None:
+        warnings.append("GameplayData: race-day progress table not found - "
+                        "the PC Race Day menu may crash")
+        return
+    for i in range(PROGRESS_LEN):
+        e = o + 12 * i
+        key = struct.unpack_from("<I", out, e)[0]
+        if key in CONSOLE_ONLY_RACEDAYS:
+            struct.pack_into("<II", out, e + 4, CONSOLE_ONLY_RACEDAYS[key], 0)
+
+
 def apply_struct_fixes(rec, src: bytes, warnings: list) -> None:
     out = bytearray(rec.payload)
     if rec.id == GAMEPLAY_ID:
         fix_raceday_block(src, out, warnings)
+        fix_raceday_progress(out, warnings)
     elif rec.id == CARDB_ID:
         fix_cardb_parts(src, out)
         fix_cardb_packed(src, out)
     elif rec.id not in RAW_BLOB_IDS:
         fix_node_flags(src, out)
+        if rec.id == CUSTOM_RACEDAY_ID:
+            fix_custom_raceday_strings(src, out)
     rec.payload = bytes(out)
 
 
@@ -366,18 +464,38 @@ def rehash_gameplay(rec) -> None:
     rec.payload = bytes(p)
 
 
-def _to_pc_record(rec) -> None:
+def _to_pc_record(rec, tail: bytes = bytes(4)) -> None:
     """Re-frame a converted record for PC-native emission.
 
-    360 records: [junk word][id][size][payload = marker word + content].
-    PC records:  [id][size][flags=1][payload = content + 4 junk bytes] with
-    the same total size (native saves keep size == 360 size; their payload
-    carries a trailing junk word). The 360 marker word maps onto the PC
-    flags slot; we emit the native flags pattern 0x00000001 instead.
+    360 records: [prev tail word][id][size][payload = marker word + content].
+    PC records:  [id][size][flags=1][payload = content + tail word] with
+    the same total size. The 360 marker word maps onto the PC flags slot;
+    we emit the native flags pattern 0x00000001 instead. The tail word is
+    the record's final value, which the 360 stores in the NEXT record's
+    header slot (see tail_word).
     """
     rec.type = 0x00000001
     if rec.payload:
-        rec.payload = rec.payload[4:] + b"\x00\x00\x00\x00"
+        rec.payload = rec.payload[4:] + tail
+
+
+def tail_word(rec_id: int, src: bytes, spill: bytes) -> bytes:
+    """PC byte order for a record's final word, taken from the 360 word at
+    the next record's header slot (`spill`, big-endian as stored).
+
+    Verified: CAREER_01 CustomRaceDayMemcard spills 0x00000001 (its last
+    event flag; the PC-written race day ends 01 00 00 00 too) and FECareer
+    spills 0x2848 in every 360 sample. Node streams ending in a u32 node
+    ([0][4][flag] before the spill) swap it; raw memcpy blobs swap like the
+    rest of the blob; anything else (a string node running into the spill)
+    stays natural. GameplayData keeps zero: its 360 buffer is trimmed, so
+    the spilled word is 360-only padding.
+    """
+    if rec_id == GAMEPLAY_ID or len(spill) != 4:
+        return bytes(4)
+    if rec_id in RAW_BLOB_IDS or src[-12:-4] == bytes(4) + struct.pack(">I", 4):
+        return spill[::-1]
+    return spill
 
 
 def validate_twin(src: Tree, twin: Tree, warnings: list) -> None:
@@ -416,7 +534,11 @@ def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = No
         post=convert_payload_auto(tree360.post) if tree360.post else b"",
         used=0,
     )
-    for rec in tree360.records:
+    # a 360 record's final word sits in the next record's header slot; the
+    # last record's in the word after the record area (unless that is noise)
+    spills = [struct.pack(">I", r.type) for r in tree360.records[1:]]
+    spills.append(tree360.post[:4] if not tree360.gap else b"")
+    for rec, spill in zip(tree360.records, spills):
         normalize_gameplay(rec, report.warnings)
         src = rec.payload
         if rec.id == GAMEPLAY_ID:
@@ -431,7 +553,7 @@ def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = No
             report.warnings.append(
                 f"chunk {CHUNK_NAMES.get(rec.id, hex(rec.id))} ({len(rec.payload):#x} B) "
                 "converted in auto mode (no fieldmap)")
-        _to_pc_record(rec)
+        _to_pc_record(rec, tail_word(rec.id, src, spill))
         rehash_gameplay(rec)
         pc.records.append(rec)
     if twin is not None:
@@ -496,10 +618,12 @@ def convert_payload(mc02_be: MC02, report: ConversionReport | None = None,
     tree_bytes = pc_tree.build(big=False, tree_size=mc02_be.tree_size)
     used = sum(12 + len(r.payload) for r in pc_tree.records)
     # native PC saves carry the built tree's used size in the extra blob
-    # (word 1); copy it through so the loader sees a consistent pair
+    # (word 1), careers and aliases alike; copy it through so the loader sees
+    # a consistent pair. Aliases need it most: the inserted size-0
+    # PCControllerSettings record adds 12 bytes, and a stale value made the
+    # PC skip the alias and run on a default 'Player' profile.
     extra = bytearray(convert_extra(mc02_be.extra))
-    if len(extra) == 28:
-        struct.pack_into("<I", extra, 4, used)
+    struct.pack_into("<I", extra, 4, used)
     tree_bytes = bytearray(tree_bytes)
     tree_bytes[0:16] = tree_hash(bytes(tree_bytes))
     pc = MC02(Endian.LITTLE, extra=extra, tree=bytes(tree_bytes), tree_size=mc02_be.tree_size)
