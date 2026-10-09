@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "python"))
 
 from nfssave import MC02, read_container
-from nfssave.convert import ConversionReport, convert_payload, fix_node_flags
+from nfssave.convert import ConversionReport, alias_tail, convert_payload, fix_node_flags
 from nfssave.tree import Tree
 
 ROOT = Path(__file__).parent.parent
@@ -52,7 +52,7 @@ class AliasSettingsTests(unittest.TestCase):
         by_id = {r.id: r for r in pc.records}
         checked = 0
         for r in src.records:
-            # 360 payload = marker word + content; PC payload = content + junk
+            # 360 payload = marker word + content; PC payload = content + last word
             for off, value in u8_nodes(r.payload[4:], big=True):
                 got = by_id[r.id].payload[off]
                 self.assertEqual(got, value, f"chunk {r.id:#x} node at {off:#x}")
@@ -76,6 +76,7 @@ class AliasSettingsTests(unittest.TestCase):
         _, pc = convert_alias()
         native = Tree.parse(MC02.parse(NATIVE_PC.read_bytes()).tree, big=False)
         want = {r.id: len(r.payload) for r in native.records}
+        self.assertEqual({r.id for r in pc.records}, set(want))
         for r in pc.records:
             if r.id == PC_CONTROLLER:
                 continue                  # PC-only, size-0 positional filler
@@ -89,6 +90,27 @@ class AliasSettingsTests(unittest.TestCase):
         out = bytearray(b"".join(src[i:i + 4][::-1] for i in range(0, 16, 4)))
         fix_node_flags(src, out)
         self.assertEqual(out[12:16], b"\x04\0\0\0")
+
+    def test_alias_tail_rules(self):
+        hdr = lambda ln: struct.pack(">III", 0, ln, 0x00FFFFFF)
+        self.assertEqual(alias_tail(hdr(4), b"\0\0\0\x03"), b"\x03\0\0\0")     # u32 swap
+        self.assertEqual(alias_tail(hdr(1), b"\x01\0\0\0"), b"\x01\0\0\0")     # u8 natural
+        self.assertEqual(alias_tail(hdr(1), b"\0\0\0\x04"), b"\x04\0\0\0")     # pad set: swap
+        self.assertEqual(alias_tail(hdr(5), b"\0\0\0\x03"), bytes(4))          # not a scalar node
+        self.assertEqual(alias_tail(b"\0" * 8 + b"\xff" * 4, b"\0\0\0\x03"), bytes(4))  # len 0
+        self.assertEqual(alias_tail(hdr(4)[4:], b"\0\0\0\x03"), bytes(4))      # payload < 12
+        self.assertEqual(alias_tail(hdr(4), b"\0\x03"), bytes(4))              # truncated tail
+        # 8-byte node: payload ends [0][8][flag][d1]; the tail is d2
+        self.assertEqual(alias_tail(hdr(8) + b"\0" * 4, b"\x3f\x80\0\0"), b"\0\0\x80\x3f")
+        # header whose flag word is not [u8][FF FF FF | 00 00 00]: not a node
+        junk_flag = struct.pack(">III", 0, 4, 0x01234567)
+        self.assertEqual(alias_tail(junk_flag, b"\0\0\0\x03"), bytes(4))
+
+    def test_u8_rule_needs_a_node_flag_word(self):
+        src = struct.pack(">IIII", 0, 1, 0x01234567, 0x01000000)
+        out = bytearray(b"".join(src[i:i + 4][::-1] for i in range(0, 16, 4)))
+        fix_node_flags(src, out)
+        self.assertEqual(out[12:16], b"\0\0\0\x01")   # left swapped
 
     def test_u8_node_stays_natural(self):
         src = struct.pack(">IIII", 0, 1, 0x00FFFFFF, 0x01000000)

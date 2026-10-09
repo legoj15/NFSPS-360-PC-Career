@@ -728,7 +728,8 @@ namespace NfsPs
                 {
                     Copy(src, p, o, p, 4);
                     // one-byte node [u8][0 0 0]: value stays natural (a u32 swap reads 0 on PC)
-                    if (ln == 1 && p + 8 <= src.Length && src[p + 5] == 0 && src[p + 6] == 0 && src[p + 7] == 0)
+                    if (ln == 1 && p + 8 <= src.Length && src[p + 5] == 0 && src[p + 6] == 0 && src[p + 7] == 0
+                        && IsNodeFlag(src, p))
                         Copy(src, p + 4, o, p + 4, 4);
                 }
             }
@@ -880,17 +881,31 @@ namespace NfsPs
             }
         }
 
+        // is_node_flag: 360 node flag word [u8 flag][FF FF FF] (or zeroed)
+        static bool IsNodeFlag(byte[] b, int at)
+        {
+            return (b[at + 1] == 0xFF && b[at + 2] == 0xFF && b[at + 3] == 0xFF)
+                || (b[at + 1] == 0 && b[at + 2] == 0 && b[at + 3] == 0);
+        }
+
         // alias_tail: PC last payload word from the 360 Record.tail when the payload
-        // ends in a node header [0][len 1..4][flag]; u8 node natural, else u32 swap
+        // ends in a scalar node: [0][len 1..4][flag] (u8 natural, else u32 swap)
+        // or [0][len 5..8][flag][d1] (tail = d2, u32 swap)
         static byte[] AliasTail(byte[] src, byte[] tail)
         {
             byte[] w = new byte[4];
-            int n = src.Length;
-            if (tail.Length != 4 || n < 12) return w;
-            uint zero = Rd32(src, n - 12, true), ln = Rd32(src, n - 8, true);
-            if (zero != 0 || ln < 1 || ln > 4) return w;
-            if (ln == 1 && tail[1] == 0 && tail[2] == 0 && tail[3] == 0) return (byte[])tail.Clone();
-            w[0] = tail[3]; w[1] = tail[2]; w[2] = tail[1]; w[3] = tail[0];
+            if (tail.Length != 4) return w;
+            for (int k = 0; k <= 4; k += 4)
+            {
+                int h = src.Length - 12 - k;
+                if (h < 0) continue;
+                uint lo = k == 0 ? 1u : 5u, hi = k == 0 ? 4u : 8u;
+                uint zero = Rd32(src, h, true), ln = Rd32(src, h + 4, true);
+                if (zero != 0 || ln < lo || ln > hi || !IsNodeFlag(src, h + 8)) continue;
+                if (ln == 1 && tail[1] == 0 && tail[2] == 0 && tail[3] == 0) return (byte[])tail.Clone();
+                w[0] = tail[3]; w[1] = tail[2]; w[2] = tail[1]; w[3] = tail[0];
+                return w;
+            }
             return w;
         }
 

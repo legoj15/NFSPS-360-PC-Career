@@ -359,6 +359,41 @@ try {
     $got = $m.Invoke($null, [object[]]@(, $x))
     if ((($got | ForEach-Object { $_.ToString('x2') }) -join '') -eq (($want | ForEach-Object { $_.ToString('x2') }) -join '')) { Pass 'alias extra without NUL converted like Python' }
     else { Fail 'alias extra without NUL converted like Python' "got $(($got | ForEach-Object { $_.ToString('x2') }) -join '')" }
+
+    # --- unit: alias_tail / fix_node_flags u8 rule (vectors of tests/test_alias_settings.py)
+    function BeWords([uint32[]]$ws) {
+        $b = [byte[]]::new(4 * $ws.Count)
+        for ($i = 0; $i -lt $ws.Count; $i++) { $v = [BitConverter]::GetBytes($ws[$i]); [Array]::Reverse($v); [Array]::Copy($v, 0, $b, 4 * $i, 4) }
+        , $b
+    }
+    function Hx([byte[]]$b) { ($b | ForEach-Object { $_.ToString('x2') }) -join '' }
+    $at = [NfsPs.Save].GetMethod('AliasTail', [System.Reflection.BindingFlags]'NonPublic,Public,Static')
+    $cases = @(
+        @((BeWords @(0, 4, 0x00FFFFFF)), [byte[]](0, 0, 0, 3), '03000000', 'u32 swap'),
+        @((BeWords @(0, 1, 0x00FFFFFF)), [byte[]](1, 0, 0, 0), '01000000', 'u8 natural'),
+        @((BeWords @(0, 1, 0x00FFFFFF)), [byte[]](0, 0, 0, 4), '04000000', 'u8 pad set: swap'),
+        @((BeWords @(0, 5, 0x00FFFFFF)), [byte[]](0, 0, 0, 3), '00000000', 'len 5 not scalar at end'),
+        @((BeWords @(0, 8, 0x00FFFFFF, 0)), [byte[]](0x3F, 0x80, 0, 0), '0000803f', '8-byte node tail'),
+        @((BeWords @(0, 4, 0x01234567)), [byte[]](0, 0, 0, 3), '00000000', 'junk flag word'),
+        @((BeWords @(4, 0x00FFFFFF)), [byte[]](0, 0, 0, 3), '00000000', 'payload < 12'),
+        @((BeWords @(0, 4, 0x00FFFFFF)), [byte[]](0, 3), '00000000', 'truncated tail'))
+    $bad_cases = @()
+    foreach ($c in $cases) {
+        $got = Hx ($at.Invoke($null, [object[]]@($c[0], $c[1])))
+        if ($got -ne $c[2]) { $bad_cases += "$($c[3]): $got" }
+    }
+    if (-not $bad_cases) { Pass 'alias_tail rules like Python' } else { Fail 'alias_tail rules like Python' ($bad_cases -join '; ') }
+    $fx = [NfsPs.Save].GetMethod('FixNodeFlags', [System.Reflection.BindingFlags]'NonPublic,Public,Static')
+    $fails = @()
+    foreach ($c in @(@(0x00FFFFFF, 0x01000000, '01000000'), @(0x00FFFFFF, 4, '04000000'), @(0x01234567, 0x01000000, '00000001'))) {
+        $src = BeWords @(0, 1, $c[0], $c[1])
+        $o = [byte[]]$src.Clone()
+        for ($w = 0; $w -lt 16; $w += 4) { [Array]::Reverse($o, $w, 4) }
+        [void]$fx.Invoke($null, [object[]]@($src, $o))
+        $got = Hx $o[12..15]
+        if ($got -ne $c[2]) { $fails += "flag $($c[0].ToString('x8')) data $($c[1].ToString('x8')): $got" }
+    }
+    if (-not $fails) { Pass 'u8 node rule like Python' } else { Fail 'u8 node rule like Python' ($fails -join '; ') }
 }
 finally {
     foreach ($t in $tmpRoots) { Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue }

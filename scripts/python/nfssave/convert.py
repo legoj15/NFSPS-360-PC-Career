@@ -154,6 +154,11 @@ CARDB_TABLE = (0x14, 24, 410)            # car table: offset, entry size, count
 CARDB_TABLE_SLOT = 20                    # entry word [u8][u8][u8][pad]
 
 
+def is_node_flag(word: bytes) -> bool:
+    """360 node flag word: [u8 flag][FF FF FF] (or zeroed)."""
+    return word[1:4] in (b"\xff\xff\xff", b"\0\0\0")
+
+
 def fix_node_flags(src: bytes, out: bytearray) -> None:
     """Keep property-node flag words in natural byte order.
 
@@ -168,8 +173,9 @@ def fix_node_flags(src: bytes, out: bytearray) -> None:
             out[o:o + 4] = src[o:o + 4]
             # one-byte node: the value is the first data byte on both
             # platforms ([u8][0 0 0]); a u32 swap reads back as 0 on PC
-            # (every alias on/off option). Nonzero pad = not a u8 node.
-            if ln == 1 and src[o + 5:o + 8] == b"\0\0\0":
+            # (every alias on/off option). Nonzero pad, or a flag word that is
+            # not [u8][FF FF FF | 00 00 00], = not a u8 node.
+            if ln == 1 and src[o + 5:o + 8] == b"\0\0\0" and is_node_flag(src[o:o + 4]):
                 out[o + 4:o + 8] = src[o + 4:o + 8]
 
 
@@ -376,20 +382,25 @@ def alias_tail(src: bytes, tail: bytes) -> bytes:
 
     Both platforms store [flag word][nodes...][last data word]; the 360
     writes the last word after the record (see tree.Record.tail). Carried
-    only when the payload ends in a node header [0][len 1..4][flag], so the
-    word is that node's value: u8 node -> natural, else u32 swap. Verified
-    on the personal alias vs a fresh PC alias (AudioSettings 3,
-    PlayerSettings0 2). Careers keep zeros: their one tail-carrying node
-    (FECareer) holds a 360 constant 0x2848 where native PC saves hold 0.
+    only when the payload ends in a scalar node, so the word is that node's
+    value: [0][len 1..4][flag] (u8 node -> natural, else u32 swap) or
+    [0][len 5..8][flag][d1] (tail = d2, u32 swap). The personal alias's
+    values match a fresh PC alias (AudioSettings 3, PlayerSettings0 2).
+    Careers keep zeros: their one tail-carrying node (FECareer) holds a
+    360 constant 0x2848 where native PC saves hold 0.
     """
-    if len(tail) != 4 or len(src) < 12:
+    if len(tail) != 4:
         return bytes(4)
-    zero, ln = struct.unpack_from(">II", src, len(src) - 12)
-    if zero != 0 or not 1 <= ln <= 4:
-        return bytes(4)
-    if ln == 1 and tail[1:] == b"\0\0\0":
-        return tail
-    return tail[::-1]
+    for k, lo, hi in ((0, 1, 4), (4, 5, 8)):
+        h = len(src) - 12 - k
+        if h < 0:
+            continue
+        zero, ln = struct.unpack_from(">II", src, h)
+        if zero == 0 and lo <= ln <= hi and is_node_flag(src[h + 8:h + 12]):
+            if ln == 1 and tail[1:] == b"\0\0\0":
+                return tail
+            return tail[::-1]
+    return bytes(4)
 
 
 def _to_pc_record(rec, last: bytes = bytes(4)) -> None:

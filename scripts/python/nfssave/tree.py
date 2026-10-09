@@ -8,7 +8,7 @@ tree := noise[16] count:u32 pad:magic 0x59F2D89B used:u32 records...
     tree+0x1C0 (360: +0x40).
   - id is the platform-independent chunk identity (matches 360<->PC).
   - the first payload word of a 360 record is a 0x01xxxxxx marker + junk;
-    PC drops it and appends 4 trailing junk bytes (same total size).
+    PC drops it and appends the last data word (Record.tail; same total size).
   - records tile exactly to records_start + used. The console writing bug
     can leave damaged noise in the record region: a trailing gap (records
     missing at the end) or, in principle, an internal gap (parse

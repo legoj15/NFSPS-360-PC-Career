@@ -23,7 +23,20 @@
   0xAAAAAAAA as its f32 (~ -3e-13, PC default 0); PCControllerSettings is
   still a size-0 filler (PC fills defaults); careers' FECareer last word
   (360 constant 0x2848) left zero.
-- Delegation log: none (orchestrator only, serial scoped work).
+- Delegation log: implementation by orchestrator (serial scoped work).
+  reviewer (Haiku) on 3ee4858 -> pass with nits, 0 parity bugs; acted on:
+  alias_tail edge-case unit tests (py + rs), softened the "verified" tail
+  claim (fresh PC alias is not in the repo). Rejected: "len-1 node may hold
+  a u32 0x3F000000" (len is the byte count). Kept by design: tail cleared
+  before a damaged gap (aliases never take the gap/twin path in practice).
+  opencode triad (shop26 Qwen 27B + glm-flash high) on 3ee4858 -> no parity
+  bugs in new code; acted on: u8 rule and alias_tail now also require a
+  node flag word [u8][FFFFFF|000000]; alias_tail also carries the tail of
+  a trailing 8-byte node (d2); chunk-set equality in the size test; stale
+  "junk bytes" docstrings; PS unit tests for AliasTail/FixNodeFlags. All
+  goldens unchanged. Not done (latent): validate_twin vs PC_PAYLOAD_SIZES
+  trim (careers carry no VideoSettings); PS throws on corrupt short
+  CarDB/GameplayData records where Py/Rust clamp (pre-existing, spun off).
 
 ## 2026-10-06 — script CLI redesign (user request)
 - Contract: docs/scripts-cli.md. Inputs = files or folders (recursive,

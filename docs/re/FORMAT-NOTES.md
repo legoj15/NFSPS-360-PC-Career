@@ -95,8 +95,12 @@ post region: directory/hash table (360 alias: 475 cells [h1][h2][FFFFFFFF][0]);
   [id][size] one word later, so the word before each [id] is the PREVIOUS
   record's last data word (the first one is the root record's flag word;
   the last record's is post[0:4]). Parsers keep it as Record.tail.
-  Alias proof: personal 360 alias tails AudioSettings=3,
-  PlayerSettings0=2, OnlineUserProfile u8 1 = the PC last node values.
+  Alias evidence: structural (each payload ends in a [0][len 4][flag]
+  header with no data); personal 360 alias tails AudioSettings=3,
+  PlayerSettings0=2 equal a fresh PC alias's last values (user's
+  ALIAS_TEST, not in the repo - may be shared defaults), while the native
+  oracle alias holds AudioSettings=1 there, so the PC word is real
+  per-profile data, not a platform constant.
   Converter carries it for aliases only; career FECareer's tail is a
   constant 0x2848 on 360 vs 0 in both native PC pairs (left zero).
   The PC [flags] slot is the same flag word (native 'aaaaaa01').
