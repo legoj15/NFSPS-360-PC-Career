@@ -23,8 +23,8 @@
     Haiku: pad-shift comment wrong - it is right (freed word = zeroed end).
   - REJECTED (shop26 + Haiku): casefold vs to_lowercase vs ToLowerInvariant
     - CON names decode to ASCII + U+FFFD, so the folds cannot differ.
-  - KNOWN (all three): app backs up before the corruption check (#10a,
-    user call); write_pc_save remove-before-rename (#10 leftover).
+  - ALREADY FIXED on main while this ran (8cf2f9b, entry below): app
+    backed up before the corruption check; write_pc_save remove-before-rename.
   - DOCUMENTED, no change: app accepts raw MC02 (rust-app.md:67).
   - LOW, no change: post-write self-check failure is exit 1 in PS but a
     warning in Python/Rust; unreachable (CRCs freshly computed).
@@ -35,7 +35,7 @@
   - Fixed in the follow-up commit (shop26 spot-check low): Python/PS
     Tree.parse on a blob < 0x14, or one that ends before any magic, raised
     struct.error / IndexOutOfRange; now Rust's two clean refusals.
-- Final state: pytest 107 + 9 skipped, cargo workspace green + fmt clean,
+- Final state (after merging main 6c645be): pytest 110 + 9 skipped, cargo workspace green + fmt clean,
   Run-Tests.ps1 56/56 (3 skipped: no Extracted/ in the worktree) on 5.1 and 7.
 - Delegation log: reviewer (Haiku) core review -> 10 findings, 1 real
   (file table), 3 stale/wrong (complaint logged). opencode triad shop26 +
