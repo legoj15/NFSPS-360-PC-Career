@@ -21,7 +21,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 from nfssave import MC02, read_container
 from nfssave.convert import (convert_payload, ConversionReport, write_pc_save,
                               back_up_existing, utc_stamp, BACKUP_DIR)
-from nfssave.container360 import parse_container
 
 SAVE_DIR_NAME = "NFS ProStreet"
 SAVE_PREFIXES = ("career_", "alias_")
@@ -91,14 +90,6 @@ def resolve_save_folder(root) -> tuple[Path, Path, bool]:
     return root, root, False
 
 
-def load_twin(path: str) -> bytes:
-    """Accept either a raw MC02 re-save or one still inside its CON wrapper."""
-    data = Path(path).read_bytes()
-    if data[:4] == b"CON ":
-        return parse_container(data, path).payload
-    return data
-
-
 def windows_name_key(name: str) -> str:
     """The folder name Windows actually creates: case-insensitive, trailing
     dots/spaces dropped (exe batch.rs windows_name_key)."""
@@ -122,15 +113,7 @@ def convert_one(src: Path, args, claimed: dict | None = None) -> None:
     for prob in bad:
         print(f"! {src.name}: {prob} (CRCs are recomputed on write)")
     report = ConversionReport(source=str(src))
-    twin = None
-    # a re-save twin is only a last resort for a genuinely damaged file;
-    # the old "damaged console tail" was a container-reader bug (STFS hash
-    # blocks), fixed in container360
-    twin_path = getattr(args, "twin", None)
-    if twin_path and Path(twin_path).is_file():
-        twin = load_twin(twin_path)
-        print(f"[+] using re-save twin for tail recovery: {twin_path}")
-    pc = convert_payload(mc02, report, twin_payload=twin)
+    pc = convert_payload(mc02, report)
     print(f"[+] {src.name} ({report.kind}): {report.records} chunks")
     for name in report.chunk_list:
         print(f"      - {name}")
@@ -201,8 +184,6 @@ def main() -> int:
     ap.add_argument("--out-root", default=None, metavar="FOLDER",
                     help="where to write (default: the current folder); the "
                          "game's folder puts saves straight into its save folder")
-    ap.add_argument("--twin", default=None,
-                    help="re-saved MC02 twin used to recover damaged record tails")
     ap.add_argument("--dry-run", action="store_true",
                     help="check the saves without writing anything")
     args = ap.parse_args()

@@ -583,26 +583,6 @@ PC_CONTROLLER_ID = 0x39156567
 PC_CONTROLLER_DEFAULT = (Path(__file__).parent / "pc_controller_default.bin").read_bytes()
 
 
-def validate_twin(src: Tree, twin: Tree, warnings: list) -> None:
-    """Reject a re-save twin that is not the same career session.
-
-    Verified on the real pair: the correct twin shares the source's record
-    id sequence and every overlapping record's payload size (payload bytes
-    themselves differ - volatile junk words/timestamps). A different day's
-    save diverges in sizes and/or sequence.
-    """
-    if twin.gap:
-        raise ValueError(
-            f"twin file has a damaged record tail ({twin.gap:#x} B) - it cannot "
-            "be used for recovery")
-    src_ids = [(r.id, len(r.payload)) for r in src.records]
-    twin_ids = [(r.id, len(r.payload)) for r in twin.records[:len(src.records)]]
-    if src_ids != twin_ids:
-        raise ValueError(
-            "twin does not match the source career (record ids/sizes differ) - "
-            "it is a different session; pass the correct --twin or drop it")
-
-
 def record_spills(tree: Tree) -> list:
     """Each 360 record's final word: it sits in the next record's header
     slot; the last record's in the word after the record area (unless that
@@ -613,8 +593,8 @@ def record_spills(tree: Tree) -> list:
 
 
 def convert_to_pc_record(rec, spill: bytes, report: ConversionReport) -> None:
-    """Convert one 360 record to its PC-framed form (in place). Shared by
-    the main loop and re-save twin recovery so both convert identically."""
+    """Convert one 360 record to its PC-framed form (in place). Used by
+    the main loop."""
     normalize_gameplay(rec, report.warnings)
     src = rec.payload
     if rec.id == GAMEPLAY_ID:
@@ -636,7 +616,7 @@ def convert_to_pc_record(rec, spill: bytes, report: ConversionReport) -> None:
     rehash_gameplay(rec)
 
 
-def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = None) -> Tree:
+def convert_tree(tree360: Tree, report: ConversionReport) -> Tree:
     if tree360.gap:
         report.warnings.append(
             f"{tree360.gap:#x} bytes of damaged noise inside the console record "
@@ -655,34 +635,9 @@ def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = No
     for rec, spill in zip(tree360.records, record_spills(tree360)):
         convert_to_pc_record(rec, spill, report)
         pc.records.append(rec)
-    if twin is not None:
-        # console tail damaged: rebuild the sequence in the twin's order,
-        # substituting the console records wherever the ids match, so the
-        # positional pairing keeps the loader's registration order
-        # trimmed only so validate_twin compares PC sizes; warnings come
-        # from convert_to_pc_record on the records actually recovered
-        for trec in twin.records:
-            normalize_gameplay(trec, [])
-        validate_twin(tree360, twin, report.warnings)
-        by_id = {r.id: r for r in pc.records}
-        merged = []
-        for trec, spill in zip(twin.records, record_spills(twin)):
-            if trec.id in by_id:
-                merged.append(by_id.pop(trec.id))
-            else:
-                convert_to_pc_record(trec, spill, report)
-                merged.append(trec)
-                report.warnings.append(
-                    f"record {CHUNK_NAMES.get(trec.id, hex(trec.id))} recovered from "
-                    "re-save twin (console copy damaged)")
-        if by_id:
-            left = ", ".join(hex(i) for i in by_id)
-            report.warnings.append(f"records absent from twin kept at end: {left}")
-            merged.extend(by_id.values())
-        pc.records = merged
-    elif tree360.gap and len(pc.records) < tree360.count:
+    if tree360.gap and len(pc.records) < tree360.count:
         report.warnings.append(
-            "console record region damaged with no twin available - missing chunks "
+            "console record region damaged - missing chunks "
             "convert as absent and the game fills defaults")
     pc.count = len(pc.records)
     # PC tree head: [allocator garbage (never read)][root record: id/used/flags=1]
@@ -705,17 +660,13 @@ def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = No
     return pc
 
 
-def convert_payload(mc02_be: MC02, report: ConversionReport | None = None,
-                    twin_payload: bytes | None = None) -> MC02:
+def convert_payload(mc02_be: MC02, report: ConversionReport | None = None) -> MC02:
     from .treehash import tree_hash
 
     report = report or ConversionReport()
     tree360 = Tree.parse(mc02_be.tree, big=True)
     report.kind = "alias" if len(mc02_be.extra) == 64 else "career"
-    twin = None
-    if twin_payload and report.kind == "career" and tree360.gap:
-        twin = Tree.parse(MC02.parse(twin_payload).tree, big=True)
-    pc_tree = convert_tree(tree360, report, twin)
+    pc_tree = convert_tree(tree360, report)
     report.records = len(pc_tree.records)
     tree_bytes = pc_tree.build(big=False, tree_size=mc02_be.tree_size)
     used = sum(12 + len(r.payload) for r in pc_tree.records)

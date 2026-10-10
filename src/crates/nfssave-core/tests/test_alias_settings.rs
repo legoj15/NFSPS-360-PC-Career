@@ -38,7 +38,7 @@ fn convert_alias() -> (Tree, Tree) {
     let mc02 = MC02::parse(&read_container(&src_path).unwrap().payload).unwrap();
     let src = Tree::parse(&mc02.tree, true).unwrap();
     let mut report = ConversionReport::default();
-    let pc = convert_payload(&mc02, Some(&mut report), None).unwrap();
+    let pc = convert_payload(&mc02, Some(&mut report)).unwrap();
     (src, Tree::parse(&pc.tree, false).unwrap())
 }
 

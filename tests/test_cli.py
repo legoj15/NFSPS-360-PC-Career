@@ -95,7 +95,7 @@ def test_cli_convert_backs_up_replaced_save(tmp_path, capsys):
     from nfssave import read_container
     name = read_container(PAIR_360).name
     old = _seed(out, name, b"previous career")
-    args = Namespace(out_root=str(out), dry_run=False, twin=None)
+    args = Namespace(out_root=str(out), dry_run=False)
     cli.convert_one(PAIR_360, args)
     backups = list((tmp_path / "SAVE" / lib.BACKUP_DIR).glob(f"*/{name}/{name}"))
     assert len(backups) == 1
@@ -110,7 +110,7 @@ def test_cli_dry_run_makes_no_backup(tmp_path):
     from nfssave import read_container
     name = read_container(PAIR_360).name
     _seed(out, name, b"previous career")
-    cli.convert_one(PAIR_360, Namespace(out_root=str(out), dry_run=True, twin=None))
+    cli.convert_one(PAIR_360, Namespace(out_root=str(out), dry_run=True))
     assert not (tmp_path / lib.BACKUP_DIR).exists()
 
 
@@ -120,7 +120,7 @@ def test_cli_dry_run_makes_no_backup(tmp_path):
 def test_batch_refuses_second_save_with_same_name(tmp_path):
     out = tmp_path / "out"
     claimed = {}
-    args = Namespace(out_root=str(out), dry_run=False, twin=None, backup_stamp="s")
+    args = Namespace(out_root=str(out), dry_run=False, backup_stamp="s")
     other = tmp_path / "G" / PAIR_360.name  # same STFS name, other stick
     other.parent.mkdir()
     other.write_bytes(PAIR_360.read_bytes())
@@ -355,7 +355,7 @@ def test_failed_save_does_not_claim_its_name(tmp_path, monkeypatch):
         return real(*a, **k)
     monkeypatch.setattr(cli, "convert_payload", flaky)
     claimed = {}
-    args = Namespace(out_root=str(tmp_path / "out"), dry_run=False, twin=None, backup_stamp="s")
+    args = Namespace(out_root=str(tmp_path / "out"), dry_run=False, backup_stamp="s")
     with pytest.raises(ValueError, match="boom"):
         cli.convert_one(PAIR_360, args, claimed)
     cli.convert_one(PAIR_360, args, claimed)

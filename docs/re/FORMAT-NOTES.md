@@ -80,15 +80,10 @@ post region: directory/hash table (360 alias: 475 cells [h1][h2][FFFFFFFF][0]);
 - Chunk names recovered via djb2 brute force: see nfssave/convert.py
   CHUNK_NAMES. Cross-platform chunks incl. CustomRaceDayMemcard
   (0xD548266C) and UnlockSystem (0xCA269650) — both 360 and PC write them.
-  CORRECTION of an earlier note: the console CAREER files' copies of these
-  two tail records are DAMAGED (uninitialized noise written after the tree
-  CRC was computed — proven by the recomp re-save twin at E:/GitHub/
-  NFSPS360/user_data/B13EBABEBABEBABE/..., which stores valid records 8-9
-  of the same session and parses 9/9 with all CRCs OK). The converter
-  recovers those records from the twin when available (CAREER_01 only —
-  no twins exist for CAREER_02/03, which ship without them; the game
-  fills defaults). PCControllerSettings (alias 0x39156567) remains
-  PC-only (absent from both 360 files AND the 360 twin).
+  (An earlier note called these two tail records damaged on the console;
+  that was a reader bug, see the 2026-10-04 late section.)
+  PCControllerSettings (alias 0x39156567) remains PC-only (absent from
+  the 360 files).
 - CORRECTED 2026-10-09: the 360 word read as a record's header "type" is
   NOT heap junk. Both platforms tile records as [id][size][body], body =
   [flag word (u8 + 3 junk)][nodes...][last data word]; the 360 writes
@@ -172,7 +167,7 @@ recomp.121/128/129 (magic lis 19779/ori 12338); collector sub_827BF770
    configs inferred; cosmetic only).
 
 ## 2026-10-04 late: tail "damage" was a reader bug
-Everything below about damaged console tails / re-save twins is SUPERSEDED:
+Everything below about damaged console tails is SUPERSEDED:
 the noise was STFS hash-table blocks read as payload. All careers parse
 9/9 with valid CRCs once the block map is honoured. Further findings
 (node flag words, u16 car part slots, open struct questions): ../HANDOFF.md.
@@ -181,7 +176,7 @@ the noise was STFS hash-table blocks read as payload. All careers parse
 
 The empirical-grammar note above (both platforms `[type][id][size]`) was
 wrong about the 360->PC emission. Actual layouts, proven by diffing a
-native PC file against the 360 twins and by in-game behavior:
+native PC file against the 360 files and by in-game behavior:
 
 - 360 record: `[junk/marker u32][id][size][payload = u32 0x01 marker +
   7-11B junk + entries]`, records from tree+0x48, root record at +0x40.
@@ -217,14 +212,11 @@ native PC file against the 360 twins and by in-game behavior:
 - Tree hash (16B at tree[0:0x10]): chained-MD5 x4 + RSA pow(M,E,N),
   E/N tables at VA 0x98CF88/0x98CF48 — computed on write, NEVER verified
   on load (0x5AABD0 is dead code). Implemented in nfssave/treehash.py.
-- 360 career tail damage: last 2 records (CustomRaceDayMemcard
-  0xD548266C, UnlockSystem 0xCA269650) overwritten with noise AFTER the
-  tree CRC was computed (console-side bug; CRCs are stale too).
-  Recovered for CAREER_01 from the NFSPS360 recomp twin
-  (user_data/B13EBABEBABEBABE/45410822/00000001/CAREER_01): records 8-9
-  valid, all CRCs OK, same session. CAREER_02/03 have no twin; they
-  convert without those 2 records (loader fills defaults for absent
-  trailing chunks).
+- 360 career tail "damage" (last 2 records, CustomRaceDayMemcard
+  0xD548266C and UnlockSystem 0xCA269650) was the STFS hash-block reader
+  bug (see above). A genuinely gapped tree converts without the missing
+  records (the loader fills defaults for absent trailing chunks) and the
+  converter warns.
 - Record ids are djb2(name) h=0xFFFFFFFF,h=h*33+c (e.g. 0x59F2D89B
   MEMCARD_ROOT, 0x3B309E09 career root). See CHUNK_NAMES in convert.py.
 

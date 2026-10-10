@@ -16,7 +16,6 @@
   Per-chunk rules come from fieldmaps.rules next to this script (generated from
   fieldmaps_parsed.json by nfssave.payload_rules.write_flat_rules). Missing
   file -> every chunk converts in auto mode, with a warning.
-  Not ported: the --twin re-save recovery path.
 
   Inputs (positional): files and/or folders. A file is converted as given. A
   folder is walked recursively; CAREER_* / ALIAS_* files whose first 4 bytes
@@ -1146,7 +1145,7 @@ namespace NfsPs
             return ChunkNames.TryGetValue(id, out n) ? n : Hex(id);
         }
 
-        // convert_tree (no --twin path)
+        // convert_tree
         static Tree ConvertTree(Tree t, SaveResult rep, Dictionary<string, Rule> rules)
         {
             if (t.Gap > 0)
@@ -1196,7 +1195,7 @@ namespace NfsPs
                 pc.Records.Add(rec);
             }
             if (t.Gap > 0 && pc.Records.Count < (long)t.Count)
-                rep.Warnings.Add("console record region damaged with no twin available - missing chunks "
+                rep.Warnings.Add("console record region damaged - missing chunks "
                     + "convert as absent and the game fills defaults");
             pc.Count = (uint)pc.Records.Count;
             // PC tree head: [allocator garbage][root record: magic/used/flags=1]

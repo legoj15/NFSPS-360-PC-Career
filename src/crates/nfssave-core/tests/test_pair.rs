@@ -36,7 +36,7 @@ fn pair() -> Option<&'static (RecMap, RecMap)> {
         }
         let mc = MC02::parse(&read_container(&p360).unwrap().payload).unwrap();
         let mut report = ConversionReport::default();
-        let conv = convert_payload(&mc, Some(&mut report), None).unwrap();
+        let conv = convert_payload(&mc, Some(&mut report)).unwrap();
         let conv = records(&Tree::parse(&conv.tree, false).unwrap());
         let native = records(
             &Tree::parse(&MC02::parse(&fs::read(&ppc).unwrap()).unwrap().tree, false).unwrap(),

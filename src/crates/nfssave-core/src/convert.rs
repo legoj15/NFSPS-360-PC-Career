@@ -15,7 +15,6 @@
 //! Chunk ids are djb2(name) hashes (h=-1; h=h*33+c), identical across
 //! platforms — see [`chunk_name`].
 
-use std::collections::HashMap;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -827,39 +826,6 @@ pub fn tail_word(rec_id: u32, src: &[u8], spill: &[u8]) -> [u8; 4] {
     }
 }
 
-/// Reject a re-save twin that is not the same career session.
-///
-/// Verified on the real pair: the correct twin shares the source's record
-/// id sequence and every overlapping record's payload size (payload bytes
-/// themselves differ - volatile junk words/timestamps). A different day's
-/// save diverges in sizes and/or sequence.
-pub fn validate_twin(src: &Tree, twin: &Tree) -> Result<()> {
-    if twin.gap != 0 {
-        return Err(format_err(format!(
-            "twin file has a damaged record tail ({:#x} B) - it cannot be used for recovery",
-            twin.gap
-        )));
-    }
-    let src_ids: Vec<(u32, usize)> = src
-        .records
-        .iter()
-        .map(|r| (r.id, r.payload.len()))
-        .collect();
-    let twin_ids: Vec<(u32, usize)> = twin
-        .records
-        .iter()
-        .take(src.records.len())
-        .map(|r| (r.id, r.payload.len()))
-        .collect();
-    if src_ids != twin_ids {
-        return Err(format_err(
-            "twin does not match the source career (record ids/sizes differ) - \
-             it is a different session; pass the correct --twin or drop it",
-        ));
-    }
-    Ok(())
-}
-
 /// Each 360 record's final word: it sits in the next record's header slot;
 /// the last record's in the word after the record area (unless that is
 /// noise).
@@ -879,7 +845,7 @@ fn record_spills(tree: &Tree) -> Vec<Vec<u8>> {
 }
 
 /// Convert one 360 record to its PC-framed form (in place). Shared by the
-/// main loop and re-save twin recovery so both convert identically.
+/// main loop.
 fn convert_to_pc_record(
     rec: &mut Record,
     spill: &[u8],
@@ -928,11 +894,7 @@ fn convert_to_pc_record(
     Ok(())
 }
 
-pub fn convert_tree(
-    tree360: &mut Tree,
-    report: &mut ConversionReport,
-    mut twin: Option<Tree>,
-) -> Result<Tree> {
+pub fn convert_tree(tree360: &mut Tree, report: &mut ConversionReport) -> Result<Tree> {
     if tree360.gap != 0 {
         report.warnings.push(format!(
             "{:#x} bytes of damaged noise inside the console record region \
@@ -965,63 +927,9 @@ pub fn convert_tree(
         convert_to_pc_record(rec, &spill, &kind, &mut report.warnings)?;
         pc.records.push(rec.clone());
     }
-    if let Some(ref mut twin) = twin {
-        // console tail damaged: rebuild the sequence in the twin's order,
-        // substituting the console records wherever the ids match, so the
-        // positional pairing keeps the loader's registration order
-        // trimmed only so validate_twin compares PC sizes; warnings come
-        // from convert_to_pc_record on the records actually recovered
-        for trec in twin.records.iter_mut() {
-            normalize_gameplay(trec, &mut Vec::new());
-        }
-        validate_twin(tree360, twin)?;
-        // Python: by_id = {r.id: r for r in pc.records} — duplicate ids
-        // collapse last-wins, and `order` keeps the dict's first-occurrence
-        // iteration order for the leftovers appended below.
-        let mut by_id: HashMap<u32, Record> = HashMap::new();
-        let mut order: Vec<u32> = Vec::new();
-        for r in std::mem::take(&mut pc.records) {
-            let id = r.id;
-            if by_id.insert(id, r).is_none() {
-                order.push(id);
-            }
-        }
-        let mut merged: Vec<Record> = Vec::new();
-        let twin_spills = record_spills(twin);
-        for (mut trec, spill) in std::mem::take(&mut twin.records)
-            .into_iter()
-            .zip(twin_spills)
-        {
-            if let Some(pcrec) = by_id.remove(&trec.id) {
-                merged.push(pcrec);
-            } else {
-                let id = trec.id;
-                convert_to_pc_record(&mut trec, &spill, &kind, &mut report.warnings)?;
-                report.warnings.push(format!(
-                    "record {} recovered from re-save twin (console copy damaged)",
-                    chunk_name(id)
-                ));
-                merged.push(trec);
-            }
-        }
-        if !by_id.is_empty() {
-            // remaining console records (ids absent from the twin) keep their
-            // first-occurrence order at the end, one entry per id
-            let remaining: Vec<Record> = order.iter().filter_map(|id| by_id.remove(id)).collect();
-            let left = remaining
-                .iter()
-                .map(|r| format!("{:#x}", r.id))
-                .collect::<Vec<_>>()
-                .join(", ");
-            report
-                .warnings
-                .push(format!("records absent from twin kept at end: {left}"));
-            merged.extend(remaining);
-        }
-        pc.records = merged;
-    } else if tree360.gap != 0 && pc.records.len() < tree360.count as usize {
+    if tree360.gap != 0 && pc.records.len() < tree360.count as usize {
         report.warnings.push(
-            "console record region damaged with no twin available - missing chunks \
+            "console record region damaged - missing chunks \
              convert as absent and the game fills defaults"
                 .to_string(),
         );
@@ -1064,14 +972,7 @@ pub fn convert_tree(
 }
 
 /// Full payload conversion: BE MC02 -> LE MC02 (see [`convert_tree`]).
-///
-/// `twin_payload` is a re-save MC02 (or CON-wrapped, see [`load_twin`])
-/// used for tail recovery when the console record region is damaged.
-pub fn convert_payload(
-    mc02_be: &MC02,
-    report: Option<&mut ConversionReport>,
-    twin_payload: Option<&[u8]>,
-) -> Result<MC02> {
+pub fn convert_payload(mc02_be: &MC02, report: Option<&mut ConversionReport>) -> Result<MC02> {
     let mut scratch = ConversionReport {
         kind: "career".into(),
         ..Default::default()
@@ -1086,16 +987,7 @@ pub fn convert_payload(
     } else {
         "career".into()
     };
-    let mut twin = None;
-    // Python: `if twin_payload and ...` — an EMPTY twin slice is falsy and
-    // means "no twin"; it must not fail the conversion with a parse error.
-    if let Some(tp) = twin_payload.filter(|tp| !tp.is_empty())
-        && report.kind == "career"
-        && tree360.gap != 0
-    {
-        twin = Some(Tree::parse(&MC02::parse(tp)?.tree, true)?);
-    }
-    let pc_tree = convert_tree(&mut tree360, report, twin)?;
+    let pc_tree = convert_tree(&mut tree360, report)?;
     report.records = pc_tree.records.len();
     let tree_size = mc02_be.tree_size as usize;
     let mut tree_bytes = pc_tree.build(false, tree_size)?;
@@ -1125,15 +1017,6 @@ pub fn convert_payload(
         tree_bytes,
         mc02_be.tree_size,
     ))
-}
-
-/// Accept either a raw MC02 re-save or one still inside its CON wrapper.
-pub fn load_twin(data: &[u8]) -> Result<Vec<u8>> {
-    if data.starts_with(b"CON ") {
-        Ok(parse_container(data, "twin")?.payload)
-    } else {
-        Ok(data.to_vec())
-    }
 }
 
 /// Write a converted save to the PC save layout `<save_root>/<name>/<name>`.
@@ -1183,12 +1066,7 @@ pub struct ConvertOutcome {
 /// 360 CON container bytes -> payload -> MC02 parse -> validate (refuse on
 /// extra-blob CRC mismatch) -> convert to PC payload -> write
 /// `<out_root>/<NAME>/<NAME>` -> re-parse the written file and self-check.
-pub fn convert_one(
-    src_bytes: &[u8],
-    label: &str,
-    out_root: &Path,
-    twin: Option<&[u8]>,
-) -> Result<ConvertOutcome> {
+pub fn convert_one(src_bytes: &[u8], label: &str, out_root: &Path) -> Result<ConvertOutcome> {
     let cont = parse_container(src_bytes, label)?;
     let mc02 = MC02::parse(&cont.payload)?;
     let bad = mc02.check();
@@ -1207,7 +1085,7 @@ pub fn convert_one(
             .warnings
             .push(format!("{prob} (CRCs are recomputed on write)"));
     }
-    let pc = convert_payload(&mc02, Some(&mut report), twin)?;
+    let pc = convert_payload(&mc02, Some(&mut report))?;
     let target = write_pc_save(&pc, &cont.name, out_root)?;
     let self_check = MC02::parse(&fs::read(&target)?)?.check();
     Ok(ConvertOutcome {

@@ -81,7 +81,7 @@ fn convert(src: &Path, out_root: &Path) -> PathBuf {
         source: src.display().to_string(),
         ..Default::default()
     };
-    let pc = convert_payload(&mc02, Some(&mut report), None).unwrap();
+    let pc = convert_payload(&mc02, Some(&mut report)).unwrap();
     let name = src.file_name().unwrap().to_str().unwrap();
     write_pc_save(&pc, name, out_root).unwrap()
 }

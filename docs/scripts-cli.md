@@ -60,4 +60,4 @@ decision, 2026-10-06).
 ## Unchanged
 
 `--dry-run` / `-DryRun`, duplicate-name refusal within one run, exit codes
-(0 ok, 1 any source failed, 2 usage), Python-only `--twin`.
+(0 ok, 1 any source failed, 2 usage).

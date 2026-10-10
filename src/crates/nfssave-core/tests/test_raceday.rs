@@ -43,7 +43,7 @@ fn gp(tree: &Tree, id: u32) -> Vec<u8> {
 fn conv_tree(src: &std::path::Path) -> Tree {
     let mc02 = MC02::parse(&read_container(src).unwrap().payload).unwrap();
     let mut report = ConversionReport::default();
-    let pc = convert_payload(&mc02, Some(&mut report), None).unwrap();
+    let pc = convert_payload(&mc02, Some(&mut report)).unwrap();
     Tree::parse(&pc.tree, false).unwrap()
 }
 

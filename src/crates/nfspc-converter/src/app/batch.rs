@@ -314,7 +314,7 @@ fn convert_input(
     out_root: &Path,
 ) -> Result<(usize, Vec<String>, PathBuf), Error> {
     if is_con_bytes(&input.bytes) {
-        let outcome = convert_one(&input.bytes, &input.label, out_root, None)?;
+        let outcome = convert_one(&input.bytes, &input.label, out_root)?;
         let mut warnings = outcome.report.warnings;
         for prob in &outcome.self_check {
             warnings.push(format!("post-write self-check: {prob}"));
@@ -349,7 +349,7 @@ fn convert_raw_mc02(
             .warnings
             .push(format!("{prob} (CRCs are recomputed on write)"));
     }
-    let pc = convert_payload(&mc02, Some(&mut report), None)?;
+    let pc = convert_payload(&mc02, Some(&mut report))?;
     let target = write_pc_save(&pc, &input.name, out_root)?;
     let self_check = MC02::parse(&fs::read(&target)?)?.check();
     for prob in &self_check {

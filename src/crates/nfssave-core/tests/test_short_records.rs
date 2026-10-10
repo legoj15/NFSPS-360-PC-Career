@@ -52,7 +52,7 @@ fn craft(rec_id: u32, payload: &[u8]) -> Vec<u8> {
 }
 
 fn convert_crafted(data: &[u8]) -> nfssave_core::Result<MC02> {
-    convert_payload(&MC02::parse(data).unwrap(), None, None)
+    convert_payload(&MC02::parse(data).unwrap(), None)
 }
 
 /// F1: a word-quantized string run whose rounded-up end exceeds a
