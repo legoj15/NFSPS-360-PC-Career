@@ -171,9 +171,13 @@
   observed: the game's own re-save trims VideoSettings to 0x74 (so the PC
   accepts both lengths). Game-saved copy: scratchpad ti_saved.
 - 360 RESULT (23:00): user flipped turn indicators On on the 360 and
-  re-saved -> NO value changed in the alias or CAREER_01 (only stats churn
-  and junk pads). The 360 keeps that option outside the save (likely the
-  gamer profile): not convertible; users set it once on PC. CLOSED.
+  re-saved -> no value changed (that save did not carry the change).
+  CORRECTED 23:20: after a few more 360 saves (+ leaderboard On) the alias
+  shows PlayerSettings0 node 31 (0x1F0) 0->1 and node 32 (0x200) 1->0, and
+  the converted save shows leaderboard On / turn indicators Off in-game.
+  So both platforms store them identically (node 31 = leaderboard, node 32
+  = turn indicators, 1 = On); the original 360 save really held turn
+  indicators On. NOT a converter bug. CLOSED.
   Side find, FIXED: on-chain one-byte nodes can carry 360 heap junk in their
   pad (01 00 13 10) and flag (00001b10) bytes; the old rule (pad must be 0)
   u32-swapped them (PC read 0x10 / 0x5d). fix_node_flags now keeps the first

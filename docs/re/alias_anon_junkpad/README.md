@@ -16,5 +16,6 @@ nodes carry 360 heap junk in their pad bytes (and once in the flag word):
 The value is the first byte; the pad is junk. The old rule (pad must be zero)
 u32-swapped these, so the PC read 0x10 / 0x5d.
 
-Also learned from it: turning "Turn indicators" On changed no value in the
-360 alias or career - the 360 keeps that option outside the save files.
+This particular save did not yet carry the "Turn indicators" change; later
+360 saves did (PlayerSettings0 node 32 at PC 0x200, 1 = On, same as on PC;
+node 31 = leaderboard). See docs/HANDOFF.md.
