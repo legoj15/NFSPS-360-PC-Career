@@ -426,3 +426,51 @@ fn backup_failure_refuses_cleanly_and_keeps_the_original() {
     }
     assert_eq!(fs::read(&existing).unwrap(), b"native PC career");
 }
+
+/// The fixture with its STFS file-table name rewritten to `bad` (same length,
+/// so the container still parses).
+fn fixture_with_name(bad: &str) -> Vec<u8> {
+    let mut bytes = fixture_bytes();
+    let old = parse_container(&bytes, "fixture").unwrap().name;
+    assert_eq!(bad.len(), old.len());
+    let mut needle = old.as_bytes().to_vec();
+    needle.push(0);
+    let at = bytes
+        .windows(needle.len())
+        .position(|w| w == needle.as_slice())
+        .expect("STFS name in fixture");
+    bytes[at..at + bad.len()].copy_from_slice(bad.as_bytes());
+    assert_eq!(parse_container(&bytes, "bad").unwrap().name, bad);
+    bytes
+}
+
+/// An unsafe container name is refused before anything touches disk: no
+/// backup folder, nothing under the output root.
+#[test]
+fn unsafe_container_name_is_refused_without_backup_or_output() {
+    let len = parse_container(&fixture_bytes(), "fixture")
+        .unwrap()
+        .name
+        .len();
+    for bad in ["/".repeat(len), ".".repeat(len)] {
+        let tmp = TempDir::new().unwrap();
+        let out = tmp.path().join("NFS ProStreet");
+        let input = SaveInput {
+            label: "BAD".into(),
+            name: "BAD".into(),
+            bytes: fixture_with_name(&bad),
+        };
+        let batch = run_batch(vec![input], &out);
+        match &batch.results[0].status {
+            SaveStatus::Refused { reason } => {
+                assert!(
+                    reason.contains(&format!("unsafe save name '{bad}'")),
+                    "{reason}"
+                );
+            }
+            other => panic!("expected refusal, got {other:?}"),
+        }
+        assert!(!tmp.path().join("SaveConverter backups").exists());
+        assert!(fs::read_dir(&out).unwrap().next().is_none());
+    }
+}

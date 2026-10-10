@@ -27,8 +27,13 @@ implement the same command line. Behaviour changes go in both, with tests in
   converted (or passed a dry run) claims its name, so a failed save never
   blocks a later good one with the same name.
 - Dry run = the same exit code and refusals as a real run, minus the writing:
-  an unsafe STFS save name (empty, `.`, `..`, or containing `\`, `/`, `:`)
-  fails with `unsafe save name '<name>'` and exit 1 in both modes.
+  an unsafe STFS save name (empty, `.`, `..`, containing `\`, `/`, `:`, or
+  empty once trailing dots and spaces are stripped, e.g. `...`) fails with
+  `unsafe save name '<name>'` and exit 1 in both modes. The same rule and
+  message apply in the Python, PowerShell and Rust ports, checked in the same
+  order per save: name, then duplicate name in the batch, then corruption
+  (extra-blob CRC), then backup and conversion. An unsafe name never causes
+  a backup.
 
 ## Output folder
 

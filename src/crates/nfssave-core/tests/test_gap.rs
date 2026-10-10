@@ -19,7 +19,7 @@ fn md5(b: &[u8]) -> String {
 
 #[test]
 fn gapped_career_converts_with_gap_warning_matching_python() {
-    let (gapped, _) = common::build_gapped(false, None);
+    let (gapped, _) = common::build_gapped(None);
     assert_eq!(
         md5(&gapped),
         "c57cfaefded23cd1d2b3ed9c01b296aa",
@@ -50,7 +50,7 @@ fn gapped_career_converts_with_gap_warning_matching_python() {
 #[test]
 fn internal_gap_keeps_spills_after_the_damage_matching_python() {
     let post_word = [0, 0, 0, 7];
-    let (gapped, pristine) = common::build_gapped_ex(false, Some(7), Some(1), Some(post_word));
+    let (gapped, pristine) = common::build_gapped_ex(Some(7), Some(1), Some(post_word));
     assert_eq!(
         md5(&gapped),
         "bacda5eeb061896b540221dc26fb8aa8",

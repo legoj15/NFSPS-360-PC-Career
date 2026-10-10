@@ -1026,6 +1026,21 @@ pub fn convert_payload(mc02_be: &MC02, report: Option<&mut ConversionReport>) ->
     ))
 }
 
+/// Refuse a save name that cannot be a plain folder name. Windows drops
+/// trailing dots/spaces, so "..." or "  " would collapse onto the output
+/// root itself. Same rule and message as the Python and PowerShell ports.
+pub fn check_save_name(name: &str) -> Result<()> {
+    if name.is_empty()
+        || name.contains(['\\', '/', ':'])
+        || name == "."
+        || name == ".."
+        || name.trim_end_matches(['.', ' ']).is_empty()
+    {
+        return Err(format_err(format!("unsafe save name '{name}'")));
+    }
+    Ok(())
+}
+
 /// Write a converted save to the PC save layout `<save_root>/<name>/<name>`.
 ///
 /// The bytes land in `<target>.tmp` first and are renamed over the target,
@@ -1035,9 +1050,7 @@ pub fn convert_payload(mc02_be: &MC02, report: Option<&mut ConversionReport>) ->
 /// `std::fs::rename` refuses to replace an existing file on Windows, so an
 /// existing target is removed first (a brief non-atomic gap).
 pub fn write_pc_save(mc02_pc: &MC02, name: &str, save_root: &Path) -> Result<PathBuf> {
-    if name.is_empty() || name.contains(['\\', '/', ':']) || name == "." || name == ".." {
-        return Err(format_err(format!("unsafe save name {name:?}")));
-    }
+    check_save_name(name)?;
     let folder = save_root.join(name);
     fs::create_dir_all(&folder)?;
     let target = folder.join(name);

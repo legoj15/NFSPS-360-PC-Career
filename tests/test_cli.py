@@ -434,3 +434,27 @@ def test_unsafe_save_name_fails_the_same_in_dry_run(tmp_path, monkeypatch, capsy
     assert _run(monkeypatch, *argv) == 1
     assert "unsafe save name 'CAREER/02'" in capsys.readouterr().err
     assert not out.exists() or not any(out.iterdir())
+    assert not list(tmp_path.rglob("SaveConverter backups"))
+
+
+@pytest.mark.parametrize("bad", ["", "...", "  ", ". .", ".", "..", "a/b", "a\\b", "C:x"])
+def test_check_save_name_refuses_unsafe(bad):
+    with pytest.raises(ValueError, match=re.escape(f"unsafe save name '{bad}'")):
+        lib.check_save_name(bad)
+
+
+@pytest.mark.parametrize("good", ["CAREER_01", "A.", "a b", ".x"])
+def test_check_save_name_accepts_plain_names(good):
+    lib.check_save_name(good)
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+@pytest.mark.parametrize("dry", [False, True])
+def test_dots_only_name_is_refused_before_anything_else(tmp_path, monkeypatch, capsys, dry):
+    src = _unsafe_name_save(tmp_path / "in" / "bad", bad="." * 9)
+    out = tmp_path / "out"
+    argv = [src, "--out-root", out] + (["--dry-run"] if dry else [])
+    assert _run(monkeypatch, *argv) == 1
+    assert f"unsafe save name '{'.' * 9}'" in capsys.readouterr().err
+    assert not out.exists() or not any(out.iterdir())
+    assert not list(tmp_path.rglob("SaveConverter backups"))

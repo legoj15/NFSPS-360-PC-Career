@@ -59,12 +59,11 @@ impl Drop for TempDir {
 pub const GAP_SRC: &str = "docs/re/c1_latest/CAREER_01_360";
 
 /// `(gapped, pristine)` MC02 payloads built from the tracked oracle: the
-/// pristine one is a clean rebuild of the (optionally last-record
-/// duplicated) tree; the gapped one has every record from index
+/// pristine one is a clean rebuild of the tree; the gapped one has every record from index
 /// `first_damaged` (default: the last) overwritten with 0xAA noise, so its
 /// tree parses with a trailing `gap` (the console's record-tail damage).
-pub fn build_gapped(duplicate_last: bool, first_damaged: Option<usize>) -> (Vec<u8>, Vec<u8>) {
-    build_gapped_ex(duplicate_last, first_damaged, None, None)
+pub fn build_gapped(first_damaged: Option<usize>) -> (Vec<u8>, Vec<u8>) {
+    build_gapped_ex(first_damaged, None, None)
 }
 
 /// [`build_gapped`] with the knobs for an internal gap: only `damaged_count`
@@ -73,7 +72,6 @@ pub fn build_gapped(duplicate_last: bool, first_damaged: Option<usize>) -> (Vec<
 /// replaces the (all-zero) word after the record area in both outputs, which
 /// makes the last record's post spill observable.
 pub fn build_gapped_ex(
-    duplicate_last: bool,
     first_damaged: Option<usize>,
     damaged_count: Option<usize>,
     post_word: Option<[u8; 4]>,
@@ -84,10 +82,6 @@ pub fn build_gapped_ex(
 
     let mc02 = MC02::parse(&read_container(repo_root().join(GAP_SRC)).unwrap().payload).unwrap();
     let mut tree = Tree::parse(&mc02.tree, true).unwrap();
-    if duplicate_last {
-        let dup = tree.records[tree.records.len() - 1].clone();
-        tree.records.insert(tree.records.len() - 1, dup);
-    }
     if let Some(w) = post_word {
         tree.post[..4].copy_from_slice(&w);
     }

@@ -140,6 +140,40 @@ try {
         $wroteNothing = -not (Test-Path -LiteralPath $badOut) -or @(Get-ChildItem -Recurse -File $badOut).Count -eq 0
         if ($rd.Code -eq 1 -and $rr.Code -eq 1 -and $refused -and $wroteNothing) { Pass 'unsafe name: dry run and real run both refuse' }
         else { Fail 'unsafe name: dry run and real run both refuse' "dry exit $($rd.Code), real exit $($rr.Code), refused=$refused, wroteNothing=$wroteNothing" }
+
+        # --- precedence (name, then duplicate, then corruption): an unsafe-named
+        #     save that is also extra-CRC-corrupt reports the name, like Python
+        $mc = -1
+        for ($i = 0; $i -le $badBytes.Length - 4 -and $mc -lt 0; $i++) {
+            if ($badBytes[$i] -eq 0x4D -and $badBytes[$i + 1] -eq 0x43 -and $badBytes[$i + 2] -eq 0x30 -and $badBytes[$i + 3] -eq 0x32) { $mc = $i }
+        }
+        if ($mc -lt 0) { Fail 'unsafe name beats corruption' 'MC02 payload not found in fixture' }
+        else {
+            $both = [byte[]]$badBytes.Clone()
+            $both[$mc + 0x1C + 2] = $both[$mc + 0x1C + 2] -bxor 0xFF
+            $bothSrc = Join-Path $badDir 'both'
+            [System.IO.File]::WriteAllBytes($bothSrc, $both)
+            $rb = Invoke-Converter @($bothSrc, '-OutRoot', $badOut)
+            # control: the same corruption with a safe name does report the CRC
+            $ok = [byte[]]$both.Clone()
+            $ok[$at + 6] = [byte][char]'_'
+            $okSrc = Join-Path $badDir 'corrupt'
+            [System.IO.File]::WriteAllBytes($okSrc, $ok)
+            $rc = Invoke-Converter @($okSrc, '-OutRoot', $badOut)
+            if ($rb.Code -eq 1 -and $rb.Text -match "unsafe save name 'CAREER/02'" -and $rb.Text -notmatch 'extra-blob CRC' -and $rc.Text -match 'extra-blob CRC') { Pass 'unsafe name beats corruption' }
+            else { Fail 'unsafe name beats corruption' "exit $($rb.Code): $($rb.Text) | control: $($rc.Text)" }
+        }
+
+        # --- a name that is only dots (Windows drops them -> the output root) is unsafe
+        $dots = [byte[]]$badBytes.Clone()
+        for ($k = 0; $k -lt 9; $k++) { $dots[$at + $k] = [byte][char]'.' }
+        $dotsSrc = Join-Path $badDir 'dots'
+        [System.IO.File]::WriteAllBytes($dotsSrc, $dots)
+        $rdd = Invoke-Converter @($dotsSrc, '-OutRoot', $badOut, '-DryRun')
+        $rdr = Invoke-Converter @($dotsSrc, '-OutRoot', $badOut)
+        $wroteNothing = -not (Test-Path -LiteralPath $badOut) -or @(Get-ChildItem -Recurse -File $badOut).Count -eq 0
+        if ($rdd.Code -eq 1 -and $rdr.Code -eq 1 -and $rdd.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $rdr.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $wroteNothing) { Pass 'dots-only name refused' }
+        else { Fail 'dots-only name refused' "dry $($rdd.Code), real $($rdr.Code), wroteNothing=$wroteNothing" }
     }
 
     # --- existing save is backed up before it is replaced (exe convention:

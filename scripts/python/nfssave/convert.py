@@ -691,8 +691,11 @@ def convert_payload(mc02_be: MC02, report: ConversionReport | None = None) -> MC
 def check_save_name(name: str) -> None:
     """Refuse a save name that cannot be a plain folder name. Shared by the
     real write and the dry run, so both report the same refusal."""
-    if not name or any(c in name for c in "\\/:") or name in (".", ".."):
-        raise ValueError(f"unsafe save name {name!r}")
+    # Windows drops trailing dots/spaces, so "..." or "  " would collapse onto
+    # the output root itself.
+    if (not name or any(c in name for c in "\\/:") or name in (".", "..")
+            or not name.rstrip(". ")):
+        raise ValueError(f"unsafe save name '{name}'")
 
 
 def write_pc_save(mc02_pc: MC02, name: str, save_root: str) -> Path:

@@ -1318,23 +1318,23 @@ function Backup-Existing([string]$root, [string]$base, [string]$name, [string]$s
     return $dest
 }
 
+# convert.py check_save_name: a name that cannot be a plain folder name. Windows
+# drops trailing dots/spaces, so "..." or "  " would collapse onto the output root.
+function Test-SaveName([string]$name) {
+    if (-not $name -or $name.IndexOfAny([char[]]'\/:') -ge 0 -or $name -eq '.' -or $name -eq '..' -or -not $name.TrimEnd('.', ' ')) {
+        throw "unsafe save name '$name'"
+    }
+}
+
 # convert.py convert_one; throws on failure (nothing is written before the output is complete)
 function Convert-One([string]$path, $rules, [string]$outRoot, [string]$backupBase, [string]$stamp, [hashtable]$claimed) {
     $leaf = Split-Path -Leaf $path
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "$path : source file not found" }
     $data = [System.IO.File]::ReadAllBytes($path)
     $cont = [NfsPs.Save]::ParseContainer($data, $path)
-    $bad = [NfsPs.Save]::CheckMc02($cont.Payload)
-    if ($bad -contains 'extra CRC mismatch') {
-        throw "${leaf}: extra-blob CRC mismatch - the source file is corrupted; refusing to convert"
-    }
-    foreach ($prob in $bad) { Write-Host "! ${leaf}: $prob (CRCs are recomputed on write)" }
-
-    # write_pc_save: unsafe-name check
+    # Order matches convert.py: name, then same-name-in-batch, then corruption.
     $name = $cont.Name
-    if (-not $name -or $name.IndexOfAny([char[]]'\/:') -ge 0 -or $name -eq '.' -or $name -eq '..') {
-        throw "unsafe save name '$name'"
-    }
+    Test-SaveName $name
     # exe batch.rs: two saves in one run must not export to the same folder
     # (key = the name Windows creates: case-insensitive, trailing dots/spaces dropped)
     $key = $name.TrimEnd('.', ' ').ToLowerInvariant()
@@ -1342,6 +1342,12 @@ function Convert-One([string]$path, $rules, [string]$outRoot, [string]$backupBas
         throw "another selected save ($($claimed[$key])) is also named $name; converting both would overwrite it - convert it separately"
     }
     # only a converted save claims its name (exe batch.rs; set at both exits below)
+
+    $bad = [NfsPs.Save]::CheckMc02($cont.Payload)
+    if ($bad -contains 'extra CRC mismatch') {
+        throw "${leaf}: extra-blob CRC mismatch - the source file is corrupted; refusing to convert"
+    }
+    foreach ($prob in $bad) { Write-Host "! ${leaf}: $prob (CRCs are recomputed on write)" }
 
     $res = [NfsPs.Save]::ConvertSave($cont.Payload, $rules)
     [Array]::Copy((Get-TreeHash $res.Tree), 0, $res.Tree, 0, 16)

@@ -10,7 +10,9 @@ use std::path::{Path, PathBuf, absolute};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use fatx::DiscoveredSave;
-use nfssave_core::convert::{ConversionReport, convert_one, convert_payload, write_pc_save};
+use nfssave_core::convert::{
+    ConversionReport, check_save_name, convert_one, convert_payload, write_pc_save,
+};
 use nfssave_core::{Error, MC02, parse_container};
 
 use super::sources::{is_con_bytes, is_mc02_bytes};
@@ -227,6 +229,17 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
     for input in inputs {
         // Guard and backup key on the name the converter will write.
         let name = export_name(&input);
+        // Name first (before the duplicate check and any backup), like the
+        // Python and PowerShell ports.
+        if let Err(e) = check_save_name(&name) {
+            results.push(SaveResult {
+                status: SaveStatus::Refused {
+                    reason: e.to_string(),
+                },
+                label: input.label,
+            });
+            continue;
+        }
         if let Some(owner) = claimed.get(&windows_name_key(&name)) {
             results.push(SaveResult {
                 status: SaveStatus::Refused {
