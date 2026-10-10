@@ -33,6 +33,15 @@
   moved (Extracted 5d8ab470..., anon e2b29e6e...). py 76, cargo all, PS 44.
 - Still NOT verified in-game: HUD speed gauge / options on the merged alias.
 - Delegation log: none (orchestrator merge, serial).
+- Follow-up (same evening): user saw "too many aliases" + a CAREER_ª. The
+  strays (ALIAS_Player, CAREER_ª) were written 20:45, BEFORE the merged
+  build: the game ran on the branch-only alias (no used-size fix from
+  dc305ef) and fell back to a default profile. The 20:51 merged outputs
+  hash to the goldens; alias extra used = tree used (0x31D0), record
+  layout matches the native ALIAS_Player except PCControllerSettings
+  (size 0, as in main). Strays moved to SAVE/SaveConverter backups/
+  2026-10-09_strays2/. Idea: converter could warn when the target folder
+  already holds another ALIAS_* or a CAREER_ with a non-ASCII name.
 
 ## 2026-10-09 — PS short-record clamping (GLM review follow-up)
 - Convert-NfsSave.ps1 C#: FixCarDbParts / FixBlueprintSet / ConvertDecal now
