@@ -129,6 +129,17 @@
   node 31 (0x1F0) went 0->1 (leaderboard the user turned on) and node 32
   (0x200) 1->0 - asked the user whether they turned turn indicators off; if
   so node 32 has inverted meaning or a different option order on 360.
+- TURN INDICATORS (22:56): fresh conversion loads with turn indicators On.
+  User toggled only that option Off in-game; game re-save diff (data words,
+  flag junk ignored) = PlayerSettings0 PC offset 0x200 (node 32) 01 -> 00.
+  So PC node 32 = turn indicators, 1 = On. The 360 holds 1 there but shows
+  Off; neighbours (nodes 29-33 = 1,1,0,1,1; 360 UI minimap On, best line
+  On, turn Off, leaderboard Off; PC node 31 = leaderboard) fit no simple
+  order. Pending 360-side experiment: user flips turn indicators On on the
+  360, re-copies the alias to USB -> diff 360 aliases: node 32 changes ->
+  invert on convert; another node -> option order differs, remap. Also
+  observed: the game's own re-save trims VideoSettings to 0x74 (so the PC
+  accepts both lengths). Game-saved copy: scratchpad ti_saved.
 - Final check installed (22:4x): pure converter output for all four files
   (alias a5a24e0f, C01 5b7d3fcb with the real RaceData fix, C02 ec77c930,
   C03 77e5b3e9). Test-6 files in backups/2026-10-09_test6.
