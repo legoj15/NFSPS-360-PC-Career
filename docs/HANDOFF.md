@@ -684,3 +684,5 @@ Delegation log: no agents spawned this session (all orchestrator work).
   for it is no longer used.
 - Installed: CAREER_01 = latest 360 copy (docs/re/c1_latest), CAREER_02 =
   converted raceday, CAREER_03. Awaiting in-game test.
+
+- 2026-10-09: released v1.1.0 (tag v1.1.0, exe from dist/) with the in-game save-corruption fixes.
