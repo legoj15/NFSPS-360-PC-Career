@@ -552,7 +552,7 @@ try {
             if ((& $rd $out ($t0 + $o + 4)) -eq $recId) { for ($k = 0; $k -lt 12 + $size; $k++) { $out[$t0 + $o + $k] = 0xAA } }
             $o += 12 + $size
         }
-        [Array]::Copy($postWord, 0, $out, $t0 + $end, 4)
+        if ($postWord) { [Array]::Copy($postWord, 0, $out, $t0 + $end, 4) }
         & $wr $out 0x14 ([uint32]$crcM.Invoke($null, [object[]]@($out, $t0, $treeSize)))
         & $wr $out 0x18 ([uint32]$crcM.Invoke($null, [object[]]@($out, 0, 0x18)))
         , $out
@@ -565,6 +565,17 @@ try {
         try { $got = Get-BytesMd5 (Convert-Mc02 $ig) } catch { $got = "threw: $($_.Exception.Message)" }
         if ($got -eq '743068fdd49685367041faa4df7c3903') { Pass 'internal-gap career converts like Python' }
         else { Fail 'internal-gap career converts like Python' "got $got" }
+    }
+    # --- trailing gap (tests/test_gap.py build_gapped() default): the last
+    #     record overwritten, nothing to re-anchor; pin unchanged since twin removal
+    $tg = New-InternalGapMc02 ([Convert]::ToUInt32('CA269650', 16)) $null
+    $fx = Get-BytesMd5 $tg
+    if ($fx -ne 'c57cfaefded23cd1d2b3ed9c01b296aa') { Fail 'trailing-gap career converts like Python' "fixture drift: $fx" }
+    else {
+        $got = $null
+        try { $got = Get-BytesMd5 (Convert-Mc02 $tg) } catch { $got = "threw: $($_.Exception.Message)" }
+        if ($got -eq 'd00a8fdce99bea2068efdfa961451f6d') { Pass 'trailing-gap career converts like Python' }
+        else { Fail 'trailing-gap career converts like Python' "got $got" }
     }
 
     # --- unit: scalar_tail / fix_node_flags u8 rule (vectors of tests/test_alias_settings.py)
