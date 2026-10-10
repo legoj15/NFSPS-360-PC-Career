@@ -114,6 +114,27 @@
   (a5a24e0f; converter writes it size 0); CAREER_01 = fixed + RaceData only
   from TEST2 (00172c13). No drop -> PCController filler is thread A.
   Speedometer back -> RaceData; missing -> GameplayData (race-day state).
+- Test 6 RESULT: everything works (camera, HUD, audio, jukebox, assists,
+  network, units all match the 360 per the user's side-by-side check). ->
+  A = size-0 PCControllerSettings, B = RaceData. FIXED:
+  546a8e5 RaceData = NUMERIC_IDS (swap all + fix_node_flags): its fieldmap's
+    ZERO/DIFF slots (from fresh careers) hit the string heuristic, leaving
+    race times like 0x42724630 (60.57 s, "BrF0") big-endian.
+  c7c784d PCControllerSettings = native defaults (pc_controller_default.bin,
+    game default profile; Rust include_bytes, PS base64 + test); VideoSettings
+    trim dropped (verified layout keeps 0xB4). Personal alias output now ==
+    the in-game-verified test-6 alias (a5a24e0f).
+- OPEN: turn indicators shows On (360: Off). Converted values all equal the
+  360's. In the game re-save (scratchpad t6saved / backups test6) PlayerSettings0
+  node 31 (0x1F0) went 0->1 (leaderboard the user turned on) and node 32
+  (0x200) 1->0 - asked the user whether they turned turn indicators off; if
+  so node 32 has inverted meaning or a different option order on 360.
+- Final check installed (22:4x): pure converter output for all four files
+  (alias a5a24e0f, C01 5b7d3fcb with the real RaceData fix, C02 ec77c930,
+  C03 77e5b3e9). Test-6 files in backups/2026-10-09_test6.
+- Follow-up debt: the --twin recovery path (convert.py ~647, rs/ps equiv)
+  skips GameplayData swap, NUMERIC_IDS and apply_struct_fixes for records
+  recovered from the twin (pre-existing).
 - Merge review (opencode: shop26 Qwen 27B approve, glm-flash): no parity
   bugs. Acted on: PS scalar_tail 'len 0' vector (46/46). PENDING after the
   bisect: docs/re/alias_anon/README.md still cites the branch's pre-merge
