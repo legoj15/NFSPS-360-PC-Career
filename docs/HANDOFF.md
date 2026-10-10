@@ -1,5 +1,17 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-09)
 
+## 2026-10-09 — PS RehashGameplay short-payload parity (closes the DEFERRED low below)
+- RehashGameplay no longer throws on a GameplayData payload < 0x24 B: it
+  hashes the clamped tail and grows the buffer to min(len,0x14)+16 like
+  Python's bytearray slice assignment / Rust rehash_gameplay. Unreachable
+  via the pipeline (FixRacedayBlock refuses < 0x2DC), unit-level parity only.
+- Tests (written first): Run-Tests.ps1 reflection units with the
+  test_short_records.rs vectors - 'tiny GameplayData rehash grows like
+  Python' (failed before the fix) and 'CARDB fixes clamp on a 0x100-byte
+  payload like Python' (already passed; d5ccf51 closed that gap). Goldens
+  unchanged; 5.1 and 7 green.
+- Delegation log: none (orchestrator; serial, tightly scoped).
+
 ## 2026-10-09 — PS short-record clamping (GLM review follow-up)
 - Convert-NfsSave.ps1 C#: FixCarDbParts / FixBlueprintSet / ConvertDecal now
   write through CopyNat / Swap16Nat (Python slice clamping, like Rust

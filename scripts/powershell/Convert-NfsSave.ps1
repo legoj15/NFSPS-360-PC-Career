@@ -973,13 +973,19 @@ namespace NfsPs
         {
             if (rec.Id != GameplayId) return;
             byte[] p = rec.Payload;
-            int hi = Math.Min(0x14 + 0x10000, p.Length);
-            if (p.Length < 0x24) throw new InvalidOperationException("GameplayData payload too short");
-            using (MD5 md5 = MD5.Create())
+            int lo = Math.Min(0x24, p.Length), hi = Math.Min(0x14 + 0x10000, p.Length);
+            int at = Math.Min(0x14, p.Length);
+            byte[] h;
+            using (MD5 md5 = MD5.Create()) h = md5.ComputeHash(p, lo, hi - lo);
+            if (p.Length < 0x24)
             {
-                byte[] h = md5.ComputeHash(p, 0x24, hi - 0x24);
-                Buffer.BlockCopy(h, 0, p, 0x14, 16);
+                // Python bytearray slice assignment grows the buffer: the digest
+                // replaces the tail and the payload becomes min(len, 0x14) + 16 bytes
+                byte[] n = new byte[at + 16];
+                Buffer.BlockCopy(p, 0, n, 0, at);
+                p = rec.Payload = n;
             }
+            Buffer.BlockCopy(h, 0, p, at, 16);
         }
 
         // _to_pc_record: [id][size][flags=1][content + tail word], same total size.

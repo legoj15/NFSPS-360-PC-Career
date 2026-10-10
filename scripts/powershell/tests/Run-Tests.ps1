@@ -344,6 +344,40 @@ try {
     if (-not $threw -and ($rec.Payload -join ',') -eq '9,8,7,6') { Pass 'short record payload framed like Python' }
     else { Fail 'short record payload framed like Python' "threw '$threw', payload $($rec.Payload -join ',')" }
 
+    # --- unit: RehashGameplay on a payload shorter than the digest slot
+    #     (vector from test_short_records.rs rehash_grows_tiny_gameplay_payload:
+    #     Python's bytearray slice assignment grows it to 0x24 = md5 of empty)
+    $flags = [System.Reflection.BindingFlags]'NonPublic,Public,Static'
+    $toHex = { param([byte[]]$b) (($b | ForEach-Object { $_.ToString('x2') }) -join '') }
+    $m = [NfsPs.Save].GetMethod('RehashGameplay', $flags)
+    $rec = New-Object NfsPs.Rec
+    $rec.Id = [NfsPs.Save].GetField('GameplayId', $flags).GetValue($null)
+    $rec.Payload = [byte[]](0..0x1F)
+    $threw = $null
+    try { [void]$m.Invoke($null, [object[]]@($rec.PSObject.BaseObject)) } catch { $threw = $_.Exception.InnerException.Message }
+    $got = & $toHex $rec.Payload
+    if (-not $threw -and $got -eq '000102030405060708090a0b0c0d0e0f10111213d41d8cd98f00b204e9800998ecf8427e') { Pass 'tiny GameplayData rehash grows like Python' }
+    else { Fail 'tiny GameplayData rehash grows like Python' "threw '$threw', payload $got" }
+
+    # --- unit: CARDB struct fixes on a 0x100-byte payload (vectors from
+    #     test_short_records.rs cardb_fixes_clamp_on_short_payload)
+    $fixParts = [NfsPs.Save].GetMethod('FixCarDbParts', $flags)
+    $fixPacked = [NfsPs.Save].GetMethod('FixCarDbPacked', $flags)
+    $src = [byte[]](0..255)
+    $threw = $null; $idOk = $false; $got = $null
+    try {
+        $o = [byte[]]$src.Clone()
+        [void]$fixParts.Invoke($null, [object[]]@($src, $o)); [void]$fixPacked.Invoke($null, [object[]]@($src, $o))
+        $idOk = (& $toHex $o) -eq (& $toHex $src)
+        $o = [byte[]]$src.Clone()
+        for ($w = 0; $w -lt $o.Length; $w += 4) { [Array]::Reverse($o, $w, 4) }
+        [void]$fixParts.Invoke($null, [object[]]@($src, $o)); [void]$fixPacked.Invoke($null, [object[]]@($src, $o))
+        $got = & $toHex $o
+    } catch { $threw = $_.Exception.InnerException.Message }
+    $want = '03020100070605040b0a09080f0e0d0c13121110171615141b1a19181f1e1d1c23222120272625242b2a29282c2d2e2f33323130373635343b3a39383f3e3d3c43424140444546474b4a49484f4e4d4c53525150575655545b5a59585c5d5e5f63626160676665646b6a69686f6e6d6c73727170747576777b7a79787f7e7d7c83828180878685848b8a89888c8d8e8f93929190979695949b9a99989f9e9d9ca3a2a1a0a4a5a6a7abaaa9a8afaeadacb3b2b1b0b7b6b5b4bbbab9b8bcbdbebfc3c2c1c0c7c6c5c4cbcac9c8cfcecdccd3d2d1d0d4d5d6d7dbdad9d8dfdedddce3e2e1e0e7e6e5e4ebeae9e8ecedeeeff3f2f1f0f7f6f5f4fbfaf9f8fffefdfc'
+    if (-not $threw -and $idOk -and $got -eq $want) { Pass 'CARDB fixes clamp on a 0x100-byte payload like Python' }
+    else { Fail 'CARDB fixes clamp on a 0x100-byte payload like Python' "threw '$threw', identity $idOk, swapped $got" }
+
     # --- unit: ConvertExtra on a 64-byte alias extra whose name has no NUL
     #     (same vector as tests/test_extra.py; golden aliases all terminate it)
     $x = [byte[]]::new(64)   # New-Object would hand Invoke a PSObject wrapper
