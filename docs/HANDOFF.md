@@ -178,6 +178,17 @@
   So both platforms store them identically (node 31 = leaderboard, node 32
   = turn indicators, 1 = On); the original 360 save really held turn
   indicators On. NOT a converter bug. CLOSED.
+- Review of d58ec2b/546a8e5/c7c784d/8490cbb (opencode 23:11): glm-flash -
+  no code findings (verified 3-port parity incl. edge cases, PS base64 ==
+  .bin, fix_node_flags output-neutral without junk pads); 2 medium + 3 low
+  stale docs/comments, all FIXED (FORMAT-NOTES VideoSettings/size-0
+  filler/u8 grammar + new RaceData/career-name/turn-indicator notes;
+  used-size comments in py/rs/ps; test_extra docstring). shop26 Qwen 27B
+  errored after 66 s with no output (lane problem, not retried).
+- Delegation log (this session, 2026-10-09 evening): no Anthropic
+  subagents; orchestrator did the merge, RE and all three ports. opencode
+  reviews: merge triad (shop26 approve + glm-flash), four-fix triad
+  (glm-flash ok, shop26 error). Spun off: twin-path fix (landed 6fe3f65).
   Side find, FIXED: on-chain one-byte nodes can carry 360 heap junk in their
   pad (01 00 13 10) and flag (00001b10) bytes; the old rule (pad must be 0)
   u32-swapped them (PC read 0x10 / 0x5d). fix_node_flags now keeps the first

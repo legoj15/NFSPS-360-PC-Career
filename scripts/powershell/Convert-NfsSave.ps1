@@ -1239,7 +1239,7 @@ namespace NfsPs
             foreach (Rec r in pc.Records) used += 12 + r.Payload.Length;
             byte[] extra = ConvertExtra(m.Extra);
             // extra word 1 = tree used size on careers AND aliases; a stale
-            // alias value (12 B short of the inserted PCControllerSettings)
+            // alias value (short of the inserted PCControllerSettings, 12 + 0x684 B)
             // made the PC skip the alias for a default 'Player' profile
             Wr32(extra, 4, (uint)used, false);
             rep.Extra = extra;

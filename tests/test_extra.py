@@ -39,11 +39,11 @@ if __name__ == "__main__":
 
 class ExtraUsedSize(unittest.TestCase):
     """Extra word 1 = the tree's used size, on every native PC save (career
-    and alias). The converter inserts a size-0 PCControllerSettings record
-    into aliases (+12 bytes), so the 360 value no longer matches; the PC
+    and alias). The converter inserts a PCControllerSettings record into
+    aliases (12 + 0x684 bytes), so the 360 value no longer matches; the PC
     then silently refused the alias and ran on a default 'Player' profile
-    (whose first in-game save wrote ALIAS_Player + a career named
-    CAREER_<0xAA>)."""
+    (whose first in-game save wrote ALIAS_Player). The CAREER_<0xAA> seen
+    alongside was a separate bug: the career-slot name (fix_career_name)."""
 
     def test_used_matches_tree(self):
         import struct

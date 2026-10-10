@@ -108,11 +108,17 @@ post region: directory/hash table (360 alias: 475 cells [h1][h2][FFFFFFFF][0]);
   it is the in-game-verified career path (2026-10-09), so it stays.
   The PC [flags] slot is the same flag word (native 'aaaaaa01').
 - Property node grammar: [u32 0][u32 len][flag word][data, padded to 4].
-  len 1 = u8 at the first data byte, [u8][00 00 00] on 360; must stay
-  natural (a u32 swap made every alias on/off option read 0 on PC).
+  len 1 = u8 at the first data byte, [u8][3 pad]; must stay natural (a
+  u32 swap made every alias on/off option read 0 on PC). The 360 pad, and
+  sometimes the flag word, can hold heap junk (01 00 13 10, flag 00001b10;
+  docs/re/alias_anon_junkpad): nodes on the node_spans chain keep the first
+  byte whatever the pad. Off-chain [0][1] matches can be numeric data.
 - VideoSettings (alias 0xC3EC4947): 360 payload has two extra trailing
-  8-byte nodes (0.5, 1.0) vs PC; native PC payload is 0x74 B and the
-  converter trims to it.
+  8-byte nodes (0.5, 1.0) vs PC; native PC payload is 0x74 B. The
+  converter keeps the 0xB4 payload (PC loads it fine; the game's own
+  re-save trims it to 0x74). A trim was tried and dropped (2026-10-09).
+- PlayerSettings0: node 31 (PC 0x1F0) = leaderboard, node 32 (0x200) =
+  turn indicators, 1 = On, same on both platforms.
 - 360 alias post-records directory table: 475 cells [h1][h2][FFFFFFFF][0];
   hashes do not reference record ids.
 - PC stores award names as plain strings inside 0x4E8AA143 where 360
@@ -194,8 +200,17 @@ native PC file against the 360 twins and by in-game behavior:
   skips BOTH; missing middle chunks desync (must be size-0 fillers);
   missing trailing chunks tolerated; count field informational.
 - PC-only chunk PCControllerSettings 0x39156567: alias must carry a
-  size-0 dummy record at index 9 (between AudioSettings 0x9CB326C2 and
-  PlayerSettings0 0x8B7D0AAD) to keep the pairing aligned.
+  record at index 9 (between AudioSettings 0x9CB326C2 and PlayerSettings0
+  0x8B7D0AAD) to keep the pairing aligned. A size-0 one loads, but the PC
+  then drops the profile mid-session for a default 'Player'; the converter
+  writes the native default bindings (nfssave/pc_controller_default.bin,
+  0x684 B) instead (in-game 2026-10-09).
+- RaceData 0x51A41B14: u32/float table (track keys, race times), no
+  strings: converted as a pure word swap + fix_node_flags. The fieldmap's
+  string fallback left times like 0x42724630 (60.57 s, "BrF0") big-endian,
+  which killed the race HUD (no speedometer/leaderboard, camera reset).
+- FECareer 36-byte node = career-slot name ([4 junk][32 chars]); the PC
+  names the file CAREER_<name>. Copied as text (was swapped -> CAREER_ª).
 - Conversion rule that fixed everything (nfssave/convert.py
   _to_pc_record): type=0x00000001, payload = 360payload[4:] + 4 zero
   bytes (drop the 360 leading marker word, re-add the PC trailing junk).

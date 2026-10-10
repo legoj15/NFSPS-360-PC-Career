@@ -721,9 +721,9 @@ def convert_payload(mc02_be: MC02, report: ConversionReport | None = None,
     used = sum(12 + len(r.payload) for r in pc_tree.records)
     # native PC saves carry the built tree's used size in the extra blob
     # (word 1), careers and aliases alike; copy it through so the loader sees
-    # a consistent pair. Aliases need it most: the inserted size-0
-    # PCControllerSettings record adds 12 bytes, and a stale value made the
-    # PC skip the alias and run on a default 'Player' profile.
+    # a consistent pair. Aliases need it most: the inserted
+    # PCControllerSettings record (12 + 0x684 B) makes the 360 value stale,
+    # and a stale value made the PC skip the alias for a default 'Player'.
     extra = bytearray(convert_extra(mc02_be.extra))
     struct.pack_into("<I", extra, 4, used)
     tree_bytes = bytearray(tree_bytes)

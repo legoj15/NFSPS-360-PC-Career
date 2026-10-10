@@ -1100,9 +1100,9 @@ pub fn convert_payload(
     })?;
     // native PC saves carry the built tree's used size in the extra blob
     // (word 1), careers and aliases alike; copy it through so the loader sees
-    // a consistent pair. Aliases need it most: the inserted size-0
-    // PCControllerSettings record adds 12 bytes, and a stale value made the
-    // PC skip the alias and run on a default 'Player' profile.
+    // a consistent pair. Aliases need it most: the inserted
+    // PCControllerSettings record (12 + 0x684 B) makes the 360 value stale,
+    // and a stale value made the PC skip the alias for a default 'Player'.
     let mut extra = convert_extra(&mc02_be.extra)?;
     extra[4..8].copy_from_slice(&used.to_le_bytes());
     let th = tree_hash(&tree_bytes);
