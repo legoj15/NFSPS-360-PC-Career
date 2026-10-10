@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity version="1.0.0.0" processorArchitecture="*"
+  <assemblyIdentity version="1.1.0.0" processorArchitecture="*"
                     name="NFSPS.SaveConverter" type="win32"/>
   <description>NFS ProStreet Save Converter (Xbox 360 to PC)</description>
   <!-- asInvoker on purpose: the exe must launch unelevated so the headless
