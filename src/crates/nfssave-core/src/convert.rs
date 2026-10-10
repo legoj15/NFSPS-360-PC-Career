@@ -622,10 +622,22 @@ pub const PROGRESS_LEN: usize = 90;
 /// 0x8DA1975B from the PC 100% save. (Not the Race Day crash cause - that was
 /// the CustomRaceDayMemcard node framing, see fix_node_flags.)
 pub const CONSOLE_ONLY_RACEDAYS: [(u32, u32); 17] = [
-    (0xB48C11C4, 2), (0x0A6C2097, 0), (0xF841FB9F, 2), (0x8DA1975B, 0),
-    (0x8F7CCCE0, 0), (0x92407122, 2), (0x5C838C1A, 0), (0xAF51A403, 0),
-    (0xDDCEF290, 2), (0x46AE8E2F, 0), (0xB3F02D70, 2), (0x8FEB3CC6, 2),
-    (0xC8A0888E, 0), (0x66705CF6, 2), (0x150B07D4, 2), (0xD663D2A8, 2),
+    (0xB48C11C4, 2),
+    (0x0A6C2097, 0),
+    (0xF841FB9F, 2),
+    (0x8DA1975B, 0),
+    (0x8F7CCCE0, 0),
+    (0x92407122, 2),
+    (0x5C838C1A, 0),
+    (0xAF51A403, 0),
+    (0xDDCEF290, 2),
+    (0x46AE8E2F, 0),
+    (0xB3F02D70, 2),
+    (0x8FEB3CC6, 2),
+    (0xC8A0888E, 0),
+    (0x66705CF6, 2),
+    (0x150B07D4, 2),
+    (0xD663D2A8, 2),
     (0x21471712, 2),
 ];
 

@@ -79,8 +79,7 @@ fn cross_boundary_reads_match_source_bytes() {
 #[test]
 fn sequential_reads_stream_the_image() {
     let data = sample_image();
-    let mut reader =
-        SectorReader::new(PickyDevice::new(data.clone()), data.len() as u64, 512);
+    let mut reader = SectorReader::new(PickyDevice::new(data.clone()), data.len() as u64, 512);
     let mut streamed = Vec::new();
     loop {
         let mut chunk = [0u8; 100]; // unaligned chunk sizes on purpose
@@ -96,8 +95,7 @@ fn sequential_reads_stream_the_image() {
 #[test]
 fn seek_end_and_relative_positions_work() {
     let data = sample_image();
-    let mut reader =
-        SectorReader::new(PickyDevice::new(data.clone()), data.len() as u64, 512);
+    let mut reader = SectorReader::new(PickyDevice::new(data.clone()), data.len() as u64, 512);
     let end = reader.seek(SeekFrom::End(0)).expect("seek end");
     assert_eq!(end, data.len() as u64);
     reader.seek(SeekFrom::End(-3)).expect("seek end -3");
@@ -112,12 +110,13 @@ fn seek_end_and_relative_positions_work() {
 #[test]
 fn read_at_or_past_end_returns_zero() {
     let data = sample_image();
-    let mut reader =
-        SectorReader::new(PickyDevice::new(data.clone()), data.len() as u64, 512);
+    let mut reader = SectorReader::new(PickyDevice::new(data.clone()), data.len() as u64, 512);
     reader.seek(SeekFrom::End(0)).expect("seek end");
     let mut out = [0u8; 512];
     assert_eq!(reader.read(&mut out).expect("read at end"), 0);
-    reader.seek(SeekFrom::Start(data.len() as u64 + 4096)).expect("past end");
+    reader
+        .seek(SeekFrom::Start(data.len() as u64 + 4096))
+        .expect("past end");
     assert_eq!(reader.read(&mut out).expect("read past end"), 0);
 }
 

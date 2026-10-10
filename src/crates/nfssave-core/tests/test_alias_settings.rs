@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fs;
 
 use common::repo_root;
-use nfssave_core::convert::{ConversionReport, scalar_tail, convert_payload, fix_node_flags};
+use nfssave_core::convert::{ConversionReport, convert_payload, fix_node_flags, scalar_tail};
 use nfssave_core::tree::Tree;
 use nfssave_core::{MC02, read_container};
 
@@ -88,7 +88,11 @@ fn chunk_sizes_match_native_pc() {
     for r in &pc.records {
         // VideoSettings keeps the 360's two extra trailing nodes (0xB4), which
         // the PC loads fine (in-game 2026-10-09)
-        let want_len = if r.id == VIDEO_SETTINGS { 0xB4 } else { want[&r.id] };
+        let want_len = if r.id == VIDEO_SETTINGS {
+            0xB4
+        } else {
+            want[&r.id]
+        };
         assert_eq!(r.payload.len(), want_len, "chunk {:#x}", r.id);
     }
 }
@@ -98,8 +102,14 @@ fn chunk_sizes_match_native_pc() {
 #[test]
 fn pc_controller_gets_native_defaults() {
     let (_, pc) = convert_alias();
-    let got = &pc.records.iter().find(|r| r.id == PC_CONTROLLER).unwrap().payload;
-    let default = fs::read(repo_root().join("scripts/python/nfssave/pc_controller_default.bin")).unwrap();
+    let got = &pc
+        .records
+        .iter()
+        .find(|r| r.id == PC_CONTROLLER)
+        .unwrap()
+        .payload;
+    let default =
+        fs::read(repo_root().join("scripts/python/nfssave/pc_controller_default.bin")).unwrap();
     assert_eq!(got, &default);
 }
 

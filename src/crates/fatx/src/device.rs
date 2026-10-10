@@ -199,9 +199,7 @@ mod imp {
             )
         };
         if ok.is_ok() && returned >= 24 {
-            let bps =
-                u32::from_le_bytes(geom[0x14..0x18].try_into().expect("4 bytes"))
-                    as usize;
+            let bps = u32::from_le_bytes(geom[0x14..0x18].try_into().expect("4 bytes")) as usize;
             if bps.is_power_of_two() && bps >= 512 {
                 return bps;
             }

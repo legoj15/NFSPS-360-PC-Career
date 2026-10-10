@@ -96,8 +96,7 @@ impl<R: Read + Seek> Read for SectorReader<R> {
                 break; // device ends inside the cached sector
             }
             let n = (self.buf_len - in_buf).min(out.len() - done);
-            out[done..done + n]
-                .copy_from_slice(&self.buf[in_buf..in_buf + n]);
+            out[done..done + n].copy_from_slice(&self.buf[in_buf..in_buf + n]);
             self.pos += n as u64;
             done += n;
         }

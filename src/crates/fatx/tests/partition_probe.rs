@@ -148,8 +148,7 @@ fn devkit_table_length_is_clamped_to_the_source() {
     let drive = XboxDriveImage::probe(&mut cur, total).unwrap();
     assert_eq!(drive.data_partition.length, expected_len);
     assert_eq!(
-        drive.data_partition.length,
-        dk.data_length,
+        drive.data_partition.length, dk.data_length,
         "clamped length equals the real volume"
     );
 

@@ -29,6 +29,11 @@ the fatx lib doctest (1 passed). No hardware needed: fatx tests use the
 `test-util` synthetic images; nfssave-core tests use tracked oracles under
 `docs/re/`.
 
+Formatting is enforced: `cargo fmt --all --check` (from `src/`) must be
+clean before every commit. Run `cargo fmt --all` after editing Rust; do not
+mix unrelated reformatting into feature commits (the whole workspace was
+formatted once in its own commit, 2026-10-09).
+
 Release build: `cargo build --release` from `src/`. The workspace release
 profile is `lto`, `strip`, `codegen-units = 1` (`src/Cargo.toml:17-20`) and
 `.cargo/config.toml` statically links the MSVC CRT, so the exe ships without

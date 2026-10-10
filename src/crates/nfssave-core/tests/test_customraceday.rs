@@ -27,7 +27,11 @@ fn pc_custom() -> PathBuf {
 
 fn rd(p: &[u8], o: usize, big: bool) -> u32 {
     let w: [u8; 4] = p[o..o + 4].try_into().unwrap();
-    if big { u32::from_be_bytes(w) } else { u32::from_le_bytes(w) }
+    if big {
+        u32::from_be_bytes(w)
+    } else {
+        u32::from_le_bytes(w)
+    }
 }
 
 /// Node data in order. The first value sits at `start` (4 bytes); every later
@@ -86,11 +90,22 @@ fn text(s: &str) -> Node {
 }
 
 fn crd(tree: &Tree) -> Vec<u8> {
-    tree.records.iter().find(|r| r.id == CRD).unwrap().payload.clone()
+    tree.records
+        .iter()
+        .find(|r| r.id == CRD)
+        .unwrap()
+        .payload
+        .clone()
 }
 
 fn tree360() -> Tree {
-    Tree::parse(&MC02::parse(&read_container(c1()).unwrap().payload).unwrap().tree, true).unwrap()
+    Tree::parse(
+        &MC02::parse(&read_container(c1()).unwrap().payload)
+            .unwrap()
+            .tree,
+        true,
+    )
+    .unwrap()
 }
 
 fn converted() -> Tree {
@@ -110,7 +125,10 @@ fn pc_written_stream_walks() {
     let raw = std::fs::read(pc_custom()).unwrap();
     let t = Tree::parse(&MC02::parse(&raw).unwrap().tree, false).unwrap();
     let nodes = norm(&walk(&crd(&t), false, 0), false);
-    let name = nodes.iter().position(|n| *n == text("My Race Day 1")).unwrap();
+    let name = nodes
+        .iter()
+        .position(|n| *n == text("My Race Day 1"))
+        .unwrap();
     assert_eq!(nodes[name + 1], Node::U32(3)); // NumEvents
 }
 
@@ -128,10 +146,18 @@ fn converted_nodes_match_console() {
     let want = norm(&walk(&src, true, 4), true); // skip the 360 marker word
     let got = norm(&walk(&crd(&converted()), false, 0), false);
     assert_eq!(want[1..], got[1..]); // [0] is an uninit word
-    for name in ["My Race Day 12", "My Race Day 13", "My Race Day 14", "My Race Day 15"] {
+    for name in [
+        "My Race Day 12",
+        "My Race Day 13",
+        "My Race Day 14",
+        "My Race Day 15",
+    ] {
         assert!(got.contains(&text(name)), "{name}");
     }
-    let p = got.iter().position(|n| *n == text("My Race Day 13")).unwrap();
+    let p = got
+        .iter()
+        .position(|n| *n == text("My Race Day 13"))
+        .unwrap();
     assert_eq!(got[p + 1], Node::U32(4)); // NumEvents
     assert_eq!(*got.last().unwrap(), Node::U32(1)); // last event flag, from the next 360 header
 }

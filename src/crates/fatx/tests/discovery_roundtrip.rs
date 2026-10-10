@@ -136,7 +136,11 @@ fn friendly_names_are_per_save() {
         // The STFS file-table name identifies the save ("CAREER_01"); the
         // CON title name would read "NFS ProStreet" on every row.
         let file = s.source_path.rsplit('/').next().unwrap();
-        let want = if file == "CAREER_02_360" { "CAREER_02" } else { "CAREER_01" };
+        let want = if file == "CAREER_02_360" {
+            "CAREER_02"
+        } else {
+            "CAREER_01"
+        };
         assert_eq!(s.friendly_name, want, "for {}", s.source_path);
     }
 }
@@ -330,11 +334,24 @@ fn unreadable_save_type_dir_is_noted_and_scan_continues() {
 #[test]
 fn save_names_are_recognised_by_prefix_case_insensitively() {
     use fatx::discovery::is_save_name;
-    for yes in ["CAREER_01", "ALIAS_JOSHUA S 10", "career_01", "Alias_x", "CAREER_"] {
+    for yes in [
+        "CAREER_01",
+        "ALIAS_JOSHUA S 10",
+        "career_01",
+        "Alias_x",
+        "CAREER_",
+    ] {
         assert!(is_save_name(yes), "{yes}");
     }
     // ghost racers, near misses, too short, non-ASCII must not panic
-    for no in ["SHADOW_74GR1", "CAREER", "CAREER01", "", "ÄLIAS_01", "日本語のファイル名"] {
+    for no in [
+        "SHADOW_74GR1",
+        "CAREER",
+        "CAREER01",
+        "",
+        "ÄLIAS_01",
+        "日本語のファイル名",
+    ] {
         assert!(!is_save_name(no), "{no}");
     }
 }

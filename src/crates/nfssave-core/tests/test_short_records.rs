@@ -190,8 +190,16 @@ fn gameplay_0x2e0_tail_matches_python() {
 fn gameplay_zero_state_window_matches_python() {
     // len -> (crafted fixture md5, converted output md5)
     let pinned = [
-        (0x2DCusize, "d90b6f6931545fba07971c4fdb4908d7", "f347163455dff3a21ca685512a0ade4d"),
-        (0x2E0, "e4882a46c79271139bb47dd4dcd59a9c", "7d5b602dfe48406571ad987d109e0886"),
+        (
+            0x2DCusize,
+            "d90b6f6931545fba07971c4fdb4908d7",
+            "f347163455dff3a21ca685512a0ade4d",
+        ),
+        (
+            0x2E0,
+            "e4882a46c79271139bb47dd4dcd59a9c",
+            "7d5b602dfe48406571ad987d109e0886",
+        ),
     ];
     for len in 0x2DC..0x2E4 {
         let mut payload = vec![0x11u8; len];

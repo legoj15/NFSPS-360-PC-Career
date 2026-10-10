@@ -126,7 +126,11 @@ pub fn file_table_name(data: &[u8]) -> Result<String> {
             .expect("4-byte slice"),
     ) as usize;
     let first_table = header_size.div_ceil(STFS_BLOCK) * STFS_BLOCK;
-    let shift = if data[TABLE_SHIFT_OFFSET] & 1 != 0 { 0 } else { 1 };
+    let shift = if data[TABLE_SHIFT_OFFSET] & 1 != 0 {
+        0
+    } else {
+        1
+    };
     let b = &data[FILE_TABLE_BLOCK_OFFSET..FILE_TABLE_BLOCK_OFFSET + 3];
     let table_block = b[0] as usize | ((b[1] as usize) << 8) | ((b[2] as usize) << 16);
     let off = stfs_block_offset(table_block, first_table, shift);
@@ -136,7 +140,13 @@ pub fn file_table_name(data: &[u8]) -> Result<String> {
     let nul = entry[..0x28].iter().position(|&x| x == 0).unwrap_or(0x28);
     let name: String = entry[..nul]
         .iter()
-        .map(|&x| if x.is_ascii() { x as char } else { char::REPLACEMENT_CHARACTER })
+        .map(|&x| {
+            if x.is_ascii() {
+                x as char
+            } else {
+                char::REPLACEMENT_CHARACTER
+            }
+        })
         .collect();
     if name.is_empty() {
         return Err(bad("empty file-table entry"));

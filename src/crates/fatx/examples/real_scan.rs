@@ -16,8 +16,9 @@ fn main() {
         discover_prostreet_saves_noted,
     };
 
-    let dump_dir =
-        std::env::args().nth(1).unwrap_or_else(|| "src/target/realdump".to_string());
+    let dump_dir = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "src/target/realdump".to_string());
     std::fs::create_dir_all(&dump_dir).expect("create dump dir");
 
     let source = WindowsPhysicalDrives::new();
@@ -51,15 +52,17 @@ fn main() {
             image.data_partition.offset,
             image.data_partition.length / (1024 * 1024)
         );
-        let mut volume =
-            match FatxVolume::open(&mut reader, image.data_partition.offset,
-                                   image.data_partition.length) {
-                Ok(volume) => volume,
-                Err(err) => {
-                    println!("  FATX open failed: {err}");
-                    continue;
-                }
-            };
+        let mut volume = match FatxVolume::open(
+            &mut reader,
+            image.data_partition.offset,
+            image.data_partition.length,
+        ) {
+            Ok(volume) => volume,
+            Err(err) => {
+                println!("  FATX open failed: {err}");
+                continue;
+            }
+        };
         let report = match discover_prostreet_saves_noted(&mut volume) {
             Ok(report) => report,
             Err(err) => {
@@ -83,7 +86,13 @@ fn main() {
             let stem: String = save
                 .friendly_name
                 .chars()
-                .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || c == '_' {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
                 .collect();
             let target = format!("{dump_dir}/{}.CON", stem);
             std::fs::write(&target, &save.bytes).expect("dump write");
