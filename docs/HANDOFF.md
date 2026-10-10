@@ -105,6 +105,15 @@
   career (6ff9e5b1); CAREER_02/03 fixed. Drop -> PlayerSettings; no drop ->
   the other 5. Speedometer back -> GameplayData/RaceData; else FECareer/
   CarDB/CRD/Speech/ProfileStats/Marker/Unlock.
+- Test 5 RESULT: speedometer PRESENT, leaderboard works (after toggling on),
+  profile KEPT, game re-saved both normally. -> thread A culprit in Video/
+  FF/Gameplay/Audio/PCController (PlayerSettings0-3 converted are fine);
+  thread B culprit in GameplayData or RaceData. Game-saved files in
+  backups/2026-10-09_test5 and scratchpad t5saved/.
+- Test 6 installed: alias = v1 + PCControllerSettings only from native
+  (a5a24e0f; converter writes it size 0); CAREER_01 = fixed + RaceData only
+  from TEST2 (00172c13). No drop -> PCController filler is thread A.
+  Speedometer back -> RaceData; missing -> GameplayData (race-day state).
 - Merge review (opencode: shop26 Qwen 27B approve, glm-flash): no parity
   bugs. Acted on: PS scalar_tail 'len 0' vector (46/46). PENDING after the
   bisect: docs/re/alias_anon/README.md still cites the branch's pre-merge
