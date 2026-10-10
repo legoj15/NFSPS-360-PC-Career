@@ -66,7 +66,7 @@ window-creation failure in the GUI path shows a message box
 
 - `--convert` accepts a CON container, a raw MC02 save (either byte order),
   or a folder — folders are walked depth-bounded (`MAX_DEPTH = 5`) for
-  `CAREER_*`/`ALIAS_*` files with the `CON ` magic, which also covers an
+  `CAREER_*`/`ALIAS_*` files with the `CON ` magic (skipping `SaveConverter backups` folders), which also covers an
   extracted `Content` tree (`src/crates/nfspc-converter/src/app/sources.rs:1-15`).
 - `--out` is the export directory; writes `<out>/<NAME>/<NAME>`
   (`nfssave-core` `write_pc_save`, via `app/batch.rs` `run_batch`). Exports are written atomically: bytes land in

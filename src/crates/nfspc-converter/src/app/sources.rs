@@ -105,6 +105,11 @@ fn walk(dir: &Path, depth: u32, out: &mut Vec<ManualSave>) {
         }
         let path = entry.path();
         if ft.is_dir() {
+            // earlier exports' backups (may sit inside a plain out folder);
+            // the scripts skip the same folder
+            if file_label(&path).eq_ignore_ascii_case(super::batch::BACKUP_DIR) {
+                continue;
+            }
             walk(&path, depth + 1, out);
         } else if ft.is_file() {
             let name = file_label(&path);

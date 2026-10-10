@@ -81,7 +81,8 @@ pub fn dirent_name_of(save: &DiscoveredSave) -> String {
     safe_name(dirent)
 }
 
-/// Folder (next to the export folder) that receives replaced saves.
+/// Folder that receives replaced saves: beside a game save folder (named
+/// `NFS ProStreet`), inside any other export folder (see back_up_existing).
 pub const BACKUP_DIR: &str = "SaveConverter backups";
 
 /// Copies `<out_root>/<name>/<name>` to

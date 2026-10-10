@@ -104,6 +104,18 @@ fn folder_scan_collects_career_and_alias_con_files() {
     assert_eq!(found_paths(root), expected);
 }
 
+/// Backups now sit inside a plain output folder; a rescan of that folder
+/// must not convert them again (scripts skip the same folder name).
+#[test]
+fn folder_scan_skips_backup_folders() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    let keep = write_con(root, "CAREER_01");
+    let b = mkdirs(root, "saveconverter BACKUPS/2026-10-10_00-00-00/CAREER_01");
+    write_con(&b, "CAREER_01");
+    assert_eq!(found_paths(root), vec![keep]);
+}
+
 #[test]
 fn folder_scan_is_depth_bounded() {
     let tmp = TempDir::new().unwrap();

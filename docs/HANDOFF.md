@@ -33,6 +33,12 @@
     the folder is named `NFS ProStreet` (every GUI destination), else the
     folder itself, so headless `--out D` keeps backups in D like the
     scripts' case 4. Test: tests/batch.rs plain_out_folder_keeps_backups_inside_itself.
+    shop26 review (16 min): approve + 2 low, both fixed: the app's manual
+    folder walk now skips `SaveConverter backups` like the scripts (a
+    rescan of a plain out folder no longer sees its backups; test
+    sources.rs folder_scan_skips_backup_folders); stale BACKUP_DIR comment.
+    Note (no change, parity with scripts): a save literally named
+    `SaveConverter backups` exports inside the backup folder.
   - Fixed in the follow-up commit (shop26 spot-check low): Python/PS
     Tree.parse on a blob < 0x14, or one that ends before any magic, raised
     struct.error / IndexOutOfRange; now Rust's two clean refusals.
