@@ -220,6 +220,13 @@ pub fn fix_node_flags(src: &[u8], out: &mut [u8]) {
                 out[o - 4 + i] = src[o - 1 - i];
             }
             out[o..o + 4].copy_from_slice(&src[o..o + 4]);
+            // one-byte node: the value is the first data byte on both
+            // platforms ([u8][0 0 0]); a u32 swap reads back as 0 on PC
+            // (every alias on/off option). Nonzero pad, or a flag word that
+            // is not [u8][FF FF FF | 00 00 00], = not a u8 node.
+            if ln == 1 && py_slice(src, o + 5, o + 8) == [0, 0, 0] && is_node_flag(&src[o..o + 4]) {
+                copy_nat(src, out, o + 4, o + 8);
+            }
         }
     }
 }
@@ -662,32 +669,70 @@ pub fn rehash_gameplay(rec: &mut Record) {
     rec.payload = p;
 }
 
+/// PC last payload word when the payload ends in a scalar node, else zeros
+/// (`tail_word` then keeps the word natural).
+///
+/// Both platforms store [flag word][nodes...][last data word]; the 360
+/// writes the last word after the record (`tree::Record::tail` / the spill).
+/// The word is that node's value: [0][len 1..4][flag] (u8 node -> natural,
+/// else u32 swap) or [0][len 5..8][flag][d1] (tail = d2, u32 swap). The
+/// personal alias's values match a fresh PC alias (AudioSettings 3,
+/// PlayerSettings0 2).
+pub fn scalar_tail(src: &[u8], tail: &[u8]) -> [u8; 4] {
+    let Ok(t) = <[u8; 4]>::try_from(tail) else {
+        return [0; 4];
+    };
+    for (k, lo, hi) in [(0usize, 1u32, 4u32), (4, 5, 8)] {
+        let Some(h) = src.len().checked_sub(12 + k) else {
+            continue;
+        };
+        let zero = u32::from_be_bytes(src[h..h + 4].try_into().unwrap());
+        let ln = u32::from_be_bytes(src[h + 4..h + 8].try_into().unwrap());
+        if zero == 0 && (lo..=hi).contains(&ln) && is_node_flag(&src[h + 8..h + 12]) {
+            return if ln == 1 && t[1..] == [0, 0, 0] {
+                t
+            } else {
+                [t[3], t[2], t[1], t[0]]
+            };
+        }
+    }
+    [0; 4]
+}
+
+/// 360 node flag word: [u8 flag][FF FF FF] (or zeroed).
+pub fn is_node_flag(word: &[u8]) -> bool {
+    word.len() >= 4 && (word[1..4] == [0xFF; 3] || word[1..4] == [0; 3])
+}
+
+/// Chunks whose PC layout is a strict prefix of the 360 one: PC-framed
+/// payload size of the native PC savable. VideoSettings: the 360 adds two
+/// trailing 8-byte nodes (0.5, 1.0) after the last PC node (native PC
+/// alias: 0x74 B).
+pub const PC_PAYLOAD_SIZES: [(u32, usize); 1] = [(0xC3EC_4947, 0x74)];
+
 /// Re-frame a converted record for PC-native emission.
 ///
-/// 360 records: [prev tail word][id][size][payload = marker word + content].
-/// PC records:  [id][size][flags=1][payload = content + tail word] with
-/// the same total size. The 360 marker word maps onto the PC flags slot;
-/// we emit the native flags pattern 0x00000001 instead. The tail word is
-/// the record's final value, which the 360 stores in the NEXT record's
-/// header slot (see tail_word).
-pub fn to_pc_record_with(rec: &mut Record, tail: [u8; 4]) {
+/// 360 records: [prev record's last word][id][size][payload = marker word,
+/// content]. PC records: [id][size][flags=1][payload = content, last word]
+/// with the same total size. The 360 marker word maps onto the PC
+/// flags slot; we emit the native flags pattern 0x00000001 instead.
+/// `last` is the converted last word (`tail_word`; zeros otherwise).
+pub fn to_pc_record(rec: &mut Record, last: [u8; 4]) {
     rec.flags = 0x0000_0001;
     if !rec.payload.is_empty() {
         // Python `payload[4:]` is empty for payloads shorter than 4 bytes;
-        // the tail word still lands, so the result is just the tail.
+        // the trailing word still lands, so the result is 4 bytes.
         let mut p = if rec.payload.len() < 4 {
             Vec::new()
         } else {
             rec.payload[4..].to_vec()
         };
-        p.extend_from_slice(&tail);
+        p.extend_from_slice(&last);
         rec.payload = p;
     }
-}
-
-/// `to_pc_record_with` and a zero tail word (the twin path).
-pub fn to_pc_record(rec: &mut Record) {
-    to_pc_record_with(rec, [0; 4]);
+    if let Some(&(_, size)) = PC_PAYLOAD_SIZES.iter().find(|(id, _)| *id == rec.id) {
+        rec.payload.truncate(size);
+    }
 }
 
 /// PC byte order for a record's final word, taken from the 360 word at
@@ -699,7 +744,8 @@ pub fn to_pc_record(rec: &mut Record) {
 /// ([0][4][flag] before the spill) swap it; raw memcpy blobs swap like the
 /// rest of the blob; anything else (a string node running into the spill)
 /// stays natural. GameplayData keeps zero: its 360 buffer is trimmed, so
-/// the spilled word is 360-only padding.
+/// the spilled word is 360-only padding. Other trailing scalar nodes (u8
+/// options, 8-byte nodes) convert as in `scalar_tail`.
 pub fn tail_word(rec_id: u32, src: &[u8], spill: &[u8]) -> [u8; 4] {
     let Ok(sp) = <[u8; 4]>::try_from(spill) else {
         return [0; 4];
@@ -710,9 +756,11 @@ pub fn tail_word(rec_id: u32, src: &[u8], spill: &[u8]) -> [u8; 4] {
     let n = src.len();
     let u32_node_end = n >= 12 && src[n - 12..n - 4] == [0, 0, 0, 0, 0, 0, 0, 4];
     if RAW_BLOB_IDS.contains(&rec_id) || u32_node_end {
-        [sp[3], sp[2], sp[1], sp[0]]
-    } else {
-        sp
+        return [sp[3], sp[2], sp[1], sp[0]];
+    }
+    match scalar_tail(src, &sp) {
+        [0, 0, 0, 0] => sp,
+        w => w,
     }
 }
 
@@ -822,7 +870,7 @@ pub fn convert_tree(
                 rec.payload.len()
             ));
         }
-        to_pc_record_with(rec, tail_word(rec.id, &src, &spill));
+        to_pc_record(rec, tail_word(rec.id, &src, &spill));
         rehash_gameplay(rec);
         pc.records.push(rec.clone());
     }
@@ -852,7 +900,7 @@ pub fn convert_tree(
             } else {
                 let id = trec.id;
                 convert_record(&kind, &mut trec, Some(&mut report.warnings));
-                to_pc_record(&mut trec);
+                to_pc_record(&mut trec, [0; 4]);
                 report.warnings.push(format!(
                     "record {} recovered from re-save twin (console copy damaged)",
                     chunk_name(id)
@@ -863,10 +911,7 @@ pub fn convert_tree(
         if !by_id.is_empty() {
             // remaining console records (ids absent from the twin) keep their
             // first-occurrence order at the end, one entry per id
-            let remaining: Vec<Record> = order
-                .iter()
-                .filter_map(|id| by_id.remove(id))
-                .collect();
+            let remaining: Vec<Record> = order.iter().filter_map(|id| by_id.remove(id)).collect();
             let left = remaining
                 .iter()
                 .map(|r| format!("{:#x}", r.id))
@@ -912,6 +957,7 @@ pub fn convert_tree(
                 id: 0x3915_6567,
                 size: 0,
                 payload: Vec::new(),
+                tail: Vec::new(),
             },
         );
         pc.count = pc.records.len() as u32;
@@ -962,7 +1008,9 @@ pub fn convert_payload(
         acc.checked_add(12)
             .and_then(|v| v.checked_add(r.payload.len() as u32))
             .ok_or_else(|| {
-                format_err("converted tree used size exceeds 32 bits - the source file is corrupted")
+                format_err(
+                    "converted tree used size exceeds 32 bits - the source file is corrupted",
+                )
             })
     })?;
     // native PC saves carry the built tree's used size in the extra blob

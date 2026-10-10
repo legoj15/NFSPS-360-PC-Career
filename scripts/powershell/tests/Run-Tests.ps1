@@ -56,11 +56,11 @@ $cases = @(
     @('Extracted\Career\CAREER_01', '0cce08c3c9a502b9275657d62166e932', 'CAREER_01'),
     @('docs\re\pair\CAREER_02_360_fresh', '00f9d4427e18486eef546be07a5b2744', 'CAREER_02'),
     @('Extracted\Career\CAREER_03', '1c71bb3f1425a7c6a60d02f96798e7ff', 'CAREER_03'),
-    @('Extracted\Alias\ALIAS_360', '02efaff0f7f60b73e0d93fbbe62ed4f3', 'ALIAS_JOSHUA S 10'),
+    @('Extracted\Alias\ALIAS_360', '5d8ab470357fc03e6f7ccc2571d95fe1', 'ALIAS_JOSHUA S 10'),
     @('docs\re\c1_latest\CAREER_01_360', 'e5ddeef1cf4314ff9929743f69062e9d', 'CAREER_01'),
     @('docs\re\pair_raceday\CAREER_02_360', 'a7b6ae96d15222948b31fdb27a7b8fda', 'CAREER_02'),
     # anonymized copy of the personal alias save (docs\re\alias_anon\README.md)
-    @('docs\re\alias_anon\ALIAS_360', '42b389645cc9d7e3db296de6ee67e8fa', 'ALIAS_ANONYMOUS 1')
+    @('docs\re\alias_anon\ALIAS_360', 'e2b29e6eb34771b96a57b1ee394f1f74', 'ALIAS_ANONYMOUS 1')
 )
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion) ($hostExe)"
@@ -470,6 +470,41 @@ try {
         if ($msg -match 'GameplayData chunk too short \(0x2d8 B\) .*source file is corrupted') { Pass 'GameplayData below race-day state refused' }
         else { Fail 'GameplayData below race-day state refused' "got '$msg'" }
     }
+
+    # --- unit: scalar_tail / fix_node_flags u8 rule (vectors of tests/test_alias_settings.py)
+    function BeWords([uint32[]]$ws) {
+        $b = [byte[]]::new(4 * $ws.Count)
+        for ($i = 0; $i -lt $ws.Count; $i++) { $v = [BitConverter]::GetBytes($ws[$i]); [Array]::Reverse($v); [Array]::Copy($v, 0, $b, 4 * $i, 4) }
+        , $b
+    }
+    function Hx([byte[]]$b) { ($b | ForEach-Object { $_.ToString('x2') }) -join '' }
+    $at = [NfsPs.Save].GetMethod('ScalarTail', [System.Reflection.BindingFlags]'NonPublic,Public,Static')
+    $cases = @(
+        @((BeWords @(0, 4, 0x00FFFFFF)), [byte[]](0, 0, 0, 3), '03000000', 'u32 swap'),
+        @((BeWords @(0, 1, 0x00FFFFFF)), [byte[]](1, 0, 0, 0), '01000000', 'u8 natural'),
+        @((BeWords @(0, 1, 0x00FFFFFF)), [byte[]](0, 0, 0, 4), '04000000', 'u8 pad set: swap'),
+        @((BeWords @(0, 5, 0x00FFFFFF)), [byte[]](0, 0, 0, 3), '00000000', 'len 5 not scalar at end'),
+        @((BeWords @(0, 8, 0x00FFFFFF, 0)), [byte[]](0x3F, 0x80, 0, 0), '0000803f', '8-byte node tail'),
+        @((BeWords @(0, 4, 0x01234567)), [byte[]](0, 0, 0, 3), '00000000', 'junk flag word'),
+        @((BeWords @(4, 0x00FFFFFF)), [byte[]](0, 0, 0, 3), '00000000', 'payload < 12'),
+        @((BeWords @(0, 4, 0x00FFFFFF)), [byte[]](0, 3), '00000000', 'truncated tail'))
+    $bad_cases = @()
+    foreach ($c in $cases) {
+        $got = Hx ($at.Invoke($null, [object[]]@($c[0], $c[1])))
+        if ($got -ne $c[2]) { $bad_cases += "$($c[3]): $got" }
+    }
+    if (-not $bad_cases) { Pass 'scalar_tail rules like Python' } else { Fail 'scalar_tail rules like Python' ($bad_cases -join '; ') }
+    $fx = [NfsPs.Save].GetMethod('FixNodeFlags', [System.Reflection.BindingFlags]'NonPublic,Public,Static')
+    $fails = @()
+    foreach ($c in @(@(0x00FFFFFF, 0x01000000, '01000000'), @(0x00FFFFFF, 4, '04000000'), @(0x01234567, 0x01000000, '00000001'))) {
+        $src = BeWords @(0, 1, $c[0], $c[1])
+        $o = [byte[]]$src.Clone()
+        for ($w = 0; $w -lt 16; $w += 4) { [Array]::Reverse($o, $w, 4) }
+        [void]$fx.Invoke($null, [object[]]@($src, $o))
+        $got = Hx $o[12..15]
+        if ($got -ne $c[2]) { $fails += "flag $($c[0].ToString('x8')) data $($c[1].ToString('x8')): $got" }
+    }
+    if (-not $fails) { Pass 'u8 node rule like Python' } else { Fail 'u8 node rule like Python' ($fails -join '; ') }
 }
 finally {
     foreach ($t in $tmpRoots) { Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue }

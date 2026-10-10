@@ -101,13 +101,14 @@ fn gameplay_short_pipeline_matches_python() {
         id: GAMEPLAY_ID,
         size: payload.len() as u32,
         payload,
+        tail: Vec::new(),
     };
     let mut warnings = Vec::new();
     normalize_gameplay(&mut rec, &mut warnings);
     let src = rec.payload.clone();
     rec.payload = swap_u32s(&rec.payload);
     apply_struct_fixes(&mut rec, &src, &mut warnings).unwrap();
-    to_pc_record(&mut rec);
+    to_pc_record(&mut rec, [0; 4]);
     rehash_gameplay(&mut rec);
 
     assert_eq!(rec.payload.len(), 0x1000);
@@ -275,8 +276,9 @@ fn to_pc_record_short_payload() {
         id: 0xABCD,
         size: 2,
         payload: vec![0xAA, 0xBB],
+        tail: Vec::new(),
     };
-    to_pc_record(&mut rec);
+    to_pc_record(&mut rec, [0; 4]);
     assert_eq!(rec.payload, vec![0, 0, 0, 0]);
     assert_eq!(rec.flags, 1);
 }
@@ -290,6 +292,7 @@ fn rehash_grows_tiny_gameplay_payload() {
         id: GAMEPLAY_ID,
         size: 0x20,
         payload: (0..0x20u8).collect(),
+        tail: Vec::new(),
     };
     rehash_gameplay(&mut rec);
     assert_eq!(

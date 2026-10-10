@@ -63,7 +63,7 @@ namespace NfsPs
 {
     public sealed class Rule { public int RefSize; public byte[] Cls; }   // Cls[word]: 0 swap, 1 copy, 2 diff/zero
     public sealed class Container { public string Name; public byte[] Payload; }
-    public sealed class Rec { public uint Type; public uint Id; public byte[] Payload; }
+    public sealed class Rec { public uint Type; public uint Id; public byte[] Payload; public byte[] Tail = new byte[0]; }
     public sealed class SaveResult
     {
         public string Kind;
@@ -374,12 +374,17 @@ namespace NfsPs
                 bool zero = r.Type == 0 && r.Id == 0 && s == 0;
                 if (o2 + 12 + s > end || zero) { stopped = o2; break; }
                 r.Payload = Slice(tree, o2 + 12, o2 + 12 + s);
+                r.Tail = TailAfter(tree, o2 + 12 + s, big);
                 records.Add(r);
                 o2 += 12 + s;
             }
             if (stopped < 0) stopped = o2;
             long gap = Math.Max(0, end - stopped);
-            if (gap > 0) records.AddRange(ReAfterGap(tree, stopped, end, big));
+            if (gap > 0)
+            {
+                if (records.Count > 0) records[records.Count - 1].Tail = new byte[0];   // noise, not a value
+                records.AddRange(ReAfterGap(tree, stopped, end, big));
+            }
             Tree t = new Tree();
             t.Noise = Slice(tree, 0, 0x10);
             t.Count = count;
@@ -389,6 +394,14 @@ namespace NfsPs
             t.Used = used;
             t.Gap = gap;
             return t;
+        }
+
+        // Record.tail (360 only): the word after the payload = the last node's value
+        static byte[] TailAfter(byte[] tree, long at, bool big)
+        {
+            if (!big) return new byte[0];
+            long a = Math.Min(at, (long)tree.Length);
+            return Slice(tree, a, Math.Min(a + 4, (long)tree.Length));
         }
 
         // Tree._reafter_gap: internal-gap recovery.
@@ -409,6 +422,7 @@ namespace NfsPs
                     bool zero = r.Type == 0 && r.Id == 0 && s == 0;
                     if (off + 12 + s > end || zero) { ok = false; break; }
                     r.Payload = Slice(tree, off + 12, off + 12 + s);
+                    r.Tail = TailAfter(tree, off + 12 + s, big);
                     recs.Add(r);
                     off += 12 + s;
                 }
@@ -718,6 +732,10 @@ namespace NfsPs
                 {
                     for (int i = 0; i < 4; i++) o[p - 4 + i] = src[p - 1 - i];
                     Copy(src, p, o, p, 4);
+                    // one-byte node [u8][0 0 0]: value stays natural (a u32 swap reads 0 on PC)
+                    if (ln == 1 && p + 8 <= src.Length && src[p + 5] == 0 && src[p + 6] == 0 && src[p + 7] == 0
+                        && IsNodeFlag(src, p))
+                        Copy(src, p + 4, o, p + 4, 4);
                 }
             }
         }
@@ -988,21 +1006,55 @@ namespace NfsPs
             Buffer.BlockCopy(h, 0, p, at, 16);
         }
 
-        // _to_pc_record: [id][size][flags=1][content + tail word], same total size.
-        // The tail word is the record's final value, which the 360 stores in the NEXT
+        // is_node_flag: 360 node flag word [u8 flag][FF FF FF] (or zeroed)
+        static bool IsNodeFlag(byte[] b, int at)
+        {
+            return (b[at + 1] == 0xFF && b[at + 2] == 0xFF && b[at + 3] == 0xFF)
+                || (b[at + 1] == 0 && b[at + 2] == 0 && b[at + 3] == 0);
+        }
+
+        // scalar_tail: PC last payload word when the payload ends in a scalar node
+        // (else zeros): [0][len 1..4][flag] (u8 natural, else u32 swap)
+        // or [0][len 5..8][flag][d1] (tail = d2, u32 swap)
+        static byte[] ScalarTail(byte[] src, byte[] tail)
+        {
+            byte[] w = new byte[4];
+            if (tail.Length != 4) return w;
+            for (int k = 0; k <= 4; k += 4)
+            {
+                int h = src.Length - 12 - k;
+                if (h < 0) continue;
+                uint lo = k == 0 ? 1u : 5u, hi = k == 0 ? 4u : 8u;
+                uint zero = Rd32(src, h, true), ln = Rd32(src, h + 4, true);
+                if (zero != 0 || ln < lo || ln > hi || !IsNodeFlag(src, h + 8)) continue;
+                if (ln == 1 && tail[1] == 0 && tail[2] == 0 && tail[3] == 0) return (byte[])tail.Clone();
+                w[0] = tail[3]; w[1] = tail[2]; w[2] = tail[1]; w[3] = tail[0];
+                return w;
+            }
+            return w;
+        }
+
+        // PC_PAYLOAD_SIZES: VideoSettings drops two 360-only trailing nodes
+        const uint VideoSettingsId = 0xC3EC4947;
+        const int VideoSettingsPcSize = 0x74;
+
+        // _to_pc_record: [id][size][flags=1][content + last word], same total size.
+        // The last word is the record's final value, which the 360 stores in the NEXT
         // record's header slot (see TailWord).
-        static void ToPcRecord(Rec rec, byte[] tail)
+        static void ToPcRecord(Rec rec, byte[] last)
         {
             rec.Type = 1;
             int len = rec.Payload.Length;
             if (len > 0)
             {
-                // payload[4:] + tail; a 1-3 byte payload grows to 4 (as in Python)
+                // payload[4:] + last word; a 1-3 byte payload grows to 4 (as in Python)
                 byte[] n = new byte[Math.Max(len, 4)];
                 if (len > 4) Buffer.BlockCopy(rec.Payload, 4, n, 0, len - 4);
-                Buffer.BlockCopy(tail, 0, n, n.Length - 4, 4);
+                Buffer.BlockCopy(last, 0, n, n.Length - 4, 4);
                 rec.Payload = n;
             }
+            if (rec.Id == VideoSettingsId && rec.Payload.Length > VideoSettingsPcSize)
+                rec.Payload = Slice(rec.Payload, 0, VideoSettingsPcSize);
         }
 
         // tail_word: PC byte order for a record's final word, taken from the 360 word
@@ -1013,6 +1065,7 @@ namespace NfsPs
         // spill) swap it; raw memcpy blobs swap like the rest of the blob; anything
         // else (a string node running into the spill) stays natural. GameplayData
         // keeps zero: its 360 buffer is trimmed, so the spilled word is 360-only padding.
+        // Other trailing scalar nodes (u8 options, 8-byte nodes) convert as in ScalarTail.
         static byte[] TailWord(uint recId, byte[] src, byte[] spill)
         {
             if (recId == GameplayId || spill.Length != 4) return new byte[4];
@@ -1020,7 +1073,8 @@ namespace NfsPs
             bool u32NodeEnd = n >= 12 && Rd32(src, n - 12, true) == 0 && Rd32(src, n - 8, true) == 4;
             if (recId == CarDbId || u32NodeEnd)   // RAW_BLOB_IDS minus GameplayData (returned above)
                 return new byte[] { spill[3], spill[2], spill[1], spill[0] };
-            return spill;
+            byte[] w = ScalarTail(src, spill);
+            return (w[0] | w[1] | w[2] | w[3]) != 0 ? w : spill;
         }
 
         static string ChunkName(uint id)

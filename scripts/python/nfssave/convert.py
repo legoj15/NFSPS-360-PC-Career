@@ -154,6 +154,11 @@ CARDB_TABLE = (0x14, 24, 410)            # car table: offset, entry size, count
 CARDB_TABLE_SLOT = 20                    # entry word [u8][u8][u8][pad]
 
 
+def is_node_flag(word: bytes) -> bool:
+    """360 node flag word: [u8 flag][FF FF FF] (or zeroed)."""
+    return word[1:4] in (b"\xff\xff\xff", b"\0\0\0")
+
+
 def fix_node_flags(src: bytes, out: bytearray) -> None:
     """Keep property-node flag words in natural byte order.
 
@@ -173,6 +178,12 @@ def fix_node_flags(src: bytes, out: bytearray) -> None:
         if zero == 0 and 1 <= ln <= 0x400:
             out[o - 4:o] = src[o - 4:o][::-1]
             out[o:o + 4] = src[o:o + 4]
+            # one-byte node: the value is the first data byte on both
+            # platforms ([u8][0 0 0]); a u32 swap reads back as 0 on PC
+            # (every alias on/off option). Nonzero pad, or a flag word that is
+            # not [u8][FF FF FF | 00 00 00], = not a u8 node.
+            if ln == 1 and src[o + 5:o + 8] == b"\0\0\0" and is_node_flag(src[o:o + 4]):
+                out[o + 4:o + 8] = src[o + 4:o + 8]
 
 
 CUSTOM_RACEDAY_ID = 0xD548266C
@@ -464,21 +475,6 @@ def rehash_gameplay(rec) -> None:
     rec.payload = bytes(p)
 
 
-def _to_pc_record(rec, tail: bytes = bytes(4)) -> None:
-    """Re-frame a converted record for PC-native emission.
-
-    360 records: [prev tail word][id][size][payload = marker word + content].
-    PC records:  [id][size][flags=1][payload = content + tail word] with
-    the same total size. The 360 marker word maps onto the PC flags slot;
-    we emit the native flags pattern 0x00000001 instead. The tail word is
-    the record's final value, which the 360 stores in the NEXT record's
-    header slot (see tail_word).
-    """
-    rec.type = 0x00000001
-    if rec.payload:
-        rec.payload = rec.payload[4:] + tail
-
-
 def tail_word(rec_id: int, src: bytes, spill: bytes) -> bytes:
     """PC byte order for a record's final word, taken from the 360 word at
     the next record's header slot (`spill`, big-endian as stored).
@@ -489,13 +485,63 @@ def tail_word(rec_id: int, src: bytes, spill: bytes) -> bytes:
     ([0][4][flag] before the spill) swap it; raw memcpy blobs swap like the
     rest of the blob; anything else (a string node running into the spill)
     stays natural. GameplayData keeps zero: its 360 buffer is trimmed, so
-    the spilled word is 360-only padding.
+    the spilled word is 360-only padding. Other trailing scalar nodes (u8
+    options, 8-byte nodes) convert as in scalar_tail.
     """
     if rec_id == GAMEPLAY_ID or len(spill) != 4:
         return bytes(4)
     if rec_id in RAW_BLOB_IDS or src[-12:-4] == bytes(4) + struct.pack(">I", 4):
         return spill[::-1]
-    return spill
+    w = scalar_tail(src, spill)
+    return w if any(w) else spill
+
+
+def scalar_tail(src: bytes, tail: bytes) -> bytes:
+    """PC last payload word when the payload ends in a scalar node, else
+    zeros (tail_word then keeps the word natural).
+
+    Both platforms store [flag word][nodes...][last data word]; the 360
+    writes the last word after the record (tree.Record.tail / the spill).
+    The word is that node's value: [0][len 1..4][flag] (u8 node -> natural,
+    else u32 swap) or [0][len 5..8][flag][d1] (tail = d2, u32 swap). The
+    personal alias's values match a fresh PC alias (AudioSettings 3,
+    PlayerSettings0 2).
+    """
+    if len(tail) != 4:
+        return bytes(4)
+    for k, lo, hi in ((0, 1, 4), (4, 5, 8)):
+        h = len(src) - 12 - k
+        if h < 0:
+            continue
+        zero, ln = struct.unpack_from(">II", src, h)
+        if zero == 0 and lo <= ln <= hi and is_node_flag(src[h + 8:h + 12]):
+            if ln == 1 and tail[1:] == b"\0\0\0":
+                return tail
+            return tail[::-1]
+    return bytes(4)
+
+
+def _to_pc_record(rec, last: bytes = bytes(4)) -> None:
+    """Re-frame a converted record for PC-native emission.
+
+    360 records: [prev record's last word][id][size][payload = marker word
+    + content]. PC records:  [id][size][flags=1][payload = content + last
+    word] with the same total size. The 360 marker word maps onto the PC
+    flags slot; we emit the native flags pattern 0x00000001 instead.
+    `last` is the converted last word (tail_word; zeros otherwise).
+    """
+    rec.type = 0x00000001
+    if rec.payload:
+        rec.payload = rec.payload[4:] + last
+    size = PC_PAYLOAD_SIZES.get(rec.id)
+    if size is not None and len(rec.payload) > size:
+        rec.payload = rec.payload[:size]
+
+
+# chunks whose PC layout is a strict prefix of the 360 one: PC-framed payload
+# size of the native PC savable. VideoSettings: the 360 adds two trailing
+# 8-byte nodes (0.5, 1.0) after the last PC node (native PC alias: 0x74 B).
+PC_PAYLOAD_SIZES = {0xC3EC4947: 0x74}
 
 
 def validate_twin(src: Tree, twin: Tree, warnings: list) -> None:
