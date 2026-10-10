@@ -112,6 +112,12 @@ impl Tree {
             }
         }
         let magic_off = magic_off.ok_or_else(|| format_err("tree magic 0x59F2D89B not found"))?;
+        if magic_off + 8 > tree.len() {
+            return Err(format_err(format!(
+                "tree blob ({:#x} B) too short for the used-size word",
+                tree.len()
+            )));
+        }
         let used = rd_u32(tree, magic_off + 4, big);
         if tree.len() < rec_start || used as usize > tree.len() - rec_start {
             return Err(format_err(format!(

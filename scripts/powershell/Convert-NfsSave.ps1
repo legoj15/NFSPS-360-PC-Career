@@ -105,6 +105,7 @@ namespace NfsPs
         const int RecStartPc = 0x1CC;
         const int ReanchorMaxGap = 0x4000;
         const int HeaderSize = 0x1C;
+        const uint MaxTreeSize = 0x1000000;   // mc02.py MAX_TREE_SIZE
         const uint GameplayId = 0x3B309E09;
         const int GameplayPcSize = 0x10014;
         const uint CarDbId = 0x47A07113;
@@ -281,6 +282,8 @@ namespace NfsPs
             uint treeSize = Rd32(data, 12, big);
             if (total != data.Length)
                 throw new InvalidOperationException("MC02: size field " + Hex(total) + " != file size " + Hex(data.Length));
+            if (treeSize > MaxTreeSize)
+                throw new InvalidOperationException("MC02: tree size " + Hex(treeSize) + " exceeds the " + Hex(MaxTreeSize) + " B limit");
             Mc02 m = new Mc02();
             m.Big = big;
             m.Extra = Slice(data, HeaderSize, HeaderSize + (long)extraSize);
@@ -364,6 +367,8 @@ namespace NfsPs
             for (int off = 0x14; off < recStart - 4; off += 4)
                 if (Rd32(tree, off, big) == TreeMagic) { magicOff = off; break; }
             if (magicOff < 0) throw new InvalidOperationException("tree magic 0x59F2D89B not found");
+            if (magicOff + 8 > tree.Length)
+                throw new InvalidOperationException("tree blob (" + Hex(tree.Length) + " B) too short for the used-size word");
             long used = Rd32(tree, magicOff + 4, big);
             if (used > tree.Length - recStart)
                 throw new InvalidOperationException("corrupt used size " + Hex(used) + " exceeds tree buffer");

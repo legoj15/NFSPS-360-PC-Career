@@ -72,6 +72,8 @@ class Tree:
                 break
         if magic_off is None:
             raise ValueError("tree magic 0x59F2D89B not found")
+        if magic_off + 8 > len(tree):
+            raise ValueError(f"tree blob ({len(tree):#x} B) too short for the used-size word")
         used = struct.unpack_from(e + "I", tree, magic_off + 4)[0]
         if used > len(tree) - rec_start:
             raise ValueError(f"corrupt used size {used:#x} exceeds tree buffer")

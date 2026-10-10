@@ -24,6 +24,9 @@ from .crc import crc32_ea
 
 MAGIC = 0x4D433032
 HEADER_SIZE = 0x1C
+# real tree buffers are under 1 MiB; a larger declared size is hostile and
+# would be zero-padded (allocated) before any CRC check
+MAX_TREE_SIZE = 0x1000000
 
 
 class Endian(str, Enum):
@@ -54,6 +57,8 @@ class MC02:
         crc_extra, crc_tree, crc_hdr = struct.unpack_from(e + "III", data, 0x10)
         if total != len(data):
             raise ValueError(f"MC02: size field {total:#x} != file size {len(data):#x}")
+        if tree_size > MAX_TREE_SIZE:
+            raise ValueError(f"MC02: tree size {tree_size:#x} exceeds the {MAX_TREE_SIZE:#x} B limit")
         extra = data[HEADER_SIZE:HEADER_SIZE + extra_size]
         tree = data[HEADER_SIZE + extra_size:]
         m = MC02(end, extra, tree, tree_size)

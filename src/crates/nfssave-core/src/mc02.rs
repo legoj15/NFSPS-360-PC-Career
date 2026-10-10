@@ -25,6 +25,9 @@ use crate::{Result, format_err};
 
 pub const MAGIC: u32 = 0x4D43_3032;
 pub const HEADER_SIZE: usize = 0x1C;
+/// Real tree buffers are under 1 MiB; a larger declared size is hostile and
+/// would be zero-padded (allocated) before any CRC check.
+pub const MAX_TREE_SIZE: u32 = 0x100_0000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Endian {
@@ -96,6 +99,11 @@ impl MC02 {
             return Err(format_err(format!(
                 "MC02: size field {total:#x} != file size {:#x}",
                 data.len()
+            )));
+        }
+        if tree_size > MAX_TREE_SIZE {
+            return Err(format_err(format!(
+                "MC02: tree size {tree_size:#x} exceeds the {MAX_TREE_SIZE:#x} B limit"
             )));
         }
         // Python slice semantics: clamp instead of failing on short blobs

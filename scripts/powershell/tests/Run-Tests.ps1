@@ -433,6 +433,21 @@ try {
     if ($threw -match 'STFS file table block truncated') { Pass 'file table block of 0x30 bytes refused like Python' }
     else { Fail 'file table block of 0x30 bytes refused like Python' "threw '$threw'" }
 
+    # --- unit: hostile vectors from tests/test_hostile.py (refused, never a crash)
+    $bf = [System.Reflection.BindingFlags]'NonPublic,Public,Static'
+    [byte[]]$blob = New-Object byte[] 0x44
+    $blob[0x40] = 0x59; $blob[0x41] = 0xF2; $blob[0x42] = 0xD8; $blob[0x43] = 0x9B
+    $threw = $null
+    try { [void][NfsPs.Save].GetMethod('ParseTree', $bf).Invoke($null, [object[]]@($blob, $true)) } catch { $threw = $_.Exception.InnerException.Message }
+    if ($threw -match 'too short for the used-size word') { Pass 'tree magic without used word refused like Python' }
+    else { Fail 'tree magic without used word refused like Python' "threw '$threw'" }
+    [byte[]]$hdr = New-Object byte[] 0x1C
+    foreach ($w in @(@(0, 0x4D433032), @(4, 0x1C), @(12, 2147483648))) { [Array]::Copy([BitConverter]::GetBytes([uint32]$w[1]), 0, $hdr, $w[0], 4) }
+    $threw = $null
+    try { [void][NfsPs.Save].GetMethod('ParseMc02', $bf).Invoke($null, [object[]]@(, $hdr)) } catch { $threw = $_.Exception.InnerException.Message }
+    if ($threw -match 'tree size 0x80000000 exceeds') { Pass 'huge MC02 tree size refused like Python' }
+    else { Fail 'huge MC02 tree size refused like Python' "threw '$threw'" }
+
     # --- unit: RehashGameplay on a payload shorter than the digest slot
     #     (vector from test_short_records.rs rehash_grows_tiny_gameplay_payload:
     #     Python's bytearray slice assignment grows it to 0x24 = md5 of empty)
