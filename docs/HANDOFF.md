@@ -11,6 +11,12 @@
   payload like Python' (already passed; d5ccf51 closed that gap). Goldens
   unchanged; 5.1 and 7 green.
 - Delegation log: none (orchestrator; serial, tightly scoped).
+- Review (opencode shop26 Qwen 27B, 6 min): confirmed byte parity for all
+  lengths; 1 high REJECTED ("GetField can't see a C# const, test aborts the
+  suite") - consts are literal fields GetField returns, and the test failed
+  pre-fix with the RehashGameplay throw, which needs Id == GameplayId.
+- Landing: committed on the worktree branch; main checkout was mid-merge
+  (another session, HANDOFF.md conflict), so main was NOT fast-forwarded.
 
 ## 2026-10-09 — PS short-record clamping (GLM review follow-up)
 - Convert-NfsSave.ps1 C#: FixCarDbParts / FixBlueprintSet / ConvertDecal now
