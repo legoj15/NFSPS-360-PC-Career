@@ -585,10 +585,15 @@ PC_CONTROLLER_DEFAULT = (Path(__file__).parent / "pc_controller_default.bin").re
 
 def record_spills(tree: Tree) -> list:
     """Each 360 record's final word: it sits in the next record's header
-    slot; the last record's in the word after the record area (unless that
-    is noise)."""
+    slot; the last record's in the word after the record area. Noise breaks
+    the chain: the record right before a damaged region has no spill (the next
+    header is a re-anchored one, not its tail), and a trailing gap leaves the
+    last record with none too. After a successful re-anchor everything,
+    the last record included, is as in an undamaged tree."""
     spills = [struct.pack(">I", r.type) for r in tree.records[1:]]
-    spills.append(tree.post[:4] if not tree.gap else b"")
+    if tree.gap_at:
+        spills[tree.gap_at - 1] = b""
+    spills.append(tree.post[:4] if not tree.gap or tree.gap_at is not None else b"")
     return spills
 
 

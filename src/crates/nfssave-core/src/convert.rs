@@ -827,8 +827,11 @@ pub fn tail_word(rec_id: u32, src: &[u8], spill: &[u8]) -> [u8; 4] {
 }
 
 /// Each 360 record's final word: it sits in the next record's header slot;
-/// the last record's in the word after the record area (unless that is
-/// noise).
+/// the last record's in the word after the record area. Noise breaks the
+/// chain: the record right before a damaged region has no spill (the next
+/// header is a re-anchored one, not its tail), and a trailing gap leaves the
+/// last record with none too. After a successful re-anchor everything, the
+/// last record included, is as in an undamaged tree.
 fn record_spills(tree: &Tree) -> Vec<Vec<u8>> {
     let mut spills: Vec<Vec<u8>> = tree
         .records
@@ -836,7 +839,10 @@ fn record_spills(tree: &Tree) -> Vec<Vec<u8>> {
         .skip(1)
         .map(|r| r.flags.to_be_bytes().to_vec())
         .collect();
-    spills.push(if tree.gap == 0 {
+    if let Some(at) = tree.gap_at.filter(|&at| at > 0) {
+        spills[at - 1].clear();
+    }
+    spills.push(if tree.gap == 0 || tree.gap_at.is_some() {
         tree.post.iter().take(4).copied().collect()
     } else {
         Vec::new()
@@ -920,6 +926,7 @@ pub fn convert_tree(tree360: &mut Tree, report: &mut ConversionReport) -> Result
         },
         used: 0,
         gap: 0,
+        gap_at: None,
     };
     let kind = report.kind.clone();
     let spills = record_spills(tree360);

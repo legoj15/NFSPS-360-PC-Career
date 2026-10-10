@@ -55,6 +55,9 @@ class Tree:
     post: bytes            # everything after the record area (360-side directory)
     used: int
     gap: int = 0           # bytes of damaged noise skipped inside the record region
+    # index in `records` of the first record re-anchored after the noise
+    # (internal gap); None when there is no gap or it is trailing
+    gap_at: int | None = None
 
     @staticmethod
     def parse(tree: bytes, big: bool) -> "Tree":
@@ -91,10 +94,14 @@ class Tree:
         if stopped is None:
             stopped = off
         gap = max(0, end - stopped)
+        gap_at = None
         if gap:
             if records:
                 records[-1].tail = b""   # noise, not a value
-            records = records + Tree._reafter_gap(tree, stopped, end, big)
+            after = Tree._reafter_gap(tree, stopped, end, big)
+            if after:
+                gap_at = len(records)
+            records = records + after
         return Tree(
             noise=bytes(tree[0:0x10]),
             count=count,
@@ -103,6 +110,7 @@ class Tree:
             post=bytes(tree[end:]),
             used=used,
             gap=gap,
+            gap_at=gap_at,
         )
 
     @staticmethod

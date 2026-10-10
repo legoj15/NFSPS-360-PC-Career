@@ -92,6 +92,9 @@ namespace NfsPs
         public byte[] Post;
         public long Used;
         public long Gap;
+        // index in Records of the first record re-anchored after the noise
+        // (internal gap); -1 when there is no gap or it is trailing
+        public long GapAt = -1;
     }
 
     public static class Save
@@ -382,10 +385,13 @@ namespace NfsPs
             }
             if (stopped < 0) stopped = o2;
             long gap = Math.Max(0, end - stopped);
+            long gapAt = -1;
             if (gap > 0)
             {
                 if (records.Count > 0) records[records.Count - 1].Tail = new byte[0];   // noise, not a value
-                records.AddRange(ReAfterGap(tree, stopped, end, big));
+                List<Rec> after = ReAfterGap(tree, stopped, end, big);
+                if (after.Count > 0) gapAt = records.Count;
+                records.AddRange(after);
             }
             Tree t = new Tree();
             t.Noise = Slice(tree, 0, 0x10);
@@ -395,6 +401,7 @@ namespace NfsPs
             t.Post = Slice(tree, end, tree.Length);
             t.Used = used;
             t.Gap = gap;
+            t.GapAt = gapAt;
             return t;
         }
 
@@ -1158,7 +1165,10 @@ namespace NfsPs
             pc.Pre = new byte[0];
             pc.Post = t.Post.Length > 0 ? ConvertAuto(t.Post, null, "chunk") : new byte[0];
             // a 360 record's final word sits in the next record's header slot; the
-            // last record's in the word after the record area (unless that is noise)
+            // last record's in the word after the record area. Noise breaks the
+            // chain: the record right before a damaged region has no spill, and a
+            // trailing gap leaves the last record with none too; after a
+            // successful re-anchor everything is as in an undamaged tree.
             List<byte[]> spills = new List<byte[]>();
             for (int i = 1; i < t.Records.Count; i++)
             {
@@ -1166,7 +1176,8 @@ namespace NfsPs
                 Wr32(w, 0, t.Records[i].Type, true);
                 spills.Add(w);
             }
-            spills.Add(t.Gap == 0 ? Slice(t.Post, 0, Math.Min(4, t.Post.Length)) : new byte[0]);
+            if (t.GapAt > 0) spills[(int)t.GapAt - 1] = new byte[0];
+            spills.Add(t.Gap == 0 || t.GapAt >= 0 ? Slice(t.Post, 0, Math.Min(4, t.Post.Length)) : new byte[0]);
             int ri = 0;
             foreach (Rec rec in t.Records)
             {

@@ -72,6 +72,9 @@ pub struct Tree {
     pub used: u32,
     /// bytes of damaged noise skipped inside the record region
     pub gap: usize,
+    /// index in `records` of the first record re-anchored after the noise
+    /// (internal gap); `None` when there is no gap or it is trailing
+    pub gap_at: Option<usize>,
 }
 
 fn rd_u32(buf: &[u8], off: usize, big: bool) -> u32 {
@@ -152,11 +155,16 @@ impl Tree {
         }
         let stopped = stopped.unwrap_or(off);
         let gap = end.saturating_sub(stopped);
+        let mut gap_at = None;
         if gap != 0 {
             if let Some(last) = records.last_mut() {
                 last.tail.clear(); // noise, not a value
             }
-            records.extend(Self::reafter_gap(tree, stopped, end, big));
+            let after = Self::reafter_gap(tree, stopped, end, big);
+            if !after.is_empty() {
+                gap_at = Some(records.len());
+            }
+            records.extend(after);
         }
         Ok(Tree {
             noise: tree[0..0x10].to_vec(),
@@ -166,6 +174,7 @@ impl Tree {
             post: tree[end..].to_vec(),
             used,
             gap,
+            gap_at,
         })
     }
 

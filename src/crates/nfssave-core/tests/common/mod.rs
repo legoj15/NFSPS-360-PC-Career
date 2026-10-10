@@ -64,6 +64,20 @@ pub const GAP_SRC: &str = "docs/re/c1_latest/CAREER_01_360";
 /// `first_damaged` (default: the last) overwritten with 0xAA noise, so its
 /// tree parses with a trailing `gap` (the console's record-tail damage).
 pub fn build_gapped(duplicate_last: bool, first_damaged: Option<usize>) -> (Vec<u8>, Vec<u8>) {
+    build_gapped_ex(duplicate_last, first_damaged, None, None)
+}
+
+/// [`build_gapped`] with the knobs for an internal gap: only `damaged_count`
+/// records from `first_damaged` are overwritten (default: all the way to the
+/// end), so the clean records after the noise get re-anchored; `post_word`
+/// replaces the (all-zero) word after the record area in both outputs, which
+/// makes the last record's post spill observable.
+pub fn build_gapped_ex(
+    duplicate_last: bool,
+    first_damaged: Option<usize>,
+    damaged_count: Option<usize>,
+    post_word: Option<[u8; 4]>,
+) -> (Vec<u8>, Vec<u8>) {
     use nfssave_core::mc02::Endian;
     use nfssave_core::tree::Tree;
     use nfssave_core::{MC02, read_container};
@@ -73,6 +87,9 @@ pub fn build_gapped(duplicate_last: bool, first_damaged: Option<usize>) -> (Vec<
     if duplicate_last {
         let dup = tree.records[tree.records.len() - 1].clone();
         tree.records.insert(tree.records.len() - 1, dup);
+    }
+    if let Some(w) = post_word {
+        tree.post[..4].copy_from_slice(&w);
     }
     let pristine = MC02::new(
         Endian::Big,
@@ -85,19 +102,24 @@ pub fn build_gapped(duplicate_last: bool, first_damaged: Option<usize>) -> (Vec<
 
     let mut gapped_tree = tree.build(true, mc02.tree_size as usize).unwrap();
     let k = first_damaged.unwrap_or(tree.records.len() - 1);
-    let off: usize = 0x48
-        + tree.records[..k]
-            .iter()
-            .map(|r| 12 + r.payload.len())
-            .sum::<usize>();
-    let span: usize = tree.records[k..].iter().map(|r| 12 + r.payload.len()).sum();
-    gapped_tree[off..off + span].fill(0xAA);
+    let stop = damaged_count.map_or(tree.records.len(), |n| k + n);
+    let rec_len = |r: &nfssave_core::tree::Record| 12 + r.payload.len();
+    let off: usize = 0x48 + tree.records[..k].iter().map(rec_len).sum::<usize>();
+    let hit: usize = tree.records[k..stop].iter().map(rec_len).sum();
+    // the parser's gap runs from the noise to the end of the record area
+    let span: usize = tree.records[k..].iter().map(rec_len).sum();
+    gapped_tree[off..off + hit].fill(0xAA);
     let gapped = MC02::new(Endian::Big, mc02.extra.clone(), gapped_tree, mc02.tree_size)
         .to_bytes()
         .unwrap();
 
-    // sanity: the gapped tree really carries trailing damage
+    // sanity: the gapped tree really carries the damage
     let parsed = Tree::parse(&MC02::parse(&gapped).unwrap().tree, true).unwrap();
-    assert_eq!(parsed.gap, span, "fixture must parse with a trailing gap");
+    assert_eq!(parsed.gap, span, "fixture must parse with a gap");
+    if stop < tree.records.len() {
+        // internal gap: the clean records after the noise were re-anchored
+        assert_eq!(parsed.gap_at, Some(k));
+        assert_eq!(parsed.records.len(), tree.records.len() - (stop - k));
+    }
     (gapped, pristine)
 }

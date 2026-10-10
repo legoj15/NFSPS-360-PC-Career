@@ -498,6 +498,41 @@ try {
         else { Fail 'GameplayData below race-day state refused' "got '$msg'" }
     }
 
+    # --- internal gap (same fixture and pin as tests/test_gap.py and
+    #     tests/test_gap.rs): record 0xD548266C overwritten with 0xAA, the
+    #     word after the record area set to 7. The last record before the
+    #     noise gets no spill; the re-anchored records, the last one included,
+    #     convert as in a clean tree.
+    function New-InternalGapMc02([uint32]$recId, [byte[]]$postWord) {
+        $mc = [NfsPs.Save]::ParseContainer([System.IO.File]::ReadAllBytes($c1), 'c1').Payload
+        $rd = { param([byte[]]$b, [int]$o) ([uint32]$b[$o] -shl 24) -bor ([uint32]$b[$o + 1] -shl 16) -bor ([uint32]$b[$o + 2] -shl 8) -bor [uint32]$b[$o + 3] }
+        $wr = { param([byte[]]$b, [int]$o, [uint32]$v) for ($k = 0; $k -lt 4; $k++) { $b[$o + $k] = [byte](($v -shr (24 - 8 * $k)) -band 0xFF) } }
+        $extraSize = [int](& $rd $mc 8); $treeSize = [int](& $rd $mc 12)
+        $t0 = 0x1C + $extraSize
+        $out = [byte[]]$mc.Clone()
+        $magic = 0x14; while ((& $rd $out ($t0 + $magic)) -ne 0x59F2D89B) { $magic += 4 }
+        $end = 0x48 + [int](& $rd $out ($t0 + $magic + 4))
+        $o = 0x48
+        while ($o + 12 -le $end) {
+            $size = [int](& $rd $out ($t0 + $o + 8))
+            if ((& $rd $out ($t0 + $o + 4)) -eq $recId) { for ($k = 0; $k -lt 12 + $size; $k++) { $out[$t0 + $o + $k] = 0xAA } }
+            $o += 12 + $size
+        }
+        [Array]::Copy($postWord, 0, $out, $t0 + $end, 4)
+        & $wr $out 0x14 ([uint32]$crcM.Invoke($null, [object[]]@($out, $t0, $treeSize)))
+        & $wr $out 0x18 ([uint32]$crcM.Invoke($null, [object[]]@($out, 0, 0x18)))
+        , $out
+    }
+    $ig = New-InternalGapMc02 ([Convert]::ToUInt32('D548266C', 16)) ([byte[]](0, 0, 0, 7))
+    $fx = Get-BytesMd5 $ig
+    if ($fx -ne 'bacda5eeb061896b540221dc26fb8aa8') { Fail 'internal-gap career converts like Python' "fixture drift: $fx" }
+    else {
+        $got = $null
+        try { $got = Get-BytesMd5 (Convert-Mc02 $ig) } catch { $got = "threw: $($_.Exception.Message)" }
+        if ($got -eq '743068fdd49685367041faa4df7c3903') { Pass 'internal-gap career converts like Python' }
+        else { Fail 'internal-gap career converts like Python' "got $got" }
+    }
+
     # --- unit: scalar_tail / fix_node_flags u8 rule (vectors of tests/test_alias_settings.py)
     function BeWords([uint32[]]$ws) {
         $b = [byte[]]::new(4 * $ws.Count)
