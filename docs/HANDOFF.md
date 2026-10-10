@@ -28,10 +28,11 @@
   - DOCUMENTED, no change: app accepts raw MC02 (rust-app.md:67).
   - LOW, no change: post-write self-check failure is exit 1 in PS but a
     warning in Python/Rust; unreachable (CRCs freshly computed).
-  - OPEN, user call (GLM): app backup base is always the parent of the
-    output folder; the scripts keep plain-mode (`--out D`) backups inside D
-    ("never write outside the folder the user chose", scripts-cli.md). The
-    app's headless `--out D` writes `<parent of D>\SaveConverter backups`.
+  - FIXED (GLM; user: "the app should match the script"): app backup base
+    was always the parent of the output folder. Now the parent only when
+    the folder is named `NFS ProStreet` (every GUI destination), else the
+    folder itself, so headless `--out D` keeps backups in D like the
+    scripts' case 4. Test: tests/batch.rs plain_out_folder_keeps_backups_inside_itself.
   - Fixed in the follow-up commit (shop26 spot-check low): Python/PS
     Tree.parse on a blob < 0x14, or one that ends before any magic, raised
     struct.error / IndexOutOfRange; now Rust's two clean refusals.

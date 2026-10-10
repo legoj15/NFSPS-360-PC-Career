@@ -13,6 +13,7 @@ use fatx::DiscoveredSave;
 use nfssave_core::convert::{PreparedSave, check_save_name, prepare_mc02, prepare_one};
 use nfssave_core::{Error, parse_container};
 
+use super::destination::GAME_FOLDER_NAME;
 use super::sources::{is_con_bytes, is_mc02_bytes};
 
 /// One save selected for conversion.
@@ -84,15 +85,25 @@ pub fn dirent_name_of(save: &DiscoveredSave) -> String {
 pub const BACKUP_DIR: &str = "SaveConverter backups";
 
 /// Copies `<out_root>/<name>/<name>` to
-/// `<parent of out_root>/SaveConverter backups/<stamp>[-N]/<name>/<name>` when
-/// it exists. Returns the backup path, or `None` when there was nothing to keep.
+/// `<B>/SaveConverter backups/<stamp>[-N]/<name>/<name>` when it exists, B =
+/// the parent of a game save folder (named `NFS ProStreet`), else out_root
+/// itself (never write outside a plain folder the user chose; scripts' case
+/// 4 in docs/scripts-cli.md). Returns the backup path, or `None` when there
+/// was nothing to keep.
 fn back_up_existing(out_root: &Path, name: &str, stamp: &str) -> io::Result<Option<PathBuf>> {
     let existing = out_root.join(name).join(name);
     if !existing.is_file() {
         return Ok(None);
     }
     let root = absolute(out_root)?;
-    let base = root.parent().unwrap_or(&root);
+    let is_game_folder = root
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.eq_ignore_ascii_case(GAME_FOLDER_NAME));
+    let base = match root.parent() {
+        Some(p) if is_game_folder => p,
+        _ => &root,
+    };
     // Never overwrite an earlier backup: runs inside the same second share a
     // stamp, so fall through to `<stamp>-2`, `<stamp>-3`, ...
     let dest = (1u32..)

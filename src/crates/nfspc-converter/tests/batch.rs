@@ -313,6 +313,30 @@ fn game_like_out(tmp: &TempDir) -> PathBuf {
     out
 }
 
+/// A plain output folder (not named `NFS ProStreet`, e.g. headless
+/// `--out D:\out`) keeps its backups inside itself, like the scripts'
+/// case 4 (docs/scripts-cli.md): never write outside the chosen folder.
+#[test]
+fn plain_out_folder_keeps_backups_inside_itself() {
+    let tmp = TempDir::new().unwrap();
+    let out = tmp.path().join("out");
+    let input = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
+    let existing = out.join(&input.name).join(&input.name);
+    fs::create_dir_all(existing.parent().unwrap()).unwrap();
+    fs::write(&existing, b"earlier export").unwrap();
+
+    let r = run_batch(vec![input], &out);
+    assert!(
+        matches!(r.results[0].status, SaveStatus::Converted { .. }),
+        "{:?}",
+        r.results[0].status
+    );
+    let backups = files_under(&out.join("SaveConverter backups"));
+    assert_eq!(backups.len(), 1, "{backups:?}");
+    assert_eq!(fs::read(&backups[0]).unwrap(), b"earlier export");
+    assert!(!tmp.path().join("SaveConverter backups").exists());
+}
+
 #[test]
 fn existing_export_is_backed_up_before_being_replaced() {
     let tmp = TempDir::new().unwrap();

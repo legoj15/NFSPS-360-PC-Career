@@ -72,6 +72,9 @@ window-creation failure in the GUI path shows a message box
   (`nfssave-core` `write_pc_save`, via `app/batch.rs` `run_batch`). Exports are written atomically: bytes land in
   `<target>.tmp` and are renamed over the target, so an interrupted write
   never truncates a previous good export (`nfssave-core` `write_pc_save`).
+  An existing export is backed up first to `<out>/SaveConverter backups/`
+  (or beside `<out>` when `<out>` is named `NFS ProStreet`), the scripts'
+  rule (docs/scripts-cli.md "Backups").
 - Exit code 0 only when every requested save converted; failures print to
   stderr with a nonzero exit. Per-file load failures report to stderr and
   the run continues with the remaining files, matching the GUI worker and
