@@ -64,6 +64,20 @@
   (strays/, 16:25) - md5 d2e66c22. If v2 is clean -> culprit in settings;
   else in Stats/Achievements/OnlineUserProfile/ProfileStats/Jukebox/UserProfile.
   Strays of each test in SAVE/SaveConverter backups/2026-10-09_strays{2..5}.
+- v2 RESULT (21:50): profile KEPT (game re-saved ALIAS_JOSHUA itself, no
+  ALIAS_Player) -> the profile drop is caused by the converted SETTINGS
+  records. Camera, car tech, assists ("King") matched console = they live
+  outside those 9 records. From native settings: autosave on, EA Trax on,
+  leaderboard shows x/n with no names. Speedometer STILL missing -> not in
+  the 9 settings records. CAREER_<0xAA> still created (also happened under a
+  pure native Player at 16:25: likely quick race day without a career, not
+  ours). Game re-save kept UserProfile 0x2848. Game-saved copy:
+  strays6/ALIAS_JOSHUA S 10_pcsaved_2150.
+- v3 installed (md5 b4675582): base = game-saved v2, plus SavableStats,
+  AchievementManager, OnlineUserProfile, ProfileStats, Jukebox from native
+  Player; only UserProfile (+extra) remain converted. Speedometer back ->
+  culprit in those 5; still missing -> UserProfile/extra or the career.
+  Open thread 2: which settings record/node makes the PC drop the profile.
 - Merge review (opencode: shop26 Qwen 27B approve, glm-flash): no parity
   bugs. Acted on: PS scalar_tail 'len 0' vector (46/46). PENDING after the
   bisect: docs/re/alias_anon/README.md still cites the branch's pre-merge
