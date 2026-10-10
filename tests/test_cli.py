@@ -146,6 +146,23 @@ def test_backup_failure_leaves_existing_untouched(tmp_path, monkeypatch, capsys)
     assert "left it untouched" in capsys.readouterr().err
 
 
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_corrupt_save_is_refused_before_any_backup(tmp_path):
+    from nfssave import read_container
+    name = read_container(PAIR_360).name
+    data = bytearray(PAIR_360.read_bytes())
+    data[data.index(b"MC02") + 0x1C + 2] ^= 0xFF  # inside the extra blob
+    src = tmp_path / "in" / PAIR_360.name
+    src.parent.mkdir()
+    src.write_bytes(bytes(data))
+    out = tmp_path / "SAVE" / "NFS ProStreet"
+    old = _seed(out, name, b"previous career")
+    with pytest.raises(ValueError, match="CRC mismatch"):
+        cli.convert_one(src, Namespace(out_root=str(out), dry_run=False))
+    assert old.read_bytes() == b"previous career"
+    assert not (tmp_path / "SAVE" / lib.BACKUP_DIR).exists()
+
+
 class _Bytes:
     def __init__(self, data: bytes):
         self.data = data
@@ -154,7 +171,7 @@ class _Bytes:
         return self.data
 
 
-def test_write_pc_save_replaces_via_tmp(tmp_path):
+def test_write_pc_save_replaces_and_leaves_no_tmp(tmp_path):
     old = _seed(tmp_path, "CAREER_01", b"old")
     assert lib.write_pc_save(_Bytes(b"new"), "CAREER_01", tmp_path) == old
     assert old.read_bytes() == b"new"

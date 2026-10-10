@@ -718,7 +718,10 @@ def write_pc_save(mc02_pc: MC02, name: str, save_root: str) -> Path:
             os.fsync(f.fileno())
         os.replace(tmp, target)
     except BaseException:
-        tmp.unlink(missing_ok=True)  # never leave a stray .tmp behind
+        try:
+            tmp.unlink(missing_ok=True)  # never leave a stray .tmp behind
+        except OSError:
+            pass  # keep the original error on top
         raise
     return target
 

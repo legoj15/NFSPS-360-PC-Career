@@ -32,8 +32,8 @@ implement the same command line. Behaviour changes go in both, with tests in
   `unsafe save name '<name>'` and exit 1 in both modes. The same rule and
   message apply in the Python, PowerShell and Rust ports. Every port checks,
   per save: name, then duplicate name in the batch, then corruption
-  (extra-blob CRC), then backup and write. A refused save never causes a
-  backup. Every port writes `<NAME>.tmp` and renames it over the target, so
+  (extra-blob CRC), then backup and write. A save refused before the write
+  (name, duplicate, corruption) never causes a backup. Every port writes `<NAME>.tmp` and renames it over the target, so
   an interrupted write leaves the previous save in place.
 
 ## Output folder

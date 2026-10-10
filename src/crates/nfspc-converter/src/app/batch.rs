@@ -268,6 +268,8 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
         // A same-named save already in the folder (from an earlier run, or
         // the user's native PC career) is copied aside before the write; the
         // copy is left in place, so a failed write leaves the game untouched.
+        // Back up exactly the file the write will replace.
+        let name = prepared.name.clone();
         let backup = match back_up_existing(out_root, &name, &stamp) {
             Ok(b) => b,
             Err(e) => {

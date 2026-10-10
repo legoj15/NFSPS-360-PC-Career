@@ -1048,7 +1048,8 @@ pub fn check_save_name(name: &str) -> Result<()> {
 /// The bytes land in `<target>.tmp` first and are renamed over the target,
 /// so an interrupted write (window close, full disk, unplugged destination)
 /// can never leave a truncated file silently replacing a good export; the
-/// previous export survives and the leftover `.tmp` is removed on failure.
+/// previous export survives and, on an error inside this call, the leftover
+/// `.tmp` is removed (a killed process can still leave one behind).
 /// `std::fs::rename` replaces an existing target in one step on Windows too
 /// (`MoveFileExW` + `MOVEFILE_REPLACE_EXISTING`), so the previous export is
 /// never deleted ahead of the swap.
@@ -1185,6 +1186,27 @@ mod tests {
             "pre-existing target must be fully replaced"
         );
         assert!(!folder.join("CAREER_XX.tmp").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// A failed swap (here: a folder sits where the save goes, so the rename
+    /// cannot replace it) refuses, keeps what was there, and removes the
+    /// `.tmp`; nothing is moved into the folder.
+    #[test]
+    fn write_pc_save_failed_swap_keeps_target_and_removes_tmp() {
+        let dir = std::env::temp_dir().join(format!("nfssave-swapfail-{}", std::process::id()));
+        let blocker = dir.join("CAREER_XX").join("CAREER_XX");
+        fs::create_dir_all(&blocker).unwrap();
+        fs::write(blocker.join("keep"), b"user file").unwrap();
+
+        assert!(write_pc_save(&mc02_with(1), "CAREER_XX", &dir).is_err());
+        assert!(blocker.is_dir());
+        let inside: Vec<_> = fs::read_dir(&blocker)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(inside, ["keep"]);
+        assert!(!dir.join("CAREER_XX").join("CAREER_XX.tmp").exists());
         let _ = fs::remove_dir_all(&dir);
     }
 }
