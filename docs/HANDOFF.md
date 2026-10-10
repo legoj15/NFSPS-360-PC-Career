@@ -51,6 +51,11 @@
   (md5 4f5cb16f..., PC_PAYLOAD_SIZES cleared). Merged alias + strays in
   SAVE/SaveConverter backups/2026-10-09_strays3/. If v1 loads -> drop
   the trim; else the u8 rule is what the PC rejects.
+- Merge review (opencode: shop26 Qwen 27B approve, glm-flash): no parity
+  bugs. Acted on: PS scalar_tail 'len 0' vector (46/46). PENDING after the
+  bisect: docs/re/alias_anon/README.md still cites the branch's pre-merge
+  md5s (4056c0e2 / 5f04f3ff). Rest pre-existing (PS no --twin, documented)
+  or already fixed (RehashGameplay, ec9b709).
 
 ## 2026-10-09 — PS short-record clamping (GLM review follow-up)
 - Convert-NfsSave.ps1 C#: FixCarDbParts / FixBlueprintSet / ConvertDecal now

@@ -487,6 +487,7 @@ try {
         @((BeWords @(0, 8, 0x00FFFFFF, 0)), [byte[]](0x3F, 0x80, 0, 0), '0000803f', '8-byte node tail'),
         @((BeWords @(0, 4, 0x01234567)), [byte[]](0, 0, 0, 3), '00000000', 'junk flag word'),
         @((BeWords @(4, 0x00FFFFFF)), [byte[]](0, 0, 0, 3), '00000000', 'payload < 12'),
+        @((BeWords @(0, 0, [uint32]::MaxValue)), [byte[]](0, 0, 0, 3), '00000000', 'len 0'),
         @((BeWords @(0, 4, 0x00FFFFFF)), [byte[]](0, 3), '00000000', 'truncated tail'))
     $bad_cases = @()
     foreach ($c in $cases) {
