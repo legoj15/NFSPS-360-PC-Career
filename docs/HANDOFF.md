@@ -1,5 +1,21 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-09)
 
+## 2026-10-09 — merged alias-options branch into main
+- Branch claude/pc-speed-hud-wheel-animation-1ae827 and main (dc305ef) fixed
+  the same "last word sits in the next record's header" bug independently:
+  main's tail_word (all records, in-game verified on careers/race day) vs
+  the branch's alias_tail (aliases only, careers zero). Resolution: main's
+  tail_word stays the rule; the branch's scalar detection is folded in as
+  scalar_tail (u8 trailing node natural, len 1..8 scalar nodes swapped),
+  used when main's rule would keep the word natural. Branch's u8 node rule
+  and VideoSettings trim kept as-is.
+- Result: career goldens identical to main (in-game verified); alias output
+  identical to the branch except SavableStats (0x8FFBE3E8) last word,
+  which keeps main's natural 0x00004000 (branch zeroed it). Alias goldens
+  moved (Extracted 5d8ab470..., anon e2b29e6e...). py 76, cargo all, PS 44.
+- Still NOT verified in-game: HUD speed gauge / options on the merged alias.
+- Delegation log: none (orchestrator merge, serial).
+
 ## 2026-10-09 — PS short-record clamping (GLM review follow-up)
 - Convert-NfsSave.ps1 C#: FixCarDbParts / FixBlueprintSet / ConvertDecal now
   write through CopyNat / Swap16Nat (Python slice clamping, like Rust
@@ -85,6 +101,44 @@ Final state (committed together):
   both rounds, 0 escalations; used Python replace scripts on Rust sources
   once (aborted, redone with Edit) and once on non-literal Rust text.
   Orchestrator: all RE/debugging, Python reference, alias fix port.
+
+## 2026-10-09 — converted alias: options read as off, HUD gauge hidden
+- User report: with a converted alias, the race speed/RPM gauge never
+  shows, camera = bumper, ABS/TCS/ESC off, assists casual on every launch;
+  a fresh PC alias is fine. Ruled out in the game install first (FusionFix
+  aspect/SimRate, FE_ATTRIB.BIN, HUD .bun) by the game-folder session.
+- Byte-level cause (personal alias vs fresh PC `ALIAS_TEST`), 3 bugs:
+  1. len-1 property nodes were u32-swapped: 30+ on/off options (Gameplay,
+     Video, PlayerSettings0-3, OnlineUserProfile) read 0 on PC.
+  2. VideoSettings kept two 360-only trailing nodes (180 vs native 116 B).
+  3. Every record's last data word was zeroed: the 360 stores it in the
+     word the parser called the next record's "type" (FORMAT-NOTES).
+- Fix in all three converters (Python, Rust core, PowerShell), byte-exact:
+  fix_node_flags keeps [u8][000] node data natural; Record.tail +
+  alias_tail (aliases only); VideoSettings trimmed to 0x74. Career outputs
+  unchanged (all career goldens identical); alias goldens updated.
+  Tests: tests/test_alias_settings.py, nfssave-core
+  tests/test_alias_settings.rs (failed before, pass after), Run-Tests.ps1
+  goldens. NOT yet verified in-game: which option hides the HUD gauge is
+  unknown; the fix restores every option, the user must confirm.
+- Not fixed, worth a look: AudioSettings node 8 carries 360 heap fill
+  0xAAAAAAAA as its f32 (~ -3e-13, PC default 0); PCControllerSettings is
+  still a size-0 filler (PC fills defaults); careers' FECareer last word
+  (360 constant 0x2848) left zero.
+- Delegation log: implementation by orchestrator (serial scoped work).
+  reviewer (Haiku) on 3ee4858 -> pass with nits, 0 parity bugs; acted on:
+  alias_tail edge-case unit tests (py + rs), softened the "verified" tail
+  claim (fresh PC alias is not in the repo). Rejected: "len-1 node may hold
+  a u32 0x3F000000" (len is the byte count). Kept by design: tail cleared
+  before a damaged gap (aliases never take the gap/twin path in practice).
+  opencode triad (shop26 Qwen 27B + glm-flash high) on 3ee4858 -> no parity
+  bugs in new code; acted on: u8 rule and alias_tail now also require a
+  node flag word [u8][FFFFFF|000000]; alias_tail also carries the tail of
+  a trailing 8-byte node (d2); chunk-set equality in the size test; stale
+  "junk bytes" docstrings; PS unit tests for AliasTail/FixNodeFlags. All
+  goldens unchanged. Not done (latent): validate_twin vs PC_PAYLOAD_SIZES
+  trim (careers carry no VideoSettings); PS throws on corrupt short
+  CarDB/GameplayData records where Py/Rust clamp (pre-existing, spun off).
 
 ## 2026-10-06 — script CLI redesign (user request)
 - Contract: docs/scripts-cli.md. Inputs = files or folders (recursive,

@@ -8,7 +8,7 @@ tree := noise[16] count:u32 pad:magic 0x59F2D89B used:u32 records...
     tree+0x1C0 (360: +0x40).
   - id is the platform-independent chunk identity (matches 360<->PC).
   - the first payload word of a 360 record is a 0x01xxxxxx marker + junk;
-    PC drops it and appends 4 trailing junk bytes (same total size).
+    PC drops it and appends the last data word (Record.tail; same total size).
   - records tile exactly to records_start + used. The console writing bug
     can leave damaged noise in the record region: a trailing gap (records
     missing at the end) or, in principle, an internal gap (parse
@@ -39,6 +39,11 @@ class Record:
     id: int
     size: int
     payload: bytes
+    # 360 only: the word after the payload. Records tile as [id][size]
+    # [flag word + nodes][last data word], so this word (read as the next
+    # record's header "type") is the last node's value. Empty when noise
+    # follows (damaged region).
+    tail: bytes = b""
 
 
 @dataclass
@@ -80,12 +85,15 @@ class Tree:
                 stopped = off
                 break
             # size-0 records are legal (positional hole fillers); 12-byte stride
-            records.append(Record(t, i, s, bytes(tree[off + 12:off + 12 + s])))
+            records.append(Record(t, i, s, bytes(tree[off + 12:off + 12 + s]),
+                                  bytes(tree[off + 12 + s:off + 16 + s]) if big else b""))
             off += 12 + s
         if stopped is None:
             stopped = off
         gap = max(0, end - stopped)
         if gap:
+            if records:
+                records[-1].tail = b""   # noise, not a value
             records = records + Tree._reafter_gap(tree, stopped, end, big)
         return Tree(
             noise=bytes(tree[0:0x10]),
@@ -117,7 +125,8 @@ class Tree:
                 if (off + 12 + s > end) or (s == 0 and i == 0 and t == 0):
                     ok = False
                     break
-                recs.append(Record(t, i, s, bytes(tree[off + 12:off + 12 + s])))
+                recs.append(Record(t, i, s, bytes(tree[off + 12:off + 12 + s]),
+                                   bytes(tree[off + 12 + s:off + 16 + s]) if big else b""))
                 off += 12 + s
             if ok and off == end:
                 return recs

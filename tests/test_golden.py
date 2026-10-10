@@ -27,11 +27,11 @@ CASES = [
     (ROOT / "Extracted/Career/CAREER_01", "0cce08c3c9a502b9275657d62166e932"),
     (PAIR_360, "00f9d4427e18486eef546be07a5b2744"),
     (ROOT / "Extracted/Career/CAREER_03", "1c71bb3f1425a7c6a60d02f96798e7ff"),
-    (ROOT / "Extracted/Alias/ALIAS_360", "02efaff0f7f60b73e0d93fbbe62ed4f3"),
+    (ROOT / "Extracted/Alias/ALIAS_360", "5d8ab470357fc03e6f7ccc2571d95fe1"),
     (ROOT / "docs/re/c1_latest/CAREER_01_360", "e5ddeef1cf4314ff9929743f69062e9d"),
     (ROOT / "docs/re/pair_raceday/CAREER_02_360", "a7b6ae96d15222948b31fdb27a7b8fda"),
     # anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
-    (ROOT / "docs/re/alias_anon/ALIAS_360", "42b389645cc9d7e3db296de6ee67e8fa"),
+    (ROOT / "docs/re/alias_anon/ALIAS_360", "e2b29e6eb34771b96a57b1ee394f1f74"),
 ]
 
 PERSONAL = ROOT / "Extracted"
