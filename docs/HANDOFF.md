@@ -51,6 +51,19 @@
   (md5 4f5cb16f..., PC_PAYLOAD_SIZES cleared). Merged alias + strays in
   SAVE/SaveConverter backups/2026-10-09_strays3/. If v1 loads -> drop
   the trim; else the u8 rule is what the PC rejects.
+- UPDATE 21:4x: earlier "rejected" reads were wrong. User: v1 alias LOADS
+  (alias screen JOSHUA S 10, no popup), but in a quick race day the camera
+  prefs are corrupt + no HUD, and back in the menu the alias list shows only
+  PLAYER + "too many aliases" -> the game DROPS the loaded profile mid-session
+  and falls back to default 'Player' (that is what writes ALIAS_Player +
+  CAREER_<0xAA>). Same-session evidence: ALIAS_JOSHUA never rewritten.
+  UserProfile holds 360 constant 0x2848 after the name (native 0) - suspect.
+  Record bisect with docs/re/graft_alias.py (base alias + donor records,
+  rebuilds used/hash; self-test reproduces a native file byte-exact).
+  v2 installed = v1 with all 9 settings records from native ALIAS_Player
+  (strays/, 16:25) - md5 d2e66c22. If v2 is clean -> culprit in settings;
+  else in Stats/Achievements/OnlineUserProfile/ProfileStats/Jukebox/UserProfile.
+  Strays of each test in SAVE/SaveConverter backups/2026-10-09_strays{2..5}.
 - Merge review (opencode: shop26 Qwen 27B approve, glm-flash): no parity
   bugs. Acted on: PS scalar_tail 'len 0' vector (46/46). PENDING after the
   bisect: docs/re/alias_anon/README.md still cites the branch's pre-merge
