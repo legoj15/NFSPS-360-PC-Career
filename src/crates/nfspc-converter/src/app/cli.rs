@@ -21,8 +21,9 @@ Headless (no window):
 
     --convert  a CON container, a raw MC02 file, or a folder that is
                searched (depth-bounded) for CAREER_*/ALIAS_* CON files
-    --out      directory the converted saves are written to
-               (layout: <out>/<NAME>/<NAME>)
+    --out      where to write: the game's folder (its SAVE\\NFS ProStreet
+               folder is used), its SAVE folder, the save folder
+               itself, or any other folder (layout: <dir>/<NAME>/<NAME>)
 
 Exit code 0 when every requested save converted; nonzero with a stderr
 message otherwise.";

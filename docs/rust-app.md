@@ -69,12 +69,17 @@ window-creation failure in the GUI path shows a message box
   or a folder — folders are walked depth-bounded (`MAX_DEPTH = 5`) for
   `CAREER_*`/`ALIAS_*` files with the `CON ` magic (skipping `SaveConverter backups` folders), which also covers an
   extracted `Content` tree (`src/crates/nfspc-converter/src/app/sources.rs:1-15`).
-- `--out` is the export directory; writes `<out>/<NAME>/<NAME>`
+- `--out R` resolves the save folder S like the scripts' `--out-root`
+  (`destination.rs` `resolve_out_root`: `R/SAVE/NFS ProStreet`, else
+  `R/NFS ProStreet`, else R; case-insensitive; the Python script's banner
+  lines). An existing non-folder R is a usage error (exit 2); a missing R is
+  created by the first write, so a run where nothing converts leaves
+  nothing behind. It then writes `S/<NAME>/<NAME>`
   (`nfssave-core` `write_pc_save`, via `app/batch.rs` `run_batch`). Exports are written atomically: bytes land in
   `<target>.tmp` and are renamed over the target, so an interrupted write
   never truncates a previous good export (`nfssave-core` `write_pc_save`).
-  An existing export is backed up first to `<out>/SaveConverter backups/`
-  (or beside `<out>` when `<out>` is named `NFS ProStreet`), the scripts'
+  An existing export is backed up first to `S/SaveConverter backups/`
+  (or beside S when S is named `NFS ProStreet`), the scripts'
   rule (docs/scripts-cli.md "Backups"). Name rule, write-failure and
   self-check messages, and the stray-save notes (`BatchResult.notes`, printed
   as `[!] ...` lines; only for a folder named `NFS ProStreet`) match the

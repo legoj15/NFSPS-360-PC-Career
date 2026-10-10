@@ -125,6 +125,42 @@ pub fn resolve_dry(picked: &Path) -> Destination {
     }
 }
 
+/// `parent/names...`, each level matched case-insensitively, when it exists.
+fn child_dir_ci(parent: &Path, names: &[&str]) -> Option<PathBuf> {
+    let mut cur = parent.to_path_buf();
+    for name in names {
+        cur = child_dirs(&cur).into_iter().find(|d| {
+            d.file_name()
+                .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(name))
+        })?;
+    }
+    Some(cur)
+}
+
+/// Headless `--out R`, the scripts' rule (docs/scripts-cli.md "Output
+/// folder", Python `resolve_save_folder`): `R/SAVE/NFS ProStreet` if it
+/// exists, else `R/NFS ProStreet`, else R itself. Returns the absolute save
+/// folder (`..` resolved; an empty R is the current directory, the scripts'
+/// default) and whether it is the game's: true also when R itself is named
+/// `NFS ProStreet`, even before it exists. Nothing is created.
+pub fn resolve_out_root(root: &Path) -> (PathBuf, bool) {
+    let root = if root.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        root
+    };
+    let abs = absolute(root).unwrap_or_else(|_| root.to_path_buf());
+    // absolute() keeps `..` on Unix; on Windows it is GetFullPathName,
+    // which resolves it like the PowerShell script's GetFullPath
+    if let Some(s) = child_dir_ci(&abs, &[SAVE_FOLDER_NAME, GAME_FOLDER_NAME])
+        .or_else(|| child_dir_ci(&abs, &[GAME_FOLDER_NAME]))
+    {
+        return (s, true);
+    }
+    let is_game = folder_name_is_game(&abs);
+    (abs, is_game)
+}
+
 /// Resolve and, when rule 3 applies, create the missing folder.
 pub fn resolve(picked: &Path) -> io::Result<Destination> {
     let d = resolve_dry(picked);

@@ -22,10 +22,14 @@ Do not reverse these without asking. Newest last within each group.
   a backup failure refuses that save; the backup is kept if the later write
   fails and the message names where it is. Same-second runs fall through to
   `<stamp>-2`, ... (2026-10-05)
-- The backup base is the parent of the output folder only when that folder is
+- The backup base is the parent of the save folder only when that folder is
   named `NFS ProStreet` (every GUI destination); otherwise the folder itself,
-  so headless `--out D` keeps backups in D. "The app should match the
+  so a plain headless `--out D` (no game layout inside) keeps backups in D. "The app should match the
   script." (2026-10-10; rule text in docs/scripts-cli.md)
+- Headless `--out R` resolves the save folder exactly like the scripts'
+  `--out-root`: `R\SAVE\NFS ProStreet`, else `R\NFS ProStreet`, else R
+  (docs/scripts-cli.md "Output folder"). User: "Make the app match the
+  scripts." (2026-10-10). The GUI keeps its own picker rule (destination.rs).
 - A dry run refuses unsafe save names exactly like a real run.
 
 ## Scripts and ports

@@ -33,23 +33,18 @@ Read order for a new session: this file, then `docs/decisions.md`, then
   raw FATX scanner has never run on real media (parked).
 - Three ports (Python reference, Rust core used by the app, PowerShell
   script) are byte-exact; golden md5 pins are in each suite. Last full run,
-  2026-10-10 (open-work batch, converted output unchanged): pytest 146
+  2026-10-10 (open-work batch, converted output unchanged): pytest 147
   passed; `cargo test --workspace` green and `cargo fmt --all --check`
   clean; Run-Tests.ps1 67/67 on Windows PowerShell 5.1 and on pwsh 7
   (nothing skipped: `Extracted/` is present, junctioned into worktrees from
-  the main checkout; without it a few golden cases skip).
+  the main checkout with `mklink /J`; without it a few golden cases skip.
+  Remove the junction with `rmdir` before the worktree is cleaned up, so a
+  recursive delete cannot reach the personal saves).
 - Not yet seen by the user: the app's new orange stray-save notes
   (`[!] the save folder ...`) under the results list. Tests cover the text,
   not the GUI rendering.
 
 ## Open work
-Needs a user decision:
-- Headless `--out D` takes D as the save folder as-is. The scripts look for
-  `D\SAVE\NFS ProStreet` / `D\NFS ProStreet` first, so pointing both at the
-  game folder writes to different places, and only the scripts print the
-  stray-save notes there. Either align headless with the scripts or record
-  the difference as deliberate in docs/decisions.md.
-
 Debt: the save-name rule, device list, backup-folder name and stray-note
 wording are hand-copied across the three ports and their suites; the
 app's `stray_save_notes` could move next to `check_save_name` in

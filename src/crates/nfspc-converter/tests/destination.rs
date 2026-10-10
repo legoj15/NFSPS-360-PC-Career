@@ -131,3 +131,19 @@ fn resolved_root_is_absolute_even_for_relative_input() {
     assert!(got.root.is_absolute());
     assert_eq!(got.root, picked);
 }
+
+/// Headless `--out`: an empty path means the current directory (scripts'
+/// default), and the save folder comes back absolute with `..` resolved.
+#[test]
+fn resolve_out_root_is_absolute_and_empty_means_cwd() {
+    use nfspc_converter::app::destination::resolve_out_root;
+    let cwd = std::env::current_dir().unwrap();
+    let (dir, _) = resolve_out_root(std::path::Path::new(""));
+    assert_eq!(dir, cwd);
+    let tmp = tempfile::TempDir::new().unwrap();
+    let game = tmp.path().join("NFS ProStreet");
+    std::fs::create_dir_all(game.join("x")).unwrap();
+    let (dir, is_game) = resolve_out_root(&game.join("x").join(".."));
+    assert!(is_game);
+    assert_eq!(dir, game);
+}

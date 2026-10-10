@@ -270,13 +270,18 @@ impl BatchResult {
     }
 }
 
-/// Convert every input into `out_root` (creating it when missing), one
-/// result line per save. Failures never abort the batch.
+/// Convert every input into `out_root`, one result line per save. A missing
+/// `out_root` is created by the first write (like the scripts), so a batch
+/// where every save is refused leaves nothing behind. Failures never abort
+/// the batch.
 pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
     let mut results = Vec::with_capacity(inputs.len());
     let mut any_converted = false;
-    if let Err(e) = fs::create_dir_all(out_root) {
-        let reason = format!("cannot create output folder {}: {e}", out_root.display());
+    if out_root.exists() && !out_root.is_dir() {
+        let reason = format!(
+            "cannot use output folder {}: it exists and is not a folder",
+            out_root.display()
+        );
         return BatchResult {
             results: inputs
                 .into_iter()

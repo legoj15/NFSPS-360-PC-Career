@@ -10,11 +10,18 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use super::batch::{SaveInput, SaveStatus, run_batch};
+use super::destination::resolve_out_root;
 use super::sources::discover_manual;
 
 /// Runs the headless conversion. Blocking; prints progress to stdout and
 /// problems to stderr.
 pub fn run(src: &Path, out: &Path) -> ExitCode {
+    // like the scripts' --out-root: an existing non-folder is a usage error,
+    // reported before any source problem
+    if out.exists() && !out.is_dir() {
+        eprintln!("error: --out {} exists and is not a folder", out.display());
+        return ExitCode::from(2);
+    }
     let manual = match discover_manual(src) {
         Ok(found) if !found.is_empty() => found,
         Ok(_) => {
@@ -41,12 +48,21 @@ pub fn run(src: &Path, out: &Path) -> ExitCode {
         }
     }
 
-    if let Err(e) = std::fs::create_dir_all(out) {
-        eprintln!("error: cannot create {}: {e}", out.display());
-        return ExitCode::FAILURE;
+    // the scripts' output rule: R/SAVE/NFS ProStreet, R/NFS ProStreet, else
+    // R. A missing R is created by the first write, so a run where every
+    // save fails leaves nothing behind.
+    let (save_dir, is_game) = resolve_out_root(out);
+    if is_game {
+        println!("[+] game save folder: {}", save_dir.display());
+    } else {
+        println!("[+] output folder: {}", save_dir.display());
+        println!(
+            "    (copy the converted folders into the game's SAVE\\NFS ProStreet \
+             folder, or rerun with --out <game folder>)"
+        );
     }
 
-    let batch = run_batch(inputs, out);
+    let batch = run_batch(inputs, &save_dir);
     let mut failures = load_failures;
     for result in &batch.results {
         match &result.status {

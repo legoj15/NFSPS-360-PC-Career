@@ -82,7 +82,9 @@ An existing `S\<NAME>\<NAME>` is always copied before it is replaced, to
 the parent of `S` in cases 1-3 and `R` itself in case 4 (never write outside
 the folder the user chose). The app uses the same rule (app/batch.rs
 `back_up_existing`): parent when its export folder is named `NFS ProStreet`
-(every GUI destination), else the folder itself (headless `--out`).
+(every GUI destination), else the folder itself. Headless `--out R` picks
+`S` with cases 1-4 above too (`destination.rs` `resolve_out_root`), so the
+app and the scripts write the same files for the same folder.
 
 ## Not the app's behaviour (deliberate)
 

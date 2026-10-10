@@ -631,3 +631,12 @@ def test_plain_output_folder_reports_no_strays(tmp_path, monkeypatch, capsys):
     _seed(out, "CAREER_\u00aa", b"x")
     assert _run(monkeypatch, ALIAS_ANON, "--out-root", out) == 0
     assert "the save folder" not in capsys.readouterr().out
+
+
+def test_resolve_save_folder_resolves_dotdot(tmp_path):
+    """`<save folder>/x/..` is the save folder (PowerShell GetFullPath and the
+    app's absolute() agree; Path.absolute() alone keeps the '..')."""
+    s = tmp_path / "NFS ProStreet"
+    (s / "x").mkdir(parents=True)
+    save_dir, base, game = cli.resolve_save_folder(s / "x" / "..")
+    assert game and Path(save_dir).resolve() == s.resolve() and base == tmp_path

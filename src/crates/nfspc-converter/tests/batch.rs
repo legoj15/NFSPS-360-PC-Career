@@ -522,7 +522,7 @@ fn unsafe_container_name_is_refused_without_backup_or_output() {
             other => panic!("expected refusal, got {other:?}"),
         }
         assert!(!tmp.path().join("SaveConverter backups").exists());
-        assert!(fs::read_dir(&out).unwrap().next().is_none());
+        assert!(!out.exists(), "a refused-only batch creates nothing");
     }
 }
 

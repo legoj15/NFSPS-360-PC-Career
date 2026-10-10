@@ -13,6 +13,7 @@ Full contract: docs/scripts-cli.md.
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -85,10 +86,12 @@ def resolve_save_folder(root) -> tuple[Path, Path, bool]:
     other folder (used as is, backups kept inside it)."""
     root = Path(root)
     found = _child_dir(root, "SAVE", SAVE_DIR_NAME) or _child_dir(root, SAVE_DIR_NAME)
-    if found is None and root.absolute().name.lower() == SAVE_DIR_NAME.lower():
+    # abspath, not Path.absolute(): it resolves "..", like the PowerShell
+    # script's GetFullPath and the app's std::path::absolute
+    if found is None and Path(os.path.abspath(root)).name.lower() == SAVE_DIR_NAME.lower():
         found = root
     if found is not None:
-        return found, found.absolute().parent, True
+        return found, Path(os.path.abspath(found)).parent, True
     return root, root, False
 
 
