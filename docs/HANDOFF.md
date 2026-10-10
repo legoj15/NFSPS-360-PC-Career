@@ -32,47 +32,32 @@ Read order for a new session: this file, then `docs/decisions.md`, then
 - USB sticks formatted by the console are plain FAT32 (docs/rust-app.md). The
   raw FATX scanner has never run on real media (parked).
 - Three ports (Python reference, Rust core used by the app, PowerShell
-  script) are byte-exact; golden md5 pins are in each suite. Last full run on
-  `main`, 2026-10-10: pytest 110 passed; `cargo test --workspace` green and
-  `cargo fmt --all --check` clean; Run-Tests.ps1 59/59 on Windows PowerShell
-  5.1 and on pwsh 7 (nothing skipped: `Extracted/` is present in this
-  checkout, so worktrees without it skip a few golden cases).
+  script) are byte-exact; golden md5 pins are in each suite. Last full run,
+  2026-10-10 (open-work batch, converted output unchanged): pytest 146
+  passed; `cargo test --workspace` green and `cargo fmt --all --check`
+  clean; Run-Tests.ps1 67/67 on Windows PowerShell 5.1 and on pwsh 7
+  (nothing skipped: `Extracted/` is present, junctioned into worktrees from
+  the main checkout; without it a few golden cases skip).
+- Not yet seen by the user: the app's new orange stray-save notes
+  (`[!] the save folder ...`) under the results list. Tests cover the text,
+  not the GUI rendering.
 
-## Open work (each confirmed still open against the code on 2026-10-10)
-Correctness and parity, small:
-1. Python `GameplayData` payload < 0x2DC bytes dies with a bare
-   `struct.error`; Rust and PowerShell refuse with "GameplayData chunk too
-   short". Make the Python message match (test first).
-2. PowerShell converts each record inline in its embedded C# loop and
-   hard-codes the GameplayData / RaceData ids where Python uses
-   `NUMERIC_IDS`. Equivalent today only because that set is just RaceData;
-   parity rests on the Run-Tests pins.
-3. A save literally named `SaveConverter backups` passes every name check
-   (all ports) and exports inside the backup folder. Refuse it or accept it
-   explicitly.
-4. `check_save_name` / `Test-SaveName` (all three ports) are deliberately not
-   full Windows-name validators and let `* ? " < > |` through; `safe_name`
-   only cleans the fallback dirent name, so such a name fails at write time
-   with an OS error instead of the clean refusal. Real save names are
-   `CAREER_nn` / `ALIAS_*`, so this is cosmetic unless a hostile name matters.
-5. A directory at `<out>/<NAME>/<NAME>` is skipped by the backup
-   (`is_file`) and the rename then fails. Rust `write_pc_save` pins the clean
-   refusal; Python has no equivalent test.
-6. A read-only or game-locked target fails with a bare OS error that does not
-   say the old save survived (Rust and Python `write_pc_save`).
-7. Post-write self-check failure is exit 1 in PowerShell but a warning in
-   Python and Rust (unreachable in practice).
-8. A CON input is parsed three times per save in the app flow
-   (`from_path`/`from_discovered`, `export_name`, `prepare_one`); carry the
-   parsed name in `SaveInput`.
-9. `GAMEPLAY_U8_FIELDS` is a 2-tuple iterated as offsets, but its comment
-   reads like a range (`convert.py:359`, `convert.rs:494`). Goldens pin it;
-   change only with an in-game check.
-10. Idea: warn when the target folder already holds another `ALIAS_*` or a
-    `CAREER_` with a non-ASCII name (stray saves like that usually mean the
-    PC fell back to a default profile; see FORMAT-NOTES for the caveat).
+## Open work
+Needs a user decision:
+- Headless `--out D` takes D as the save folder as-is. The scripts look for
+  `D\SAVE\NFS ProStreet` / `D\NFS ProStreet` first, so pointing both at the
+  game folder writes to different places, and only the scripts print the
+  stray-save notes there. Either align headless with the scripts or record
+  the difference as deliberate in docs/decisions.md.
 
-Test gaps: backup at a drive-root output folder; old-format USB scan order;
+Debt: the save-name rule, device list, backup-folder name and stray-note
+wording are hand-copied across the three ports and their suites; the
+app's `stray_save_notes` could move next to `check_save_name` in
+`nfssave-core`, and one shared vector file (like
+`pc_controller_default.bin`) would replace the three copied test lists.
+
+Test gaps: PowerShell post-write self-check failure (unreachable without a
+seam; Python and Rust pin the message); backup at a drive-root output folder; old-format USB scan order;
 the shared backup stamp across one `main()` run; PowerShell "a failed save
 does not claim its name" (Python pins it); combined mounted + FATX sort
 (`scan_drives` takes no roots); any alias gap fixture (the "aliases never take

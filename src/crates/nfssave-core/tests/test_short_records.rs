@@ -142,9 +142,22 @@ fn gameplay_below_raceday_state_is_refused() {
         "fixture drift"
     );
     let err = convert_crafted(&data).unwrap_err();
-    assert!(
-        err.to_string().contains("too short"),
-        "unexpected error: {err}"
+    assert_eq!(
+        err.to_string(),
+        "GameplayData chunk too short (0x2d8 B) to hold the race-day state - \
+         the source file is corrupted"
+    );
+}
+
+/// RaceData (NUMERIC_IDS) with a size that is not a multiple of 4 is
+/// refused with the same message as the Python and PowerShell ports.
+#[test]
+fn numeric_unaligned_size_is_refused() {
+    let data = craft(0x51A41B14, &[0x11; 0x13]);
+    let err = convert_crafted(&data).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "RaceData chunk size 0x13 is not word-aligned - the source file is corrupted"
     );
 }
 

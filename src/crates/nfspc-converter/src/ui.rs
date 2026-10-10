@@ -123,6 +123,7 @@ impl ConverterApp {
                         },
                     }],
                     exported_to: None,
+                    notes: Vec::new(),
                 },
             }) {
                 Guarded::Done(result) => Msg::BatchDone(result),
@@ -383,6 +384,9 @@ impl eframe::App for ConverterApp {
                 ui.add_space(6.0);
                 for result in &batch.results {
                     show_save_result(ui, result);
+                }
+                for note in &batch.notes {
+                    ui.colored_label(Color32::from_rgb(200, 120, 0), format!("[!] {note}"));
                 }
                 if let Some(msg) = batch.success_message() {
                     ui.add_space(4.0);

@@ -491,7 +491,8 @@ pub fn fix_cardb_parts(src: &[u8], out: &mut [u8]) {
     }
 }
 
-/// [u8][pad x3] words, natural order
+/// Two separate [u8][pad x3] words at these offsets (not a range), natural
+/// order; golden-pinned, change only with an in-game check.
 pub const GAMEPLAY_U8_FIELDS: [usize; 2] = [0x1F4, 0x2D0];
 /// GameplayData: race-day state (0 = none active)
 pub const RACEDAY_STATE: usize = 0x2D4;
@@ -1026,17 +1027,63 @@ pub fn convert_payload(mc02_be: &MC02, report: Option<&mut ConversionReport>) ->
     ))
 }
 
-/// Refuse a save name that would escape or collapse its folder (path
-/// separators, drive colon, `.`/`..`). Not a full Windows-name validator:
-/// game save names are simple (CAREER_nn / ALIAS_*). Windows drops
-/// trailing dots/spaces, so "..." or "  " would collapse onto the output
-/// root itself. Same rule and message as the Python and PowerShell ports.
+/// Folder (beside a game save folder, or inside a plain export folder) that
+/// receives replaced saves; a save may not take this name.
+pub const BACKUP_DIR: &str = "SaveConverter backups";
+
+/// Windows device names: a folder named CON cannot be created; CON.txt can on
+/// Windows 11 but not on Windows 10, so a name with an extension is refused
+/// too.
+const WINDOWS_DEVICE_NAMES: [&str; 28] = [
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "COM\u{b9}",
+    "COM\u{b2}",
+    "COM\u{b3}",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+    "LPT\u{b9}",
+    "LPT\u{b2}",
+    "LPT\u{b3}",
+];
+
+/// Refuse a save name that is not a plain Windows folder name: path
+/// separators, drive colon, characters Windows rejects (`< > " | ? *` and
+/// control characters), device names, `.`/`..`, and the backup folder's own
+/// name (the export would land inside the backups). Windows drops trailing
+/// dots/spaces, so "..." or "  " would collapse onto the output root itself.
+/// Game save names are CAREER_nn / ALIAS_*, so this only ever refuses a
+/// damaged or hostile name. Same rule and message as the Python and
+/// PowerShell ports.
 pub fn check_save_name(name: &str) -> Result<()> {
-    if name.is_empty()
-        || name.contains(['\\', '/', ':'])
-        || name == "."
-        || name == ".."
-        || name.trim_end_matches(['.', ' ']).is_empty()
+    let key = name.trim_end_matches(['.', ' ']);
+    let stem = name.split('.').next().unwrap_or("").trim_end_matches(' ');
+    if key.is_empty()
+        || name
+            .chars()
+            .any(|c| c < ' ' || matches!(c, '\\' | '/' | ':' | '<' | '>' | '"' | '|' | '?' | '*'))
+        || key.to_lowercase() == BACKUP_DIR.to_lowercase()
+        || WINDOWS_DEVICE_NAMES
+            .iter()
+            .any(|d| d.eq_ignore_ascii_case(stem))
     {
         return Err(format_err(format!("unsafe save name '{name}'")));
     }
@@ -1052,16 +1099,24 @@ pub fn check_save_name(name: &str) -> Result<()> {
 /// `.tmp` is removed (a killed process can still leave one behind).
 /// `std::fs::rename` replaces an existing target in one step on Windows too
 /// (`MoveFileExW` + `MOVEFILE_REPLACE_EXISTING`), so the previous export is
-/// never deleted ahead of the swap.
+/// never deleted ahead of the swap; any failure (read-only or game-locked
+/// target, full disk) therefore says the save already there is unchanged.
 pub fn write_pc_save(mc02_pc: &MC02, name: &str, save_root: &Path) -> Result<PathBuf> {
     check_save_name(name)?;
     let folder = save_root.join(name);
-    fs::create_dir_all(&folder)?;
     let target = folder.join(name);
+    if target.is_dir() {
+        // the backup skipped it (not a file) and a rename cannot replace it
+        return Err(format_err(format!(
+            "{} is a folder, not a save file - move it out of the way and convert again",
+            target.display()
+        )));
+    }
     let tmp = folder.join(format!("{name}.tmp"));
     let bytes = mc02_pc.to_bytes()?;
     let write = || -> std::io::Result<()> {
         use std::io::Write;
+        fs::create_dir_all(&folder)?;
         let mut f = fs::File::create(&tmp)?;
         f.write_all(&bytes)?;
         f.sync_all()?;
@@ -1070,17 +1125,33 @@ pub fn write_pc_save(mc02_pc: &MC02, name: &str, save_root: &Path) -> Result<Pat
     };
     if let Err(e) = write() {
         let _ = fs::remove_file(&tmp); // never leave a stray .tmp behind
-        return Err(e.into());
+        return Err(format_err(format!(
+            "could not write {} ({e}); any save already there is unchanged",
+            target.display()
+        )));
     }
     Ok(target)
 }
 
-/// Outcome of [`convert_one`]: where the save was written, the conversion
-/// report, and the post-write self-check problems (empty == OK).
+/// Re-read a written save and refuse it when its CRCs do not check out
+/// (same failure in the Python and PowerShell ports).
+pub fn require_self_check(target: &Path) -> Result<()> {
+    let probs = MC02::parse(&fs::read(target)?)?.check();
+    if probs.is_empty() {
+        return Ok(());
+    }
+    Err(format_err(format!(
+        "wrote {} but the self-check failed: {}",
+        target.display(),
+        probs.join(", ")
+    )))
+}
+
+/// Outcome of [`convert_one`]: where the save was written (it passed the
+/// post-write self-check) and the conversion report.
 pub struct ConvertOutcome {
     pub target: PathBuf,
     pub report: ConversionReport,
-    pub self_check: Vec<String>,
 }
 
 /// A converted save that has not touched disk yet: everything that can refuse
@@ -1096,14 +1167,13 @@ pub struct PreparedSave {
 
 impl PreparedSave {
     /// Write `<out_root>/<NAME>/<NAME>`, then re-parse the written file and
-    /// self-check it.
+    /// self-check it ([`require_self_check`]).
     pub fn write(self, out_root: &Path) -> Result<ConvertOutcome> {
         let target = write_pc_save(&self.pc, &self.name, out_root)?;
-        let self_check = MC02::parse(&fs::read(&target)?)?.check();
+        require_self_check(&target)?;
         Ok(ConvertOutcome {
             target,
             report: self.report,
-            self_check,
         })
     }
 }
@@ -1193,13 +1263,22 @@ mod tests {
     /// cannot replace it) refuses, keeps what was there, and removes the
     /// `.tmp`; nothing is moved into the folder.
     #[test]
-    fn write_pc_save_failed_swap_keeps_target_and_removes_tmp() {
+    fn write_pc_save_refuses_a_folder_at_the_target() {
         let dir = std::env::temp_dir().join(format!("nfssave-swapfail-{}", std::process::id()));
         let blocker = dir.join("CAREER_XX").join("CAREER_XX");
         fs::create_dir_all(&blocker).unwrap();
         fs::write(blocker.join("keep"), b"user file").unwrap();
 
-        assert!(write_pc_save(&mc02_with(1), "CAREER_XX", &dir).is_err());
+        let e = write_pc_save(&mc02_with(1), "CAREER_XX", &dir)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(
+            e,
+            format!(
+                "{} is a folder, not a save file - move it out of the way and convert again",
+                blocker.display()
+            )
+        );
         assert!(blocker.is_dir());
         let inside: Vec<_> = fs::read_dir(&blocker)
             .unwrap()
@@ -1207,6 +1286,58 @@ mod tests {
             .collect();
         assert_eq!(inside, ["keep"]);
         assert!(!dir.join("CAREER_XX").join("CAREER_XX.tmp").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// A read-only (or game-locked) save cannot be replaced: the error names
+    /// the target and says the save there is unchanged (Python parity).
+    #[test]
+    fn write_pc_save_read_only_target_is_refused_and_kept() {
+        let dir = std::env::temp_dir().join(format!("nfssave-readonly-{}", std::process::id()));
+        let target = dir.join("CAREER_XX").join("CAREER_XX");
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        fs::write(&target, b"old").unwrap();
+        let mut perm = fs::metadata(&target).unwrap().permissions();
+        perm.set_readonly(true);
+        fs::set_permissions(&target, perm.clone()).unwrap();
+
+        let e = write_pc_save(&mc02_with(1), "CAREER_XX", &dir)
+            .unwrap_err()
+            .to_string();
+        let start = format!("could not write {} (", target.display());
+        assert!(e.starts_with(&start), "{e}");
+        assert!(e.ends_with("); any save already there is unchanged"), "{e}");
+        assert_eq!(fs::read(&target).unwrap(), b"old");
+        assert!(!dir.join("CAREER_XX").join("CAREER_XX.tmp").exists());
+
+        #[allow(clippy::permissions_set_readonly_false)]
+        perm.set_readonly(false);
+        fs::set_permissions(&target, perm).unwrap();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// A written save whose CRCs do not check out is an error naming the
+    /// target and the problems (PowerShell and Python parity), not a note.
+    #[test]
+    fn require_self_check_refuses_a_bad_write() {
+        let dir = std::env::temp_dir().join(format!("nfssave-selfcheck-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let good = dir.join("good");
+        let bad = dir.join("bad");
+        let bytes = mc02_with(1).to_bytes().unwrap();
+        fs::write(&good, &bytes).unwrap();
+        let mut flipped = bytes.clone();
+        *flipped.last_mut().unwrap() ^= 0xFF; // inside the tree (header CRC covers its CRC)
+        fs::write(&bad, &flipped).unwrap();
+
+        require_self_check(&good).unwrap();
+        assert_eq!(
+            require_self_check(&bad).unwrap_err().to_string(),
+            format!(
+                "wrote {} but the self-check failed: header CRC mismatch, tree CRC mismatch",
+                bad.display()
+            )
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 }

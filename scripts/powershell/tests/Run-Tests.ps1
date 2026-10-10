@@ -257,7 +257,7 @@ try {
     $raceday = Join-Path $repo 'docs\re\pair_raceday\CAREER_02_360'
     $r = Invoke-Converter @($pair, $raceday, '-OutRoot', $dup)
     $t = Join-Path $dup 'CAREER_02\CAREER_02'
-    if ($r.Code -eq 1 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '3da9f4c0a5a2b7d5c55863d49de4852c' -and $r.Text -match 'also named') { Pass 'duplicate container name refused' }
+    if ($r.Code -eq 1 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '3da9f4c0a5a2b7d5c55863d49de4852c' -and $r.Text -match 'also named CAREER_02; converting both would overwrite it - convert it separately') { Pass 'duplicate container name refused' }
     else { Fail 'duplicate container name refused' "exit $($r.Code): $($r.Text)" }
 
     # --- usb root with no saves fails
@@ -400,6 +400,10 @@ try {
     $r = Invoke-Converter @($junk, $pair, '-OutRoot', $mixOut)
     if ($r.Code -eq 1 -and (Test-Path (Join-Path $mixOut 'CAREER_02\CAREER_02'))) { Pass 'partial failure converts the rest, exit 1' }
     else { Fail 'partial failure converts the rest, exit 1' "exit $($r.Code)" }
+    # an error thrown by the embedded C# reaches the FAILED line bare, like
+    # Python and the app (no 'Exception calling "ParseContainer" ...' wrapper)
+    if ($r.Text -match "\[!\] FAILED .*: .*not a CON container" -and $r.Text -notmatch 'Exception calling') { Pass 'C# errors reported without the PowerShell wrapper' }
+    else { Fail 'C# errors reported without the PowerShell wrapper' $r.Text }
 
     # --- unit: _to_pc_record on a 1-3 byte payload -> payload[4:] + the tail word
     #     (Python grows it to 4 bytes; no committed save has one). Runs the
@@ -582,6 +586,16 @@ try {
         else { Fail 'GameplayData below race-day state refused' "got '$msg'" }
     }
 
+    # unaligned GameplayData / RaceData (NUMERIC_IDS): same message as Python and Rust
+    foreach ($u in @(@(0x3B309E09, 0x2E3, 'GameplayData chunk size 0x2e3 is not word-aligned - the source file is corrupted'),
+                     @(0x51A41B14, 0x13, 'RaceData chunk size 0x13 is not word-aligned - the source file is corrupted'))) {
+        $msg = $null
+        try { [void](Convert-Mc02 (New-ShortRecordMc02 $u[0] ([byte[]](@(0x11) * $u[1])))) } catch { $msg = $_.Exception.Message }
+        while ($msg -match '^Exception calling') { $msg = $msg -replace '^Exception calling "\w+" with "\d+" argument\(s\): "(.*)"$', '$1' }
+        if ($msg -eq $u[2]) { Pass "unaligned $($u[2].Split(' ')[0]) refused like Python" }
+        else { Fail "unaligned $($u[2].Split(' ')[0]) refused like Python" "got '$msg'" }
+    }
+
     # --- internal gap (same fixture and pin as tests/test_gap.py and
     #     tests/test_gap.rs): record 0xD548266C overwritten with 0xAA, the
     #     word after the record area set to 7. The last record before the
@@ -663,6 +677,82 @@ try {
         if ($got -ne $c[2]) { $fails += "flag $($c[0].ToString('x8')) data $($c[1].ToString('x8')): $got" }
     }
     if (-not $fails) { Pass 'u8 node rule like Python' } else { Fail 'u8 node rule like Python' ($fails -join '; ') }
+
+    # --- unit: Test-SaveName (same vectors as tests/test_cli.py, test_save_name.rs)
+    $tsn = $ast.EndBlock.Statements | Where-Object { $_ -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -eq 'Test-SaveName' }
+    Invoke-Expression $tsn.Extent.Text
+    $wrong = @()
+    foreach ($bad in @('', '...', '  ', '. .', '.', '..', 'a/b', 'a\b', 'C:x',
+            'SaveConverter backups', 'saveconverter BACKUPS', 'SaveConverter backups. ',
+            'CAREER*', 'A?', 'A"B', 'A<B', 'A>B', 'A|B', "A$([char]1)B", "A$([char]0x1f)",
+            'CON', 'nul', 'Com1', 'LPT9', 'AUX.txt', 'PRN .x', "COM$([char]0xB9)", "lpt$([char]0xB3)")) {
+        $msg = $null
+        try { Test-SaveName $bad } catch { $msg = $_.Exception.Message }
+        if ($msg -ne "unsafe save name '$bad'") { $wrong += "accepted '$bad'" }
+    }
+    foreach ($good in @('CAREER_01', 'A.', 'a b', '.x', 'ALIAS_JOSHUA S 10', 'CONSOLE', 'COM10', 'NULL',
+            "CAREER_$([char]0xFFFD)$([char]0xFFFD)", 'SaveConverter backups2', 'LPT')) {
+        try { Test-SaveName $good } catch { $wrong += "refused '$good'" }
+    }
+    if (-not $wrong) { Pass 'save-name rule like Python' } else { Fail 'save-name rule like Python' ($wrong -join '; ') }
+
+    # --- a folder where the save goes: refused up front, nothing moved into it
+    $fd = New-TempDir; $tmpRoots += $fd
+    $blocker = Join-Path $fd 'CAREER_02\CAREER_02'
+    New-Item -ItemType Directory -Force -Path $blocker | Out-Null
+    [System.IO.File]::WriteAllBytes((Join-Path $blocker 'keep'), [byte[]](1))
+    $r = Invoke-Converter @($pair, '-OutRoot', $fd)
+    $inside = @(Get-ChildItem -LiteralPath $blocker -Force | ForEach-Object { $_.Name })
+    $leftovers = @(Get-ChildItem -LiteralPath (Split-Path $blocker) -Force | ForEach-Object { $_.Name })
+    $want = "$blocker is a folder, not a save file - move it out of the way and convert again"
+    if ($r.Code -eq 1 -and $r.Text.Contains($want) -and ($inside -join ',') -eq 'keep' -and ($leftovers -join ',') -eq 'CAREER_02') { Pass 'folder in place of the save refused' }
+    else { Fail 'folder in place of the save refused' "exit $($r.Code), inside [$($inside -join ',')], beside [$($leftovers -join ',')]: $($r.Text)" }
+
+    # --- a read-only save is refused and kept, and the error says so
+    $ro = New-TempDir; $tmpRoots += $ro
+    $roSave = Join-Path $ro 'CAREER_02\CAREER_02'
+    New-Item -ItemType Directory -Force -Path (Split-Path $roSave) | Out-Null
+    [System.IO.File]::WriteAllBytes($roSave, [byte[]](1, 2, 3))
+    (Get-Item -LiteralPath $roSave).IsReadOnly = $true
+    $r = Invoke-Converter @($pair, '-OutRoot', $ro)
+    (Get-Item -LiteralPath $roSave).IsReadOnly = $false
+    $kept = (Get-Item -LiteralPath $roSave).Length -eq 3
+    $noTmp = -not (Test-Path -LiteralPath "$roSave.tmp")
+    if ($r.Code -eq 1 -and $r.Text.Contains("could not write $roSave (") -and $r.Text.Contains('); any save already there is unchanged') -and $kept -and $noTmp) { Pass 'read-only save refused and kept' }
+    else { Fail 'read-only save refused and kept' "exit $($r.Code), kept=$kept, noTmp=$noTmp`: $($r.Text)" }
+
+    # --- stray saves in the game folder (same notes as Python and the app)
+    $strayAlias = 'the save folder also holds {0} next to the converted alias; a second alias usually means the game once fell back to a default profile - move the one you do not play out of the folder'
+    $strayCareer = 'the save folder holds {0}; a CAREER_ save with a non-ASCII name is usually left over from the game falling back to a default profile - move it out unless you made it'
+    $odd = "CAREER_$([char]0xAA)$([char]0xAA)"
+    $sg = New-TempDir; $tmpRoots += $sg
+    $sgSave = Join-Path $sg 'SAVE\NFS ProStreet'
+    foreach ($n in @('ALIAS_Player', $odd, 'CAREER_07')) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $sgSave $n) | Out-Null
+        [System.IO.File]::WriteAllBytes((Join-Path (Join-Path $sgSave $n) $n), [byte[]](1))
+    }
+    New-Item -ItemType Directory -Force -Path (Join-Path $sgSave 'ALIAS_Empty') | Out-Null
+    $aliasSrc = Join-Path $repo 'docs\re\alias_anon\ALIAS_360'
+    $notes = @()
+    foreach ($argv in @(@($aliasSrc, '-OutRoot', $sg, '-DryRun'), @($aliasSrc, '-OutRoot', $sg), @($pair, '-OutRoot', $sg))) {
+        $r = Invoke-Converter $argv
+        $notes += , @($r.Code, @($r.Text -split "`n" | Where-Object { $_ -like '`[!`] the save folder*' } | ForEach-Object { $_.TrimEnd() }))
+    }
+    $aliasWant = @(('[!] ' + ($strayAlias -f 'ALIAS_Player')), ('[!] ' + ($strayCareer -f $odd)))
+    $careerWant = @('[!] ' + ($strayCareer -f $odd))
+    $okNotes = $notes[0][0] -eq 0 -and $notes[1][0] -eq 0 -and $notes[2][0] -eq 0 -and
+        (($notes[0][1] -join '|') -eq ($aliasWant -join '|')) -and (($notes[1][1] -join '|') -eq ($aliasWant -join '|')) -and
+        (($notes[2][1] -join '|') -eq ($careerWant -join '|'))
+    if ($okNotes) { Pass 'stray saves noted in the game folder' }
+    else { Fail 'stray saves noted in the game folder' (($notes | ForEach-Object { "exit $($_[0]): $($_[1] -join ' / ')" }) -join ' || ') }
+    $pf = New-TempDir; $tmpRoots += $pf
+    foreach ($n in @('ALIAS_Player', $odd)) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $pf $n) | Out-Null
+        [System.IO.File]::WriteAllBytes((Join-Path (Join-Path $pf $n) $n), [byte[]](1))
+    }
+    $r = Invoke-Converter @($aliasSrc, '-OutRoot', $pf)
+    if ($r.Code -eq 0 -and $r.Text -notmatch 'the save folder') { Pass 'plain output folder gets no stray notes' }
+    else { Fail 'plain output folder gets no stray notes' "exit $($r.Code): $($r.Text)" }
 
     # --- unit: embedded PCControllerSettings defaults == the shared data file
     $pcd = [NfsPs.Save].GetField('PcControllerDefault', [System.Reflection.BindingFlags]'NonPublic,Public,Static').GetValue($null)

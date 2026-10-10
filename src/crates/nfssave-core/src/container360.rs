@@ -51,7 +51,6 @@ pub fn stfs_block_offset(block: usize, first_table: usize, shift: u32) -> usize 
 
 #[derive(Clone, Debug)]
 pub struct Container360 {
-    pub data: Vec<u8>,
     pub name: String,
     pub payload: Vec<u8>,
 }
@@ -159,11 +158,7 @@ pub fn parse_container(data: &[u8], label: &str) -> Result<Container360> {
             payload.len()
         )));
     }
-    Ok(Container360 {
-        data: data.to_vec(),
-        name,
-        payload,
-    })
+    Ok(Container360 { name, payload })
 }
 
 pub fn read_container(path: impl AsRef<Path>) -> Result<Container360> {

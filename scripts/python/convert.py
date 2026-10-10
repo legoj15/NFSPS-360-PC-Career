@@ -21,7 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from nfssave import MC02, read_container
 from nfssave.convert import (convert_payload, ConversionReport, write_pc_save,
                               back_up_existing, utc_stamp, BACKUP_DIR,
-                              check_save_name)
+                              check_save_name, require_self_check,
+                              stray_save_notes)
 
 SAVE_DIR_NAME = "NFS ProStreet"
 SAVE_PREFIXES = ("career_", "alias_")
@@ -94,18 +95,19 @@ def resolve_save_folder(root) -> tuple[Path, Path, bool]:
 def windows_name_key(name: str) -> str:
     """The folder name Windows actually creates: case-insensitive, trailing
     dots/spaces dropped (exe batch.rs windows_name_key)."""
-    return name.rstrip(". ").casefold()
+    return name.rstrip(". ").lower()
 
 
 def convert_one(src: Path, args, claimed: dict | None = None) -> None:
-    """`claimed` (export name, casefolded -> source) refuses a second save
+    """`claimed` (export name, lowercased -> source) refuses a second save
     with the same name in one batch instead of replacing the first."""
     cont = read_container(src)
     check_save_name(cont.name)  # a dry run must refuse what a real run refuses
     key = windows_name_key(cont.name)
     if claimed is not None and key in claimed:
         raise ValueError(f"another selected save ({claimed[key]}) is also named "
-                         f"{cont.name}; skipped")
+                         f"{cont.name}; converting both would overwrite it - "
+                         "convert it separately")
     mc02 = MC02.parse(cont.payload)
     bad = mc02.check()
     if "extra CRC mismatch" in bad:
@@ -136,8 +138,8 @@ def convert_one(src: Path, args, claimed: dict | None = None) -> None:
     if backup:
         print(f"[+] backed up existing save to {backup}")
     target = write_pc_save(pc, cont.name, args.out_root)
-    check = MC02.parse(target.read_bytes()).check()
-    print(f"[+] wrote {target} {'(self-check OK)' if not check else check}")
+    require_self_check(target)
+    print(f"[+] wrote {target} (self-check OK)")
     if claimed is not None:  # only a converted save claims its name (exe batch.rs)
         claimed[key] = src
 
@@ -218,6 +220,9 @@ def main() -> int:
         except Exception as exc:
             failures += 1
             print(f"[!] FAILED {p}: {exc}", file=sys.stderr)
+    if is_game:
+        for note in stray_save_notes(save_dir, claimed):
+            print(f"[!] {note}")
     return 1 if failures else 0
 
 

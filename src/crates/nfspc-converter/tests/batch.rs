@@ -36,7 +36,7 @@ fn corrupted_mc02_bytes() -> Vec<u8> {
 fn con_container_converts_end_to_end() {
     let out = TempDir::new().unwrap();
     let input = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
-    let save_name = input.name.clone();
+    let save_name = input.name().to_string();
 
     let batch = run_batch(vec![input], out.path());
 
@@ -75,11 +75,7 @@ fn con_container_converts_end_to_end() {
 #[test]
 fn corrupted_save_is_refused_and_nothing_is_written() {
     let out = TempDir::new().unwrap();
-    let input = SaveInput {
-        label: "CORRUPT".into(),
-        name: "CORRUPT".into(),
-        bytes: corrupted_mc02_bytes(),
-    };
+    let input = SaveInput::from_bytes("CORRUPT", "CORRUPT", corrupted_mc02_bytes());
     let batch = run_batch(vec![input], out.path());
     assert_eq!(batch.results.len(), 1);
     match &batch.results[0].status {
@@ -98,11 +94,7 @@ fn corrupted_save_is_refused_and_nothing_is_written() {
 fn corrupted_save_does_not_stop_the_others() {
     let out = TempDir::new().unwrap();
     let good = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
-    let bad = SaveInput {
-        label: "CORRUPT".into(),
-        name: "CORRUPT".into(),
-        bytes: corrupted_mc02_bytes(),
-    };
+    let bad = SaveInput::from_bytes("CORRUPT", "CORRUPT", corrupted_mc02_bytes());
     let batch = run_batch(vec![bad, good], out.path());
     assert_eq!(batch.results.len(), 2);
     assert!(matches!(
@@ -120,16 +112,14 @@ fn corrupted_save_does_not_stop_the_others() {
 #[test]
 fn raw_mc02_input_converts_with_file_stem_name() {
     let out = TempDir::new().unwrap();
-    let input = SaveInput {
-        label: "CAREER_99".into(),
-        name: "CAREER_99".into(),
-        // fixture MC02 re-serialized: parse+to_bytes keeps the stored CRCs?
-        // to_bytes recomputes them, so use the raw payload directly.
-        bytes: {
-            let bytes = fixture_bytes();
-            parse_container(&bytes, "fixture").unwrap().payload
-        },
-    };
+    // the raw payload as stored (to_bytes would recompute the CRCs)
+    let input = SaveInput::from_bytes(
+        "CAREER_99",
+        "CAREER_99",
+        parse_container(&fixture_bytes(), "fixture")
+            .unwrap()
+            .payload,
+    );
     let batch = run_batch(vec![input], out.path());
     match &batch.results[0].status {
         SaveStatus::Converted { target, .. } => {
@@ -165,7 +155,7 @@ fn from_discovered_parse_failure_uses_fatx_file_name() {
         bytes: full[..0x2000].to_vec(), // CON magic, truncated before the file table
     };
     let input = SaveInput::from_discovered(&save);
-    assert_eq!(input.name, "CAREER_BAD_360");
+    assert_eq!(input.name(), "CAREER_BAD_360");
     assert_eq!(dirent_name_of(&save), "CAREER_BAD_360");
 }
 
@@ -174,7 +164,7 @@ fn batch_creates_missing_output_root() {
     let tmp = TempDir::new().unwrap();
     let root: PathBuf = tmp.path().join("deep/ly/missing");
     let input = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
-    let name = input.name.clone();
+    let name = input.name().to_string();
     let batch = run_batch(vec![input], &root);
     match &batch.results[0].status {
         SaveStatus::Converted { target, .. } => {
@@ -193,13 +183,12 @@ fn batch_creates_missing_output_root() {
 fn duplicate_export_names_in_one_batch_are_refused() {
     let out = TempDir::new().unwrap();
     let first = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
-    let mut second = first.clone();
-    second.label = "G:/Content/E000/45410822/00000001/CAREER_01".into();
     // Different content, same name: flip a byte far from the headers.
-    let n = second.bytes.len();
-    second.bytes[n - 1] ^= 0xFF;
+    let mut bytes = fixture_bytes();
+    *bytes.last_mut().unwrap() ^= 0xFF;
+    let second = SaveInput::from_bytes("G:/Content/E000/45410822/00000001/CAREER_01", "X", bytes);
     let first_label = first.label.clone();
-    let name = first.name.clone();
+    let name = first.name().to_string();
 
     let result = run_batch(vec![first, second], out.path());
     assert_eq!(result.results.len(), 2);
@@ -209,8 +198,13 @@ fn duplicate_export_names_in_one_batch_are_refused() {
     };
     match &result.results[1].status {
         SaveStatus::Refused { reason } => {
-            assert!(reason.contains(&name), "{reason}");
-            assert!(reason.contains(&first_label), "{reason}");
+            assert_eq!(
+                reason,
+                &format!(
+                    "another selected save ({first_label}) is also named {name}; \
+                     converting both would overwrite it - convert it separately"
+                )
+            );
         }
         other => panic!("second save must be refused: {other:?}"),
     }
@@ -230,11 +224,7 @@ fn duplicate_export_names_in_one_batch_are_refused() {
 }
 
 fn raw_input(name: &str, bytes: Vec<u8>) -> SaveInput {
-    SaveInput {
-        label: format!("pick/{name}"),
-        name: name.into(),
-        bytes,
-    }
+    SaveInput::from_bytes(format!("pick/{name}"), name, bytes)
 }
 
 fn raw_payload() -> Vec<u8> {
@@ -321,7 +311,7 @@ fn plain_out_folder_keeps_backups_inside_itself() {
     let tmp = TempDir::new().unwrap();
     let out = tmp.path().join("out");
     let input = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
-    let existing = out.join(&input.name).join(&input.name);
+    let existing = out.join(input.name()).join(input.name());
     fs::create_dir_all(existing.parent().unwrap()).unwrap();
     fs::write(&existing, b"earlier export").unwrap();
 
@@ -342,7 +332,7 @@ fn existing_export_is_backed_up_before_being_replaced() {
     let tmp = TempDir::new().unwrap();
     let out = game_like_out(&tmp);
     let input = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
-    let existing = out.join(&input.name).join(&input.name);
+    let existing = out.join(input.name()).join(input.name());
     fs::create_dir_all(existing.parent().unwrap()).unwrap();
     fs::write(&existing, b"native PC career").unwrap();
 
@@ -414,11 +404,7 @@ fn corrupted_con_bytes() -> Vec<u8> {
 fn corrupt_save_is_refused_before_any_backup() {
     let name = parse_container(&fixture_bytes(), "fixture").unwrap().name;
     for input in [
-        SaveInput {
-            label: "con".into(),
-            name: name.clone(),
-            bytes: corrupted_con_bytes(),
-        },
+        SaveInput::from_bytes("con", name.clone(), corrupted_con_bytes()),
         raw_input(&name, corrupted_mc02_bytes()),
     ] {
         let tmp = TempDir::new().unwrap();
@@ -446,21 +432,21 @@ fn corrupt_save_is_refused_before_any_backup() {
 }
 
 /// Guard and backup must key on the name the converter actually writes (the
-/// CON file-table name), not on a caller-supplied SaveInput.name.
+/// CON file-table name), never on the caller's fallback name: the package
+/// is parsed once, at construction, and its name wins.
 #[test]
 fn con_inputs_are_keyed_by_their_package_name() {
     let tmp = TempDir::new().unwrap();
     let out = game_like_out(&tmp);
     let real = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
-    let existing = out.join(&real.name).join(&real.name);
+    let existing = out.join(real.name()).join(real.name());
     fs::create_dir_all(existing.parent().unwrap()).unwrap();
     fs::write(&existing, b"native PC career").unwrap();
 
-    let mut a = real.clone();
-    a.name = "SOMETHING_ELSE".into();
-    let mut b = real.clone();
-    b.name = "YET_ANOTHER".into();
-    b.label = "second".into();
+    let a = SaveInput::from_bytes("first", "SOMETHING_ELSE", fixture_bytes());
+    let b = SaveInput::from_bytes("second", "YET_ANOTHER", fixture_bytes());
+    assert_eq!(a.name(), real.name());
+    assert_eq!(b.name(), real.name());
     let r = run_batch(vec![a, b], &out);
 
     assert!(matches!(r.results[0].status, SaveStatus::Converted { .. }));
@@ -479,7 +465,7 @@ fn backup_failure_refuses_cleanly_and_keeps_the_original() {
     let tmp = TempDir::new().unwrap();
     let out = game_like_out(&tmp);
     let input = SaveInput::from_path(Path::new(FIXTURE)).unwrap();
-    let existing = out.join(&input.name).join(&input.name);
+    let existing = out.join(input.name()).join(input.name());
     fs::create_dir_all(existing.parent().unwrap()).unwrap();
     fs::write(&existing, b"native PC career").unwrap();
     // A FILE where the backup folder should go makes the backup fail.
@@ -524,11 +510,7 @@ fn unsafe_container_name_is_refused_without_backup_or_output() {
     for bad in ["/".repeat(len), ".".repeat(len)] {
         let tmp = TempDir::new().unwrap();
         let out = tmp.path().join("NFS ProStreet");
-        let input = SaveInput {
-            label: "BAD".into(),
-            name: "BAD".into(),
-            bytes: fixture_with_name(&bad),
-        };
+        let input = SaveInput::from_bytes("BAD", "BAD", fixture_with_name(&bad));
         let batch = run_batch(vec![input], &out);
         match &batch.results[0].status {
             SaveStatus::Refused { reason } => {
@@ -542,4 +524,83 @@ fn unsafe_container_name_is_refused_without_backup_or_output() {
         assert!(!tmp.path().join("SaveConverter backups").exists());
         assert!(fs::read_dir(&out).unwrap().next().is_none());
     }
+}
+
+/// The anonymized 360 alias container (docs/re/alias_anon).
+const ALIAS_FIXTURE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../docs/re/alias_anon/ALIAS_360"
+);
+
+const STRAY_ALIAS: &str = "the save folder also holds {} next to the converted alias; a \
+     second alias usually means the game once fell back to a default profile - move the \
+     one you do not play out of the folder";
+const STRAY_CAREER: &str = "the save folder holds {}; a CAREER_ save with a non-ASCII name \
+     is usually left over from the game falling back to a default profile - move it out \
+     unless you made it";
+
+/// `<out>/<name>/<name>` with dummy bytes.
+fn seed(out: &Path, name: &str) {
+    fs::create_dir_all(out.join(name)).unwrap();
+    fs::write(out.join(name).join(name), b"x").unwrap();
+}
+
+/// Game folder holding a stray default-profile alias, a CAREER_ with a
+/// non-ASCII name, an ordinary career, and an empty ALIAS_ folder (no save
+/// file inside, so not a save).
+fn stray_game_folder(tmp: &TempDir) -> PathBuf {
+    let out = game_like_out(tmp);
+    seed(&out, "ALIAS_Player");
+    seed(&out, "CAREER_\u{aa}\u{aa}");
+    seed(&out, "CAREER_07");
+    fs::create_dir_all(out.join("ALIAS_Empty")).unwrap();
+    out
+}
+
+/// Same notes as the scripts (tests/test_cli.py, Run-Tests.ps1).
+#[test]
+fn stray_saves_are_noted_next_to_a_converted_alias() {
+    let tmp = TempDir::new().unwrap();
+    let out = stray_game_folder(&tmp);
+    let r = run_batch(
+        vec![SaveInput::from_path(Path::new(ALIAS_FIXTURE)).unwrap()],
+        &out,
+    );
+    assert!(
+        matches!(r.results[0].status, SaveStatus::Converted { .. }),
+        "{:?}",
+        r.results[0].status
+    );
+    assert_eq!(
+        r.notes,
+        [
+            STRAY_ALIAS.replace("{}", "ALIAS_Player"),
+            STRAY_CAREER.replace("{}", "CAREER_\u{aa}\u{aa}"),
+        ]
+    );
+}
+
+#[test]
+fn career_only_batch_notes_only_odd_careers() {
+    let tmp = TempDir::new().unwrap();
+    let out = stray_game_folder(&tmp);
+    let r = run_batch(
+        vec![SaveInput::from_path(Path::new(FIXTURE)).unwrap()],
+        &out,
+    );
+    assert_eq!(r.notes, [STRAY_CAREER.replace("{}", "CAREER_\u{aa}\u{aa}")]);
+}
+
+/// Headless `--out D` into a plain folder: not the game's, so no notes.
+#[test]
+fn plain_out_folder_gets_no_stray_notes() {
+    let tmp = TempDir::new().unwrap();
+    let out = tmp.path().join("plain");
+    seed(&out, "ALIAS_Player");
+    seed(&out, "CAREER_\u{aa}");
+    let r = run_batch(
+        vec![SaveInput::from_path(Path::new(ALIAS_FIXTURE)).unwrap()],
+        &out,
+    );
+    assert!(r.notes.is_empty(), "{:?}", r.notes);
 }

@@ -67,6 +67,9 @@ pub fn run(src: &Path, out: &Path) -> ExitCode {
             }
         }
     }
+    for note in &batch.notes {
+        println!("[!] {note}");
+    }
 
     match batch.success_message() {
         Some(msg) => {

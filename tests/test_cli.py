@@ -125,7 +125,8 @@ def test_batch_refuses_second_save_with_same_name(tmp_path):
     other.parent.mkdir()
     other.write_bytes(PAIR_360.read_bytes())
     cli.convert_one(PAIR_360, args, claimed)
-    with pytest.raises(ValueError, match="also named"):
+    with pytest.raises(ValueError, match=r"is also named CAREER_02; converting both "
+                                         r"would overwrite it - convert it separately$"):
         cli.convert_one(other, args, claimed)
     assert not (tmp_path / lib.BACKUP_DIR).exists()
 
@@ -505,3 +506,128 @@ def test_dots_only_name_is_refused_before_anything_else(tmp_path, monkeypatch, c
     assert f"unsafe save name '{'.' * 9}'" in capsys.readouterr().err
     assert not out.exists() or not any(out.iterdir())
     assert not list(tmp_path.rglob("SaveConverter backups"))
+
+
+# --- save names that are not plain Windows folder names ----------------------
+
+@pytest.mark.parametrize("bad", [
+    "SaveConverter backups", "saveconverter BACKUPS", "SaveConverter backups. ",
+    "CAREER*", "A?", 'A"B', "A<B", "A>B", "A|B", "A\x01B", "A\x1f",
+    "CON", "nul", "Com1", "LPT9", "AUX.txt", "PRN .x", "COM¹", "lpt³",
+])
+def test_check_save_name_refuses_non_folder_names(bad):
+    """The backup folder's own name would export inside the backups, and
+    characters or device names Windows rejects would only fail at write time
+    with an OS error (same list in test_save_name.rs and Run-Tests.ps1)."""
+    with pytest.raises(ValueError, match=re.escape(f"unsafe save name '{bad}'")):
+        lib.check_save_name(bad)
+
+
+@pytest.mark.parametrize("good", [
+    "ALIAS_JOSHUA S 10", "CONSOLE", "COM10", "NULL", "CAREER_\ufffd\ufffd",
+    "SaveConverter backups2", "LPT",
+])
+def test_check_save_name_accepts_other_names(good):
+    lib.check_save_name(good)
+
+
+# --- write failures say the previous save survived ---------------------------
+
+def test_folder_in_place_of_the_save_is_refused(tmp_path):
+    """A directory at <root>/<NAME>/<NAME>: the backup skips it (not a file)
+    and the write refuses up front, moving nothing into it (Rust
+    write_pc_save_refuses_a_folder_at_the_target)."""
+    blocker = tmp_path / "CAREER_01" / "CAREER_01"
+    blocker.mkdir(parents=True)
+    (blocker / "keep").write_bytes(b"user file")
+    with pytest.raises(OSError, match=re.escape(
+            f"{blocker} is a folder, not a save file - move it out of the way")):
+        lib.write_pc_save(_Bytes(b"new"), "CAREER_01", tmp_path)
+    assert [p.name for p in blocker.iterdir()] == ["keep"]
+    assert sorted(p.name for p in blocker.parent.iterdir()) == ["CAREER_01"]
+
+
+def test_read_only_save_is_refused_and_kept(tmp_path):
+    """A read-only (or game-locked) save cannot be replaced: the error names
+    the target and says the save there is unchanged."""
+    import os
+    import stat
+    old = _seed(tmp_path, "CAREER_01", b"old")
+    os.chmod(old, stat.S_IREAD)
+    try:
+        with pytest.raises(OSError, match=re.escape(
+                f"could not write {old} (") + ".*" + re.escape(
+                "); any save already there is unchanged")):
+            lib.write_pc_save(_Bytes(b"new"), "CAREER_01", tmp_path)
+        assert old.read_bytes() == b"old"
+        assert sorted(p.name for p in old.parent.iterdir()) == ["CAREER_01"]
+    finally:
+        os.chmod(old, stat.S_IREAD | stat.S_IWRITE)
+
+
+# --- a failed post-write self-check is a failure (exit 1), not a note --------
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_self_check_failure_fails_the_save(tmp_path, monkeypatch, capsys):
+    from nfssave import MC02
+    real = MC02.check
+    calls = []
+
+    def check(self):
+        calls.append(1)
+        return real(self) if len(calls) == 1 else ["tree CRC mismatch"]
+    monkeypatch.setattr(MC02, "check", check)
+    out = tmp_path / "out"
+    assert _run(monkeypatch, PAIR_360, "--out-root", out) == 1
+    err = capsys.readouterr().err
+    target = out / "CAREER_02" / "CAREER_02"
+    assert f"wrote {target} but the self-check failed: tree CRC mismatch" in err
+
+
+# --- stray saves in the game folder -------------------------------------------
+
+ALIAS_ANON = ROOT / "docs/re/alias_anon/ALIAS_360"
+STRAY_ALIAS = ("the save folder also holds {} next to the converted alias; a "
+               "second alias usually means the game once fell back to a default "
+               "profile - move the one you do not play out of the folder")
+STRAY_CAREER = ("the save folder holds {}; a CAREER_ save with a non-ASCII name "
+                "is usually left over from the game falling back to a default "
+                "profile - move it out unless you made it")
+
+
+def _game_folder(tmp_path: Path) -> Path:
+    s = tmp_path / "SAVE" / "NFS ProStreet"
+    _seed(s, "ALIAS_Player", b"x")
+    _seed(s, "CAREER_\u00aa\u00aa", b"x")
+    _seed(s, "CAREER_07", b"x")
+    (s / "ALIAS_Empty").mkdir()          # no save file inside: not a save
+    return s
+
+
+@pytest.mark.skipif(not ALIAS_ANON.is_file(), reason="alias fixture missing")
+@pytest.mark.parametrize("dry", [False, True])
+def test_stray_saves_are_reported_next_to_a_converted_alias(tmp_path, monkeypatch, capsys, dry):
+    s = _game_folder(tmp_path)
+    argv = [ALIAS_ANON, "--out-root", tmp_path] + (["--dry-run"] if dry else [])
+    assert _run(monkeypatch, *argv) == 0
+    out = capsys.readouterr().out
+    assert "[!] " + STRAY_ALIAS.format("ALIAS_Player") in out
+    assert "[!] " + STRAY_CAREER.format("CAREER_\u00aa\u00aa") in out
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+def test_career_only_run_reports_only_odd_careers(tmp_path, monkeypatch, capsys):
+    _game_folder(tmp_path)
+    assert _run(monkeypatch, PAIR_360, "--out-root", tmp_path) == 0
+    out = capsys.readouterr().out
+    assert "next to the converted alias" not in out
+    assert "[!] " + STRAY_CAREER.format("CAREER_\u00aa\u00aa") in out
+
+
+@pytest.mark.skipif(not ALIAS_ANON.is_file(), reason="alias fixture missing")
+def test_plain_output_folder_reports_no_strays(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "plain"
+    _seed(out, "ALIAS_Player", b"x")
+    _seed(out, "CAREER_\u00aa", b"x")
+    assert _run(monkeypatch, ALIAS_ANON, "--out-root", out) == 0
+    assert "the save folder" not in capsys.readouterr().out

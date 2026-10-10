@@ -930,6 +930,8 @@ namespace NfsPs
         // fix_raceday_block: GameplayData in-progress race-day block (0x2E0..end)
         static void FixRacedayBlock(byte[] src, byte[] o, List<string> warnings)
         {
+            // GAMEPLAY_U8_FIELDS: two separate [u8][pad x3] words (not a range),
+            // natural order; golden-pinned, change only with an in-game check
             CopyNat(src, o, 0x1F4 + 4, 0x1F4 + 8);
             CopyNat(src, o, 0x2D0 + 4, 0x2D0 + 8);
             if (src.Length < 0x2D4 + 8)
@@ -1160,6 +1162,40 @@ namespace NfsPs
             return ChunkNames.TryGetValue(id, out n) ? n : Hex(id);
         }
 
+        // NUMERIC_IDS: node streams of u32/float values only (no strings): swap
+        // every word, then fix_node_flags
+        static readonly uint[] NumericIds = { RaceDataId };
+
+        // convert_to_pc_record: one 360 record to its PC-framed form (in place)
+        static void ConvertToPcRecord(Rec rec, byte[] spill, SaveResult rep, Dictionary<string, Rule> rules)
+        {
+            NormalizeGameplay(rec, rep.Warnings);
+            byte[] src = rec.Payload;
+            bool numeric = Array.IndexOf(NumericIds, rec.Id) >= 0;
+            if ((rec.Id == GameplayId || numeric) && src.Length % 4 != 0)
+                throw new InvalidOperationException(ChunkName(rec.Id) + " chunk size " + Hex(src.Length)
+                    + " is not word-aligned - the source file is corrupted");
+            string mode;
+            if (rec.Id == GameplayId)
+            {
+                // variable layout (race-day block) - positional maps do not apply
+                rec.Payload = SwapU32s(rec.Payload);
+                mode = "gameplay";
+            }
+            else if (numeric)
+            {
+                rec.Payload = SwapU32s(rec.Payload);
+                mode = "numeric";
+            }
+            else mode = ConvertRecord(rep.Kind, rec, rep.Warnings, rules);
+            ApplyStructFixes(rec, src, rep.Warnings);
+            if (mode == "auto" && rec.Payload.Length > 0x1000 && rec.Id != GameplayId)
+                rep.Warnings.Add("chunk " + ChunkName(rec.Id) + " (" + Hex(rec.Payload.Length)
+                    + " B) converted in auto mode (no fieldmap)");
+            ToPcRecord(rec, TailWord(rec.Id, src, spill));
+            RehashGameplay(rec);
+        }
+
         // convert_tree
         static Tree ConvertTree(Tree t, SaveResult rep, Dictionary<string, Rule> rules)
         {
@@ -1189,28 +1225,7 @@ namespace NfsPs
             int ri = 0;
             foreach (Rec rec in t.Records)
             {
-                byte[] spill = spills[ri++];
-                NormalizeGameplay(rec, rep.Warnings);
-                byte[] src = rec.Payload;
-                string mode;
-                if (rec.Id == GameplayId)
-                {
-                    rec.Payload = SwapU32s(rec.Payload);
-                    mode = "gameplay";
-                }
-                else if (rec.Id == RaceDataId)
-                {
-                    // NUMERIC_IDS: u32/float node stream, no strings (fix_node_flags follows)
-                    rec.Payload = SwapU32s(rec.Payload);
-                    mode = "numeric";
-                }
-                else mode = ConvertRecord(rep.Kind, rec, rep.Warnings, rules);
-                ApplyStructFixes(rec, src, rep.Warnings);
-                if (mode == "auto" && rec.Payload.Length > 0x1000 && rec.Id != GameplayId)
-                    rep.Warnings.Add("chunk " + ChunkName(rec.Id) + " (" + Hex(rec.Payload.Length)
-                        + " B) converted in auto mode (no fieldmap)");
-                ToPcRecord(rec, TailWord(rec.Id, src, spill));
-                RehashGameplay(rec);
+                ConvertToPcRecord(rec, spills[ri++], rep, rules);
                 pc.Records.Add(rec);
             }
             if (t.Gap > 0 && pc.Records.Count < (long)t.Count)
@@ -1326,12 +1341,46 @@ function Backup-Existing([string]$root, [string]$base, [string]$name, [string]$s
     return $dest
 }
 
-# convert.py check_save_name: a name that cannot be a plain folder name. Windows
-# drops trailing dots/spaces, so "..." or "  " would collapse onto the output root.
+# convert.py check_save_name: a name that is not a plain Windows folder name
+# (separators, drive colon, < > " | ? * and control characters, device names,
+# "."/"..", the backup folder's own name). Windows drops trailing dots/spaces,
+# so "..." or "  " would collapse onto the output root.
 function Test-SaveName([string]$name) {
-    if (-not $name -or $name.IndexOfAny([char[]]'\/:') -ge 0 -or $name -eq '.' -or $name -eq '..' -or -not $name.TrimEnd('.', ' ')) {
+    $key = $name.TrimEnd('.', ' ')
+    $stem = $name.Split('.')[0].TrimEnd(' ').ToUpperInvariant()
+    $badChar = $false
+    foreach ($c in $name.ToCharArray()) { if ([int]$c -lt 0x20 -or '\/:<>"|?*'.IndexOf($c) -ge 0) { $badChar = $true } }
+    # CON.txt is creatable on Windows 11 but not on Windows 10; superscript
+    # digits (COM1 with U+00B9) are reserved too. The file stays ASCII-only.
+    $sup = "$([char]0xB9)$([char]0xB2)$([char]0xB3)"
+    $device = $stem -match "^(CON|PRN|AUX|NUL|COM[1-9$sup]|LPT[1-9$sup])$"
+    if (-not $key -or $badChar -or $device -or $key.ToLowerInvariant() -eq 'saveconverter backups') {
         throw "unsafe save name '$name'"
     }
+}
+
+# convert.py stray_save_notes: saves in the game's save folder that usually mean
+# the PC once fell back to a default profile - another ALIAS_* next to an alias
+# this run converted, and CAREER_ saves with a non-ASCII name. $claimed keys are
+# the Windows name keys of the saves this run converted (or checked, dry run).
+function Get-StraySaveNotes([string]$saveDir, [hashtable]$claimed) {
+    $names = @(Get-ChildItem -LiteralPath $saveDir -Directory -Force -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName $_.Name) -PathType Leaf } |
+        ForEach-Object { $_.Name })
+    $names = [string[]]$names
+    [Array]::Sort($names, [StringComparer]::Ordinal)
+    $notes = @()
+    if (@($claimed.Keys | Where-Object { $_.StartsWith('alias_') }).Count) {
+        $aliases = @($names | Where-Object { $_.ToLowerInvariant().StartsWith('alias_', [StringComparison]::Ordinal) -and -not $claimed.ContainsKey($_.TrimEnd('.', ' ').ToLowerInvariant()) })
+        if ($aliases.Count) {
+            $notes += "the save folder also holds $($aliases -join ', ') next to the converted alias; a second alias usually means the game once fell back to a default profile - move the one you do not play out of the folder"
+        }
+    }
+    $odd = @($names | Where-Object { $_.ToLowerInvariant().StartsWith('career_', [StringComparison]::Ordinal) -and $_ -match '[^\x00-\x7F]' })
+    if ($odd.Count) {
+        $notes += "the save folder holds $($odd -join ', '); a CAREER_ save with a non-ASCII name is usually left over from the game falling back to a default profile - move it out unless you made it"
+    }
+    , $notes
 }
 
 # convert.py convert_one; throws on failure (nothing is written before the output is complete)
@@ -1368,12 +1417,24 @@ function Convert-One([string]$path, $rules, [string]$outRoot, [string]$backupBas
     $backup = Backup-Existing $outRoot $backupBase $name $stamp
     if ($backup) { Write-Host "[+] backed up existing save to $backup" }
     $folder = Join-Path $outRoot $name
-    New-Item -ItemType Directory -Force -Path $folder | Out-Null
     $target = Join-Path $folder $name
+    if (Test-Path -LiteralPath $target -PathType Container) {
+        # the backup skipped it (not a file) and a rename cannot replace it
+        throw "$target is a folder, not a save file - move it out of the way and convert again"
+    }
     $tmp = "$target.tmp"
     try {
+        New-Item -ItemType Directory -Force -Path $folder | Out-Null
         [System.IO.File]::WriteAllBytes($tmp, $bytes)
-        Move-Item -LiteralPath $tmp -Destination $target -Force
+        # one replace, like os.replace / std::fs::rename: a read-only or
+        # game-locked save refuses and stays as it was (Move-Item -Force would
+        # overwrite a read-only file)
+        if ([System.IO.File]::Exists($target)) { [System.IO.File]::Replace($tmp, $target, [NullString]::Value) }
+        else { [System.IO.File]::Move($tmp, $target) }
+    } catch {
+        $e = $_.Exception
+        while ($e.InnerException) { $e = $e.InnerException }
+        throw "could not write $target ($($e.Message)); any save already there is unchanged"
     } finally {
         if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
     }
@@ -1500,8 +1561,15 @@ foreach ($s in $saves) {
     try { Convert-One $s $rules $outRootFull $backupBase $stamp $claimed }
     catch {
         $failures++
-        [Console]::Error.WriteLine("[!] FAILED ${s}: $($_.Exception.Message)")
+        # a .NET method call wraps the C# exception ('Exception calling "X" with
+        # "n" argument(s): ...'); report the C# message bare, like the other ports
+        $e = $_.Exception
+        if ($e -is [System.Management.Automation.MethodInvocationException] -and $e.InnerException) { $e = $e.InnerException }
+        [Console]::Error.WriteLine("[!] FAILED ${s}: $($e.Message)")
     }
+}
+if ($gameMode) {
+    foreach ($note in (Get-StraySaveNotes $outRootFull $claimed)) { Write-Host "[!] $note" }
 }
 if ($failures) { exit 1 }
 exit 0

@@ -21,6 +21,52 @@ fn plain_names_are_accepted() {
     }
 }
 
+/// The backup folder's own name would export inside the backups; characters
+/// and device names Windows rejects would only fail at write time with an
+/// OS error. Same vectors as tests/test_cli.py and Run-Tests.ps1.
+#[test]
+fn non_folder_names_are_refused() {
+    for bad in [
+        "SaveConverter backups",
+        "saveconverter BACKUPS",
+        "SaveConverter backups. ",
+        "CAREER*",
+        "A?",
+        "A\"B",
+        "A<B",
+        "A>B",
+        "A|B",
+        "A\u{1}B",
+        "A\u{1f}",
+        "CON",
+        "nul",
+        "Com1",
+        "LPT9",
+        "AUX.txt",
+        "PRN .x",
+        "COM\u{b9}",
+        "lpt\u{b3}",
+    ] {
+        let e = check_save_name(bad).unwrap_err().to_string();
+        assert_eq!(e, format!("unsafe save name '{bad}'"), "{bad:?}");
+    }
+}
+
+#[test]
+fn other_names_are_accepted() {
+    for good in [
+        "ALIAS_JOSHUA S 10",
+        "CONSOLE",
+        "COM10",
+        "NULL",
+        "CAREER_\u{FFFD}\u{FFFD}",
+        "SaveConverter backups2",
+        "LPT",
+    ] {
+        check_save_name(good).unwrap_or_else(|e| panic!("{good:?}: {e}"));
+    }
+}
+
 /// `convert_one` checks the name before the corruption check (Python
 /// convert_one order): an unsafe-named, extra-CRC-corrupt container reports
 /// the name.

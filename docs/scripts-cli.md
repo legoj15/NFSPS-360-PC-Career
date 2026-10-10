@@ -23,18 +23,40 @@ implement the same command line. Behaviour changes go in both, with tests in
 - If every input failed to yield a save, exit 1 before printing the banner.
 - `--out-root` / `-OutRoot` that exists as a file -> usage error, exit 2.
 - Duplicate STFS names in one run: key = name with trailing dots/spaces
-  dropped, case-insensitive (exe `windows_name_key`); only a save that
+  dropped, case-insensitive (exe `windows_name_key`); refused with `another
+  selected save (<first>) is also named <NAME>; converting both would
+  overwrite it - convert it separately` in every port; only a save that
   converted (or passed a dry run) claims its name, so a failed save never
   blocks a later good one with the same name.
 - Dry run = the same exit code and refusals as a real run, minus the writing:
-  an unsafe STFS save name (empty, `.`, `..`, containing `\`, `/`, `:`, or
-  empty once trailing dots and spaces are stripped, e.g. `...`) fails with
-  `unsafe save name '<name>'` and exit 1 in both modes. The same rule and
-  message apply in the Python, PowerShell and Rust ports. Every port checks,
-  per save: name, then duplicate name in the batch, then corruption
+  an unsafe STFS save name fails with `unsafe save name '<name>'` and exit 1
+  in both modes. Unsafe = empty once trailing dots and spaces are stripped
+  (e.g. `...`), `.`/`..`, containing `\ / : < > " | ? *` or a control
+  character, a Windows device name (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`,
+  `LPT1-9`, and `COM`/`LPT` with superscript 1-3; also with an extension,
+  which Windows 11 allows but Windows 10 does not), or `SaveConverter backups` itself
+  (case-insensitive). The same rule and message apply in the Python,
+  PowerShell and Rust ports (`check_save_name` / `Test-SaveName`). Every port
+  checks, per save: name, then duplicate name in the batch, then corruption
   (extra-blob CRC), then backup and write. A save refused before the write
-  (name, duplicate, corruption) never causes a backup. Every port writes `<NAME>.tmp` and renames it over the target, so
-  an interrupted write leaves the previous save in place.
+  (name, duplicate, corruption) never causes a backup.
+- Writing: every port writes `<NAME>.tmp` and replaces the target in one
+  rename, so an interrupted write leaves the previous save in place. A
+  folder at `S\<NAME>\<NAME>` is refused up front (`<path> is a folder, not
+  a save file - move it out of the way and convert again`); a failed write
+  (read-only or game-locked save, full disk) fails that save with
+  `could not write <path> (<OS error>); any save already there is
+  unchanged`. The written file is re-read: a CRC problem fails that save
+  (`wrote <path> but the self-check failed: <problems>`, exit 1); its
+  backup, if any, is kept.
+- Stray saves (game save folder only, cases 1-3 below): after the run, each
+  port prints `[!] the save folder also holds <ALIAS_...> next to the
+  converted alias; ...` when the run converted (or dry-ran) an alias and
+  another `ALIAS_*` save sits in `S`, and `[!] the save folder holds
+  <CAREER_...>; ...` for `CAREER_` saves with a non-ASCII name. Warnings
+  only; the exit code is unchanged. The app shows the same notes
+  (`BatchResult.notes`). Why: docs/re/FORMAT-NOTES.md (default-profile
+  fallback, with its caveat).
 
 ## Output folder
 

@@ -75,7 +75,15 @@ window-creation failure in the GUI path shows a message box
   never truncates a previous good export (`nfssave-core` `write_pc_save`).
   An existing export is backed up first to `<out>/SaveConverter backups/`
   (or beside `<out>` when `<out>` is named `NFS ProStreet`), the scripts'
-  rule (docs/scripts-cli.md "Backups").
+  rule (docs/scripts-cli.md "Backups"). Name rule, write-failure and
+  self-check messages, and the stray-save notes (`BatchResult.notes`, printed
+  as `[!] ...` lines; only for a folder named `NFS ProStreet`) match the
+  scripts (docs/scripts-cli.md "Inputs").
+- `SaveInput` parses a CON package once, at construction
+  (`from_path` / `from_discovered` / `from_bytes`): it keeps the export name
+  (file-table name, else the caller's fallback) and only the MC02 payload.
+  The name is read-only (`name()`), so the duplicate guard, backup and write
+  can never key on different names.
 - Exit code 0 only when every requested save converted; failures print to
   stderr with a nonzero exit. Per-file load failures report to stderr and
   the run continues with the remaining files, matching the GUI worker and

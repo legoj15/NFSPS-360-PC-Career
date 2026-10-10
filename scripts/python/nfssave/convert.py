@@ -356,7 +356,9 @@ def fix_cardb_parts(src: bytes, out: bytearray) -> None:
         out[o:o + 4] = src[o:o + 4]
 
 
-GAMEPLAY_U8_FIELDS = (0x1F4, 0x2D0)  # [u8][pad x3] words, natural order
+# two separate [u8][pad x3] words at these offsets (not a range), natural
+# order; golden-pinned, change only with an in-game check
+GAMEPLAY_U8_FIELDS = (0x1F4, 0x2D0)
 RACEDAY_STATE = 0x2D4       # GameplayData: race-day state (0 = none active)
 RACEDAY_START = 0x2E0       # variable-length race-day block starts here
 RACEDAY_PAD = 0x314         # 360-only 4-byte pad inside the race-day block
@@ -399,6 +401,9 @@ def fix_raceday_block(src: bytes, out: bytearray, warnings: list) -> None:
     """
     for o in GAMEPLAY_U8_FIELDS:
         out[o + 4:o + 8] = src[o + 4:o + 8]
+    if len(src) < RACEDAY_STATE + 8:
+        raise ValueError(f"GameplayData chunk too short ({len(src):#x} B) to hold "
+                         "the race-day state - the source file is corrupted")
     active = _u32be(src, RACEDAY_STATE) != 0
     end = raceday_block_end(src) if active else RACEDAY_START
     # race-day name strings ('MV03_BattleMachine') live after the block;
@@ -603,6 +608,10 @@ def convert_to_pc_record(rec, spill: bytes, report: ConversionReport) -> None:
     the main loop."""
     normalize_gameplay(rec, report.warnings)
     src = rec.payload
+    if (rec.id == GAMEPLAY_ID or rec.id in NUMERIC_IDS) and len(src) % 4:
+        raise ValueError(
+            f"{CHUNK_NAMES.get(rec.id, hex(rec.id))} chunk size {len(src):#x} is not "
+            "word-aligned - the source file is corrupted")
     if rec.id == GAMEPLAY_ID:
         # variable layout (race-day block) - positional maps do not apply;
         # fields are u32/float except the fixes in fix_raceday_block
@@ -689,15 +698,27 @@ def convert_payload(mc02_be: MC02, report: ConversionReport | None = None) -> MC
     return pc
 
 
+# Windows device names: a folder named CON cannot be created; CON.txt can on
+# Windows 11 but not on Windows 10, so a name with an extension is refused too
+WINDOWS_DEVICE_NAMES = frozenset(
+    ["CON", "PRN", "AUX", "NUL"]
+    + [f"{d}{n}" for d in ("COM", "LPT") for n in [*"123456789", "¹", "²", "³"]])
+
+
 def check_save_name(name: str) -> None:
-    """Refuse a save name that would escape or collapse its folder (path
-    separators, drive colon, "."/".."). Not a full Windows-name validator:
-    game save names are simple (CAREER_nn / ALIAS_*). Shared by the real write and the dry
-    run, so both report the same refusal."""
+    """Refuse a save name that is not a plain Windows folder name: path
+    separators, drive colon, characters Windows rejects (< > " | ? * and
+    control characters), device names, "."/"..", and the backup folder's
+    own name (the export would land inside the backups). Shared by the real
+    write and the dry run, so both report the same refusal; same rule in the
+    Rust core and the PowerShell port. Game save names are CAREER_nn /
+    ALIAS_*, so this only ever refuses a damaged or hostile name."""
     # Windows drops trailing dots/spaces, so "..." or "  " would collapse onto
-    # the output root itself.
-    if (not name or any(c in name for c in "\\/:") or name in (".", "..")
-            or not name.rstrip(". ")):
+    # the output root itself, and "SaveConverter backups. " onto the backups.
+    key = name.rstrip(". ")
+    if (not key or any(c in '\\/:<>"|?*' or c < " " for c in name)
+            or key.lower() == BACKUP_DIR.lower()
+            or name.split(".", 1)[0].rstrip(" ").upper() in WINDOWS_DEVICE_NAMES):
         raise ValueError(f"unsafe save name '{name}'")
 
 
@@ -705,25 +726,74 @@ def write_pc_save(mc02_pc: MC02, name: str, save_root: str) -> Path:
     check_save_name(name)
     root = Path(save_root)
     folder = root / name
-    folder.mkdir(parents=True, exist_ok=True)
     target = folder / name
+    if target.is_dir():
+        # the backup skipped it (not a file) and a rename cannot replace it
+        raise OSError(f"{target} is a folder, not a save file - move it out of "
+                      "the way and convert again")
     # <target>.tmp + one rename (app write_pc_save parity): an interrupted
     # write never leaves a truncated save in place of the previous one.
     tmp = folder / f"{name}.tmp"
     data = mc02_pc.to_bytes()
     try:
+        folder.mkdir(parents=True, exist_ok=True)
         with open(tmp, "wb") as f:
             f.write(data)
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, target)
-    except BaseException:
+    except BaseException as exc:
         try:
             tmp.unlink(missing_ok=True)  # never leave a stray .tmp behind
         except OSError:
             pass  # keep the original error on top
+        if isinstance(exc, OSError):
+            # read-only or game-locked target, full disk, ...: the swap is one
+            # rename, so whatever was at the target is still there
+            raise OSError(f"could not write {target} ({exc}); any save already "
+                          "there is unchanged") from exc
         raise
     return target
+
+
+def require_self_check(target: Path) -> None:
+    """Re-read a written save and refuse it when its CRCs do not check out
+    (same failure in the Rust core and the PowerShell port)."""
+    check = MC02.parse(Path(target).read_bytes()).check()
+    if check:
+        raise RuntimeError(f"wrote {target} but the self-check failed: {', '.join(check)}")
+
+
+STRAY_ALIAS = ("the save folder also holds {} next to the converted alias; a "
+               "second alias usually means the game once fell back to a default "
+               "profile - move the one you do not play out of the folder")
+STRAY_CAREER = ("the save folder holds {}; a CAREER_ save with a non-ASCII name "
+                "is usually left over from the game falling back to a default "
+                "profile - move it out unless you made it")
+
+
+def stray_save_notes(save_dir, converted_keys) -> list[str]:
+    """Warnings for saves in the game's save folder that usually mean the PC
+    once fell back to a default profile (docs/re/FORMAT-NOTES.md): another
+    ALIAS_* next to an alias this run converted, and CAREER_ saves with a
+    non-ASCII name. `converted_keys`: the Windows name key (lowercased,
+    trailing dots/spaces dropped) of every save this run converted, or
+    checked in a dry run. A save is a <NAME>/<NAME> file."""
+    try:
+        names = sorted(d.name for d in Path(save_dir).iterdir()
+                       if d.is_dir() and (d / d.name).is_file())
+    except OSError:
+        return []
+    notes = []
+    if any(k.startswith("alias_") for k in converted_keys):
+        aliases = [n for n in names if n.lower().startswith("alias_")
+                   and n.rstrip(". ").lower() not in converted_keys]
+        if aliases:
+            notes.append(STRAY_ALIAS.format(", ".join(aliases)))
+    odd = [n for n in names if n.lower().startswith("career_") and not n.isascii()]
+    if odd:
+        notes.append(STRAY_CAREER.format(", ".join(odd)))
+    return notes
 
 
 # Folder (next to the export folder) that receives replaced saves; same
