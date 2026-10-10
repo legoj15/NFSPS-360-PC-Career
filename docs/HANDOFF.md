@@ -61,20 +61,23 @@
   2026-10-04/05 core commits (also cover 5a0402c, never reviewed).
 - Parked: FATX scanner on real media (wait for a user report);
   scalar_tail zero-pad rule (no sample).
-- App leftovers (#10), not yet triaged by the user: backup kept when a
-  conversion is refused; manual pick read twice (once on the UI thread);
-  write_pc_save remove-then-rename gap (std::fs::rename already replaces
-  on Windows, so the remove is unnecessary); Python write_pc_save writes in
-  place with no temp file.
+- Done (#10, user picked a-c + Python): 8cf2f9b + follow-up. nfssave-core
+  prepare_one/prepare_mc02 + PreparedSave::write; app run_batch prepares,
+  then backs up, then writes (a refused save leaves no backup copy);
+  write_pc_save drops the remove before rename (a folder at the target
+  refuses cleanly, pinned); manual single-file pick reads only the magic;
+  Python write_pc_save goes through <NAME>.tmp + os.replace.
+- Still open (debt, not asked for): a CON input is parsed up to 4 times
+  per save (from_path/from_discovered, export_name, prepare_one) - carry
+  the parsed name in SaveInput; a read-only or game-locked target fails
+  with a bare OS error that doesn't say the old save survived; no test for
+  a backup at a drive-root out_root or the old-format USB scan order.
 - Done (review follow-ups): ad24aa1 one save-name rule + order in all
   ports (name, duplicate, corruption, backup; dots/spaces-only names
   refused; message `unsafe save name '<n>'`); 8da2803 PS trailing-gap pin;
   71199fb nfssave-core convert_one checks name before CRC; 68dbe0e PS
   no-backup assertions fixed (they checked the wrong folder).
-- Known, documented in scripts-cli.md: the Windows app backs up an existing
-  save BEFORE the corruption check (= app leftover #10a below). Fixing it =
-  convert first, back up after, like Python.
-- Final state: pytest 101 passed, cargo workspace green + fmt clean,
+- Final state: pytest 104 passed, cargo workspace 166 passed + fmt clean,
   Run-Tests.ps1 53/53 on 5.1 and pwsh 7.
 - Delegation log: scout (Haiku) backlog facts -> ok (one stale claim
   caught: dry-run folder nit). impl (Sonnet medium) twin removal + dry run
@@ -88,7 +91,13 @@
   call), library convert_one order (fixed); 71199fb shop26: vacuous PS
   assertions (fixed). Orchestrator did the 71199fb/68dbe0e follow-ups
   itself; its own Python replace script mangled a PS backslash path once
-  (caught before commit; memory updated).
+  (caught before commit; memory updated). #10 fixes: orchestrator
+  implemented directly (small, serial). 8cf2f9b Haiku: pass w/ nits (stale
+  handoff, weak tmp test name, unlink masking, backup/write name source -
+  fixed; its "refusal hides the backup" claim wrong); triad shop26 +
+  glm-flash: no data-loss path; missing Rust failure-path test and Python
+  corrupt-before-backup pin (added), doc overclaims (fixed); shop26's
+  "rename onto a folder moves the file into it" refuted by the new test.
 
 ## 2026-10-09 — twin-recovered records convert like the main loop
 - convert_tree's per-record work (normalize, GameplayData/NUMERIC_IDS swap,

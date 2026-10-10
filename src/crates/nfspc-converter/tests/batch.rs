@@ -376,6 +376,51 @@ fn failed_conversion_leaves_the_existing_save_in_place() {
     assert_eq!(fs::read(&existing).unwrap(), b"native PC career");
 }
 
+/// The fixture container with one flipped byte inside its extra blob.
+fn corrupted_con_bytes() -> Vec<u8> {
+    let mut bytes = fixture_bytes();
+    let mc = bytes.windows(4).position(|w| w == b"MC02").unwrap();
+    bytes[mc + 0x1C + 2] ^= 0xFF; // MC02 header is 0x1C bytes
+    bytes
+}
+
+/// A save refused as corrupt is refused before the backup (Python and
+/// PowerShell order): the existing save stays and no backup copy is made.
+#[test]
+fn corrupt_save_is_refused_before_any_backup() {
+    let name = parse_container(&fixture_bytes(), "fixture").unwrap().name;
+    for input in [
+        SaveInput {
+            label: "con".into(),
+            name: name.clone(),
+            bytes: corrupted_con_bytes(),
+        },
+        raw_input(&name, corrupted_mc02_bytes()),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let out = game_like_out(&tmp);
+        let existing = out.join(&name).join(&name);
+        fs::create_dir_all(existing.parent().unwrap()).unwrap();
+        fs::write(&existing, b"native PC career").unwrap();
+
+        let r = run_batch(vec![input], &out);
+        match &r.results[0].status {
+            SaveStatus::Refused { reason } => {
+                assert!(reason.contains("CRC mismatch"), "{reason}");
+                assert!(!reason.contains("backed up"), "{reason}");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(fs::read(&existing).unwrap(), b"native PC career");
+        assert!(
+            !tmp.path()
+                .join("SAVE")
+                .join("SaveConverter backups")
+                .exists()
+        );
+    }
+}
+
 /// Guard and backup must key on the name the converter actually writes (the
 /// CON file-table name), not on a caller-supplied SaveInput.name.
 #[test]

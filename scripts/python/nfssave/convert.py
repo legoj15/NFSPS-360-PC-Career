@@ -17,6 +17,7 @@ platforms — see CHUNK_NAMES.
 """
 
 import hashlib
+import os
 import shutil
 import struct
 from dataclasses import dataclass, field
@@ -706,7 +707,22 @@ def write_pc_save(mc02_pc: MC02, name: str, save_root: str) -> Path:
     folder = root / name
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / name
-    target.write_bytes(mc02_pc.to_bytes())
+    # <target>.tmp + one rename (app write_pc_save parity): an interrupted
+    # write never leaves a truncated save in place of the previous one.
+    tmp = folder / f"{name}.tmp"
+    data = mc02_pc.to_bytes()
+    try:
+        with open(tmp, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, target)
+    except BaseException:
+        try:
+            tmp.unlink(missing_ok=True)  # never leave a stray .tmp behind
+        except OSError:
+            pass  # keep the original error on top
+        raise
     return target
 
 

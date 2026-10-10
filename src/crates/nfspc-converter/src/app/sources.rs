@@ -60,8 +60,8 @@ pub fn discover_manual(path: &Path) -> io::Result<Vec<ManualSave>> {
     let meta = fs::metadata(path)
         .map_err(|e| io::Error::new(e.kind(), format!("{}: cannot read ({e})", path.display())))?;
     if meta.is_file() {
-        let bytes = fs::read(path)?;
-        if !is_save_bytes(&bytes) {
+        // Only the magic: the whole file is read once, at convert time.
+        if !is_save_bytes(&read_magic(path)?) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
@@ -118,11 +118,14 @@ fn walk(dir: &Path, depth: u32, out: &mut Vec<ManualSave>) {
     }
 }
 
+/// Up to the first four bytes of `path` (fewer for a shorter file).
+fn read_magic(path: &Path) -> io::Result<Vec<u8>> {
+    let mut magic = Vec::with_capacity(4);
+    File::open(path)?.take(4).read_to_end(&mut magic)?;
+    Ok(magic)
+}
+
 /// Read the first four bytes and compare against the CON magic.
 fn has_con_magic(path: &Path) -> bool {
-    let Ok(mut f) = File::open(path) else {
-        return false;
-    };
-    let mut magic = [0u8; 4];
-    f.read_exact(&mut magic).is_ok() && magic == *b"CON "
+    read_magic(path).is_ok_and(|m| is_con_bytes(&m))
 }
