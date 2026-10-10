@@ -185,6 +185,10 @@
   filler/u8 grammar + new RaceData/career-name/turn-indicator notes;
   used-size comments in py/rs/ps; test_extra docstring). shop26 Qwen 27B
   errored after 66 s with no output (lane problem, not retried).
+- VERIFIED IN-GAME (23:4x): pure converter output (alias + CAREER_01 with
+  the converted RaceData) - race day fully working: speedometer,
+  leaderboard, camera, profile kept, no stray saves. All 2026-10-09 fixes
+  confirmed end to end. Nothing open from this thread.
 - Delegation log (this session, 2026-10-09 evening): no Anthropic
   subagents; orchestrator did the merge, RE and all three ports. opencode
   reviews: merge triad (shop26 approve + glm-flash), four-fix triad
