@@ -1,8 +1,11 @@
-"""graft.py <base alias> <donor alias> <out> <name,name,...>: base alias with
-the named records' payloads taken from donor (PC LE files); rebuilds used
-size and tree hash."""
-import sys, struct, hashlib
-sys.path.insert(0, 'E:/GitHub/NFSPS-360-PC-Career/scripts/python')
+"""graft_alias.py <base alias> <donor alias> <out> <name,name,...>: base alias
+with the named records' payloads taken from donor (PC LE files); rebuilds used
+size and tree hash. Record bisect tool for "the PC drops the loaded alias
+profile" (2026-10-09): graft native records into a converted alias until the
+drop goes away. Sanity check: base == donor reproduces a native PC alias
+byte-exact (noted 2026-10-09). See docs/re/README.md."""
+import os, sys, struct, hashlib
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'scripts', 'python'))
 from nfssave.mc02 import MC02, Endian
 from nfssave.tree import Tree
 from nfssave.convert import CHUNK_NAMES

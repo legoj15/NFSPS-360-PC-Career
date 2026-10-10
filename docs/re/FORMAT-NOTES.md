@@ -18,8 +18,8 @@ tools.
   size @0x340 = 0x971A -> first hash table 0xA000; block separation 0 ->
   two copies per hash table; file table = data block 0 @0xC000, entry
   flags 0x40 = contiguous). Data blocks interleave with hash tables
-  (group after every 170 data blocks), so payloads > 0xA9000 B are NOT one
-  slice. See nfssave/container360.py. The earlier "not STFS" claim and the
+  (group after every 170 data blocks), so payloads > 0xAA000 B (170 blocks)
+  are NOT one slice. See nfssave/container360.py. The earlier "not STFS" claim and the
   entry-field guesses below (hash/checksum) were wrong: +0x29 block count,
   +0x2F start block (LE24), +0x38/+0x3C timestamps.
 - 0x0000 `CON ` + console serial/date ASCII + console cert (~0x1AC);
@@ -27,6 +27,9 @@ tools.
   filename NUL-padded, +0x28 hash, +0x2C block count, +0x30 flags
   `00 00 ff ff`, +0x34 BE u32 payload size, +0x38/+0x3C BE checksum ×2
   (algorithm != EA CRC, not needed); 0xD000 raw MC02 payload.
+  (SUPERSEDED for the entry fields: the bullet above is right: +0x28 flags,
+  +0x29 block count, +0x2F start block, +0x34 BE size, +0x38/+0x3C
+  timestamps. Only the size at +0x34 and the 0xD000 payload start hold.)
 - Reader: nfssave/container360.py.
 
 ### MC02 file (360 = big-endian, PC = little-endian, identical layout)
@@ -59,8 +62,9 @@ name->id hash question is CLOSED).
 
 ```
 tree+0x000 16B hash of tree[0x10:tree_size] (128-bit fn nfs.exe 0x6D9CE0;
-         PC VERIFIES it on load at 0x5AABD0 — recomputation required;
-         algorithm being reversed, see tree_hash.py)
+         computed on write, NEVER verified on load: 0x5AABD0 is dead code
+         (see the 2026-10-04 final section). The converter still writes a
+         valid one: nfssave/treehash.py, probe tool tree_hash.py)
 tree+0x010 u32 count (informational: top-level savables on PC; on 360
          counts nested helpers too)
 tree+0x014 .. root record: allocator garbage (never read on load) on PC
@@ -128,15 +132,18 @@ post region: directory/hash table (360 alias: 475 cells [h1][h2][FFFFFFFF][0]);
 - floats (BE/LE), e.g. car units `00 0f 00 XX | ff ff 00 aa` + float pairs
 
 ## Conversion approach (nfssave/convert.py)
+(Early description, partly superseded: the node grammar, per-chunk fixes and
+tail words in convert.py are authoritative; the later sections of this file
+and the last section ("In-game findings") record why.)
 - Container -> MC02 parse -> tree parse -> per-chunk payload conversion:
   fieldmap rules (fieldmaps, positionally valid for these exact
-  source files; 156,454/156,454 verifiable slots byte-exact vs PC reference)
+  source files; 156,454/156,454 verifiable slots byte-exact vs PC reference,
+  a 2026-10-04 measurement that is not reproducible from the repo today)
   or auto mode (u32 value-preserving swap + string/subword natural ranges).
 - PC tree assembly: zeroed head struct (loader never reads it), records,
   post region (clamped to buffer), count = emitted top-level records.
-- CRCs recomputed. Remaining blocker: 16-byte tree hash (fn 0x6D9CE0) —
-  being reversed; outputs currently carry the 360's hash and WILL FAIL the
-  PC's load-time verification if enforced.
+- CRCs and the 16-byte tree hash are recomputed (treehash.py). The PC never
+  verifies the tree hash on load, so it was never a blocker.
 
 ## Key code addresses
 PC nfs.exe: loader state machine 0x89F812 (career) / 0x89FB88 (alias);
@@ -158,19 +165,23 @@ recomp.121/128/129 (magic lis 19779/ori 12338); collector sub_827BF770
   ProStreet\SAVE\NFS ProStreet (empty; game accepts third-party saves)
 
 ## Open items
-1. 16-byte tree hash algorithm (fn 0x6D9CE0) + reject-vs-log on load
-   (agent task; tree_hash.py when done).
-2. 360-side loader confirmations (agent A pending).
-3. Absent-chunk tolerance at PC load (PC-only chunks missing) — agent B.
-4. djb2 names for the four consecutive alias chunks 0x8B7D0AAD..B0
-   (runtime-generated: same base name + consecutive suffix char; controller
-   configs inferred; cosmetic only).
+Only one format question is left in this list (the others were closed: tree
+hash implemented and never verified on load; absent trailing chunks
+tolerated, absent middle chunks must be size-0 fillers, see the 2026-10-04
+final section). Unproven fields and other open research are in
+docs/backlog-research.md.
+- djb2 names for the four consecutive alias chunks 0x8B7D0AAD..B0
+  (runtime-generated: same base name + consecutive suffix char; controller
+  configs inferred; cosmetic only).
 
 ## 2026-10-04 late: tail "damage" was a reader bug
 Everything below about damaged console tails is SUPERSEDED:
 the noise was STFS hash-table blocks read as payload. All careers parse
 9/9 with valid CRCs once the block map is honoured. Further findings
-(node flag words, u16 car part slots, open struct questions): ../HANDOFF.md.
+(node flag words, u16 car part slots, GameplayData MD5, race-day block): the
+sections below and "In-game findings" at the end of this file; the car-slot
+and part layouts themselves are in the docstrings of nfssave/convert.py
+(fix_cardb_parts and the blueprint/decal fixes).
 
 ## 2026-10-04 final framing correction + IN-GAME VERIFICATION (convert.py rewrite)
 
@@ -207,8 +218,11 @@ native PC file against the 360 files and by in-game behavior:
 - FECareer 36-byte node = career-slot name ([4 junk][32 chars]); the PC
   names the file CAREER_<name>. Copied as text (was swapped -> CAREER_ª).
 - Conversion rule that fixed everything (nfssave/convert.py
-  _to_pc_record): type=0x00000001, payload = 360payload[4:] + 4 zero
-  bytes (drop the 360 leading marker word, re-add the PC trailing junk).
+  _to_pc_record): type=0x00000001, payload = 360payload[4:] + the record's
+  last data word (drop the 360 leading marker word, re-add the PC trailing
+  word). At the time of this note the trailing word was 4 zero bytes; since
+  2026-10-09 it is the carried tail word (the "CORRECTED 2026-10-09" bullet
+  in the chunk tree section).
 - Tree hash (16B at tree[0:0x10]): chained-MD5 x4 + RSA pow(M,E,N),
   E/N tables at VA 0x98CF88/0x98CF48 — computed on write, NEVER verified
   on load (0x5AABD0 is dead code). Implemented in nfssave/treehash.py.
@@ -218,10 +232,115 @@ native PC file against the 360 files and by in-game behavior:
   records (the loader fills defaults for absent trailing chunks) and the
   converter warns.
 - Record ids are djb2(name) h=0xFFFFFFFF,h=h*33+c (e.g. 0x59F2D89B
-  MEMCARD_ROOT, 0x3B309E09 career root). See CHUNK_NAMES in convert.py.
+  MEMCARD_ROOT, 0x3B309E09 GameplayData). See CHUNK_NAMES in convert.py.
 
 VERIFIED IN-GAME 2026-10-04: converted the author's alias + CAREER_01
 load on PC — CAREER HUB day 7, $1,345,600, 4 repair markers, correct
 race-day menu. Game exit save wrote no file changes (no dirty state), so
 no native re-save oracle was produced; fresh-native references archived
 at oracle/ instead.
+
+## In-game findings 2026-10-04 .. 2026-10-10
+Moved here from the retired session log. The fixes were verified in-game by
+the user; bullets that are offline or unverified say so. Fixes are in nfssave/convert.py
+(Python reference), the Rust core and the PowerShell script; tests pin them.
+
+### GameplayData
+- The blob at PC payload 0x14 (0x10000 B) is [MD5(blob[16:])][rest]. The
+  loader (0x59E550 -> deserializer [0xAB9D88] vtbl+0x70) rejects a stale
+  hash and falls back to defaults: the career starts from scratch (intro
+  movie). Every early converted file carried the 360's MD5. Fixed by
+  rehash_gameplay.
+- While a race day is in progress (u32 at PC 0x2D4 == 1) a variable-length
+  race-day block occupies 0x2E0.. and the event list follows. Lengths seen:
+  0x3B90 (state 1, pair_raceday), 0xB2D0 (state 3, c1_latest). The 360 block
+  has a 4-byte pad at 0x314 the PC lacks; per-event u8 flag words
+  ([u8][0][AA AA] pattern; in the pair_raceday block at 0x434..0x784 step
+  16, pinned by tests/test_raceday.py) and the name string at 0x300 are kept
+  natural. The end is found via the following [0][0x11] list. Block records:
+  [u32 kind 0x000?1x10][u16][u16] + float matrices. Oracle: pair_raceday.
+- Race-day progress table: 90 x [key][state][score], first key 0xA70EA9B0,
+  last 0xFA5D360A. CONSOLE_ONLY_RACEDAYS resets 17 entries that the 360
+  always marks (even on a fresh career) and the PC never writes (every PC
+  save: state 0/2, score 0); 5 of them are the custom race-day slots. Not
+  the cause of the Race Day crash. Meaning of the other 12: open, see
+  docs/backlog-research.md.
+- A width check of the GameplayData blob against the PC 100% save found no
+  width-error signature (two mirror hits, both content). A full field-type
+  audit was never done.
+
+### CustomRaceDayMemcard
+- Layout (the PC writes the same as the 360; oracle pair_customrd): header
+  [u32][count <= 5]; per race day [slot][13 u32: mode, 3 x (car key, flag),
+  ...][GUID 25 B = 4 junk + 21][name 36 B = 4 junk + 32][NumEvents]
+  [(event key, u32) x N]. The last event flag is the record's tail word.
+- Crash fixed: main-menu Race Day with a converted CAREER_01 dereferenced
+  null at nfs.exe 0x7F6480 on an FEMapHub with 0 events. Hubs 0x10..0x14 are
+  the 5 custom slots (career [0xAB9DC8]+0xB0 = 8F7CCCE0 46AE8E2F C8A0888E
+  0A6C2097 AF51A403; built for all slots by 0x56BA80). Live breakpoints on
+  the memcard loader (vtable 0x96F1D4 slot 3 = 0x5473E0) showed slot 0
+  parsed with name/GUID/settings but ZERO events. Cause: the string
+  heuristic left the [0][len] header after a NUL-padded name big-endian
+  (len 0x04000000), dropping the event list. Fix: fix_node_flags swaps every
+  [0][len] header and the string nodes are copied structurally (node_spans +
+  fix_custom_raceday_strings; GUIDs had been half-swapped).
+- RE traps: 0x5322F0 / 0x5321D0 (CRD record read/write) are SecuROM-VM
+  bytecode (push/pushfd/ret into 0x1166690): do not read them, put live
+  breakpoints on the unprotected callers instead. 0x532820 is the shared
+  race-day TEXT parser (GUID:, RaceName:, NumEvents:), not the memcard path.
+
+### Alias and extra blob
+- Extra-blob word 0 is a vtable pointer. Native PC values: 0x974BB8 (career),
+  0x974BAC (alias). The 360 alias holds 0x8209E9A8, and converted careers and
+  aliases keep their 360 value (carried across with the other extra words,
+  value-preserving swap). The PC loader ignores it, so it is not rewritten.
+- The 360 UserProfile chunk holds a constant 0x2848 in the word after the
+  player name (native PC: 0). The converter carries it through value-
+  preserving and the game's own re-save keeps it, so it is not what makes the
+  PC drop a profile (that was the size-0 PCControllerSettings).
+- Extra word 1 (used tree size) used to be patched for careers only. The
+  converter inserts the PCControllerSettings record (12 + 0x684 B), so the
+  360 value was stale; the PC silently refused the alias, ran on a default
+  'Player' profile and its first save wrote ALIAS_Player. Now patched for
+  every MC02 file.
+- Before the fixes a converted alias showed: no speed/RPM gauge in a race,
+  camera on bumper, ABS/TCS/ESC off, assists on casual, every launch, while
+  a fresh PC alias was fine. The causes were separate (which symptom came
+  from which was not isolated in every case): len-1 property nodes
+  u32-swapped (30+ on/off options read 0), RaceData string heuristic (HUD
+  gauge, leaderboard, camera) and the size-0 PCControllerSettings (profile
+  dropped mid-session). A game-side clue: the alias list then shows only
+  "Player" plus a "too many aliases" popup.
+- AudioSettings node 8 carries 0xAAAAAAAA (360 heap fill) as its f32; the PC
+  default is 0. No visible effect so far (docs/backlog-research.md #2).
+- Expected warnings on the author's real CAREER_01 (the converted save loads
+  in-game with them present): chunk 0xb67f6cc6 size 0x2b4 != map ref 0x104
+  (auto mode) and chunk 0xd548266c with 13 unaligned string runs padded.
+
+### Console container header (anonymizing a 360 save)
+- The profile id at 0x371 is the offline XUID and the device id at 0x3FD is
+  the USB serial; both are identity values (blanked by anonymize_alias.py).
+  The OnlineUserProfile chunk carries no name strings or XUIDs.
+
+### Game behaviour observed on the PC
+- The game looks saves up by their STFS container name, not the file name
+  (so the converter writes <container name>/<container name>).
+- The game allows 3 careers per alias: a CAREER_04 raises a warning on
+  every screen; keep diagnostic saves out of the SAVE folder.
+- Creating a new alias in the game WIPES the other files in the save
+  folder (old alias and CAREER_02/03 gone, CAREER_01 overwritten by the new
+  alias's career).
+- Stray ALIAS_Player / CAREER_<non-ASCII> files usually mean the game fell
+  back to the default profile; remove them before the next test. Caveat: a
+  CAREER_<0xAA> was also written once under a pure native profile (likely a
+  quick race day without a career), so it alone is not proof of a converter
+  fault.
+- The console refuses to copy another profile's save while signed in as a
+  different profile, so cross-profile mixing of saves is not a case.
+- The PC tree head and post region are not 0xAA allocator fill like native
+  files (an observation from the retired session log, undated and not
+  re-verified here); the loader ignores them and the converter does not
+  pursue it.
+- Method note for any future automatic type inference over saves: the
+  deleted docs/re/typemap.py scored pooled value distributions, which is
+  NOT reliable for small-vocabulary u16 data (git 338afa9^ has the tool).

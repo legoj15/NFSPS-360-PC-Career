@@ -18,4 +18,4 @@ u32-swapped these, so the PC read 0x10 / 0x5d.
 
 This particular save did not yet carry the "Turn indicators" change; later
 360 saves did (PlayerSettings0 node 32 at PC 0x200, 1 = On, same as on PC;
-node 31 = leaderboard). See docs/HANDOFF.md.
+node 31 = leaderboard). See docs/re/FORMAT-NOTES.md (PlayerSettings0).

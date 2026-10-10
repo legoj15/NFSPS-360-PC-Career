@@ -33,10 +33,6 @@ class ConvertExtraNoNul(unittest.TestCase):
         self.assertEqual(out, head + NAME + PAD + tail)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ExtraUsedSize(unittest.TestCase):
     """Extra word 1 = the tree's used size, on every native PC save (career
     and alias). The converter inserts a PCControllerSettings record into
@@ -61,3 +57,7 @@ class ExtraUsedSize(unittest.TestCase):
                 pc = convert_payload(MC02.parse(read_container(p).payload), ConversionReport())
                 t = Tree.parse(pc.tree, big=False)
                 self.assertEqual(struct.unpack_from("<I", pc.extra, 4)[0], t.used)
+
+
+if __name__ == "__main__":
+    unittest.main()

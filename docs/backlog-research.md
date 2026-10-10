@@ -4,7 +4,7 @@ Hand-off outline for a fresh session. None of this blocks users: every
 converted save tested so far loads and plays correctly in-game. These are
 values the converter copies or resets without proof that the result is the
 PC's native meaning. Start with `docs/HANDOFF.md` and `docs/re/` (the
-FORMAT-NOTES and oracle pairs); the Python converter in
+README, FORMAT-NOTES and oracle pairs); the Python converter in
 `scripts/python/nfssave/convert.py` is the spec, Rust and PowerShell must
 stay byte-exact with it.
 
@@ -33,11 +33,11 @@ visible effect so far. Find out which audio option node 8 is (toggle audio
 options on PC, diff the re-save), then decide: reset to the PC default on
 convert, or leave it.
 
-## 3. The 11 unexplained race-day progress entries
+## 3. The 12 unexplained race-day progress entries
 GameplayData's race-day progress table (90 x `[key][state][score]`, first
 key `0xA70EA9B0`, last `0xFA5D360A`). `CONSOLE_ONLY_RACEDAYS` in convert.py
 resets 17 keys that the 360 always marks and the PC never writes; 5 of
-them are the custom race-day slots. The meaning of the other 11 keys'
+them are the custom race-day slots. The meaning of the other 12 keys'
 360 state is unknown. It was ruled out as the Race Day crash cause, and
 Race Day works after conversion. Investigate: which race days those keys
 are (game data / FE strings), whether they are 360-only content, and
@@ -50,6 +50,6 @@ whether resetting them hides any progress the player earned.
   settings rule (`scalar_tail` still requires a zero pad, unlike
   `fix_node_flags`, which tolerates 360 heap junk there). Revisit only if a
   save of that shape turns up.
-- `docs/re/fieldmaps/` positional maps: HANDOFF calls them superseded by the
-  node grammar + flag fix, yet `payload_rules` still embeds them. Check
-  whether removing them changes any golden before deleting.
+- `docs/re/fieldmaps/` positional maps: superseded by the node grammar + flag
+  fix (FORMAT-NOTES), yet `payload_rules` still embeds them. Check whether
+  removing them changes any golden before deleting.

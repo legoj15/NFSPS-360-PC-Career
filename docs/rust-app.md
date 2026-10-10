@@ -1,7 +1,8 @@
 # Rust Windows app (agent-facing)
 
 Covers `src/`, the NFSPS-SaveConverter Windows app. Human-facing usage lives
-in the README; save-format research lives in `docs/re/` and `docs/HANDOFF.md`.
+in the README; save-format research lives in `docs/re/`, project state in
+`docs/HANDOFF.md`, test and release steps in `docs/dev-workflow.md`.
 
 ## Architecture: three crates
 
@@ -104,7 +105,7 @@ Decision (2026-10-05): the exe launches unelevated on purpose
 Evidence: raw `\\.\PhysicalDriveN` read-only opens DO require elevation —
 measured 2026-10-05, unelevated `cargo test -p fatx --test device_probe`:
 PhysicalDrive0-3 → `ERROR_ACCESS_DENIED`, 4-15 → not found
-(`src/crates/fatx/SPEC.md:196-199`). Consequence and runtime handling: a drive
+(`src/crates/fatx/SPEC.md` section 8). Consequence and runtime handling: a drive
 scan that hits access-denied surfaces one UI note; normally the FATX scan
 only runs from the self-relaunched elevated instance (`--scan-fatx`,
 `app/elevation.rs`). The app requests elevation (UAC) only when the user
@@ -127,14 +128,13 @@ only so cargo's test harnesses stay unelevated (`build.rs:51-54`), and
   partitions without a letter are not seen. Real-hardware check:
   `cargo run -p nfspc-converter --example volume_scan` (from `src/`).
 - Headless mode has no drive scanning (files/folders only, see above).
-- Drive probe is fixed to `\\.\PhysicalDrive0..=15` (`MAX_DRIVE_INDEX`,
-  `drivescan.rs:32`); more than 16 physical drives are not scanned.
+- Drive probe is fixed to `\\.\PhysicalDrive0..=15` (`MAX_DRIVE_INDEX` in
+  `src/crates/fatx/src/device.rs`, used by `app/drivescan.rs`); more than 16
+  physical drives are not scanned.
 - Original-Xbox FATX (LE, `FATX` magic) intentionally unsupported
   (`SPEC.md` intro); the `MICROSOFT*XBOX360` sector-0 signature remains
   UNVERIFIED and is never required for detection (`SPEC.md` §5.4).
 - No code signing → SmartScreen "Windows protected your PC" on first run
   (README documents the More info → Run anyway path).
-- No git remote is configured on this checkout yet (verified:
-  `git remote -v` is empty), so the README's "GitHub Releases" download
-  wording presumes a repo/remote with published releases that does not
-  exist yet.
+- Releases are published from the `origin` GitHub repo (v1.0.0, v1.1.0);
+  the build-and-ship steps are in `docs/dev-workflow.md`.
