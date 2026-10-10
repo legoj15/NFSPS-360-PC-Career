@@ -1026,7 +1026,9 @@ pub fn convert_payload(mc02_be: &MC02, report: Option<&mut ConversionReport>) ->
     ))
 }
 
-/// Refuse a save name that cannot be a plain folder name. Windows drops
+/// Refuse a save name that would escape or collapse its folder (path
+/// separators, drive colon, `.`/`..`). Not a full Windows-name validator:
+/// game save names are fixed ASCII (CAREER_nn / ALIAS_*). Windows drops
 /// trailing dots/spaces, so "..." or "  " would collapse onto the output
 /// root itself. Same rule and message as the Python and PowerShell ports.
 pub fn check_save_name(name: &str) -> Result<()> {
@@ -1088,6 +1090,7 @@ pub struct ConvertOutcome {
 /// `<out_root>/<NAME>/<NAME>` -> re-parse the written file and self-check.
 pub fn convert_one(src_bytes: &[u8], label: &str, out_root: &Path) -> Result<ConvertOutcome> {
     let cont = parse_container(src_bytes, label)?;
+    check_save_name(&cont.name)?; // name before corruption, like Python
     let mc02 = MC02::parse(&cont.payload)?;
     let bad = mc02.check();
     if bad.iter().any(|p| p == "extra CRC mismatch") {

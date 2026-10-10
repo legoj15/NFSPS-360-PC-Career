@@ -160,7 +160,8 @@ try {
             $okSrc = Join-Path $badDir 'corrupt'
             [System.IO.File]::WriteAllBytes($okSrc, $ok)
             $rc = Invoke-Converter @($okSrc, '-OutRoot', $badOut)
-            if ($rb.Code -eq 1 -and $rb.Text -match "unsafe save name 'CAREER/02'" -and $rb.Text -notmatch 'extra-blob CRC' -and $rc.Text -match 'extra-blob CRC') { Pass 'unsafe name beats corruption' }
+            $noBackup = -not (Test-Path -LiteralPath (Join-Path $badDir 'SaveConverter backups'))
+            if ($rb.Code -eq 1 -and $rb.Text -match "unsafe save name 'CAREER/02'" -and $rb.Text -notmatch 'extra-blob CRC' -and $rc.Text -match 'extra-blob CRC' -and $noBackup) { Pass 'unsafe name beats corruption' }
             else { Fail 'unsafe name beats corruption' "exit $($rb.Code): $($rb.Text) | control: $($rc.Text)" }
         }
 
@@ -172,7 +173,7 @@ try {
         $rdd = Invoke-Converter @($dotsSrc, '-OutRoot', $badOut, '-DryRun')
         $rdr = Invoke-Converter @($dotsSrc, '-OutRoot', $badOut)
         $wroteNothing = -not (Test-Path -LiteralPath $badOut) -or @(Get-ChildItem -Recurse -File $badOut).Count -eq 0
-        if ($rdd.Code -eq 1 -and $rdr.Code -eq 1 -and $rdd.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $rdr.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $wroteNothing) { Pass 'dots-only name refused' }
+        if ($rdd.Code -eq 1 -and $rdr.Code -eq 1 -and $rdd.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $rdr.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $wroteNothing -and -not (Test-Path -LiteralPath (Join-Path $badDir 'SaveConverter backups'))) { Pass 'dots-only name refused' }
         else { Fail 'dots-only name refused' "dry $($rdd.Code), real $($rdr.Code), wroteNothing=$wroteNothing" }
     }
 

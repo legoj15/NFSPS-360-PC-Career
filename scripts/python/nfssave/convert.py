@@ -689,8 +689,10 @@ def convert_payload(mc02_be: MC02, report: ConversionReport | None = None) -> MC
 
 
 def check_save_name(name: str) -> None:
-    """Refuse a save name that cannot be a plain folder name. Shared by the
-    real write and the dry run, so both report the same refusal."""
+    """Refuse a save name that would escape or collapse its folder (path
+    separators, drive colon, "."/".."). Not a full Windows-name validator:
+    game save names are fixed ASCII. Shared by the real write and the dry
+    run, so both report the same refusal."""
     # Windows drops trailing dots/spaces, so "..." or "  " would collapse onto
     # the output root itself.
     if (not name or any(c in name for c in "\\/:") or name in (".", "..")
