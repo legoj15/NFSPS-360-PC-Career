@@ -94,6 +94,17 @@
   (7e9cc084) - the same sources the user's installed set hashed to - plus
   v1 alias (full converted settings, no VideoSettings trim, 4f5cb16f).
   Watch: CAREER_<0xAA> gone? profile kept? speedometer?
+- Test 4 RESULT: career-name fix CONFIRMED (game re-saved CAREER_01, no
+  CAREER_<0xAA>). Profile still dropped after the race day (ALIAS_Player) ->
+  thread A: converted settings records. No speedometer/leaderboard, camera
+  corrupt -> thread B: career-side (also seen with native alias settings).
+  Results in backups/2026-10-09_test4 (game-saved CAREER_01 = 42d761cd).
+- Test 5 installed (combined split): alias = v1 with Video/FF/Gameplay/Audio/
+  PCController from native Player, PlayerSettings0-3 converted (43e78773);
+  CAREER_01 = fixed career with GameplayData+RaceData from TEST2's fresh
+  career (6ff9e5b1); CAREER_02/03 fixed. Drop -> PlayerSettings; no drop ->
+  the other 5. Speedometer back -> GameplayData/RaceData; else FECareer/
+  CarDB/CRD/Speech/ProfileStats/Marker/Unlock.
 - Merge review (opencode: shop26 Qwen 27B approve, glm-flash): no parity
   bugs. Acted on: PS scalar_tail 'len 0' vector (46/46). PENDING after the
   bisect: docs/re/alias_anon/README.md still cites the branch's pre-merge
