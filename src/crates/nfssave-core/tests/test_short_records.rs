@@ -177,7 +177,7 @@ fn gameplay_0x2e0_tail_matches_python() {
     let pc = convert_crafted(&data).unwrap();
     assert_eq!(
         md5(&pc.to_bytes().unwrap()),
-        "bb30e797dc0b6fd926c6ccac55510bba"
+        "c4a596a2b696bf16ac6837c8bc2b17f0"
     );
 }
 
@@ -190,8 +190,8 @@ fn gameplay_0x2e0_tail_matches_python() {
 fn gameplay_zero_state_window_matches_python() {
     // len -> (crafted fixture md5, converted output md5)
     let pinned = [
-        (0x2DCusize, "d90b6f6931545fba07971c4fdb4908d7", "44138608e8501861891b389bca18daa9"),
-        (0x2E0, "e4882a46c79271139bb47dd4dcd59a9c", "48dab5bcf0227d68679ccaf79e8c0ade"),
+        (0x2DCusize, "d90b6f6931545fba07971c4fdb4908d7", "0609b102c98679eeff74ebee2be386a0"),
+        (0x2E0, "e4882a46c79271139bb47dd4dcd59a9c", "d1f18583abf65ca9fd63c5cd1ded6119"),
     ];
     for len in 0x2DC..0x2E4 {
         let mut payload = vec![0x11u8; len];
@@ -263,7 +263,7 @@ fn short_cardb_record_matches_python() {
     let pc = convert_crafted(&data).unwrap();
     assert_eq!(
         md5(&pc.to_bytes().unwrap()),
-        "bdb741bf7b157b60c6f7d327bde5dee1"
+        "e04462c88c1160001769b6cf97c8ee61"
     );
 }
 

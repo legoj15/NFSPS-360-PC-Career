@@ -781,6 +781,28 @@ namespace NfsPs
                 if (sp[1] > 4) Copy(src, sp[0], o, sp[0], sp[1]);
         }
 
+        // fix_career_name: FECareer's one 36-byte node is the career-slot name
+        // [4 junk][32 chars, NUL]; the PC names the save file after it. The 360 pads
+        // "01\0" with 0xAA fill, so the u32 swap saved every converted career as
+        // CAREER_<0xAA>. Copy the chars naturally and zero after the NUL.
+        const uint FeCareerId = 0x885B4DDC;
+        const int CareerNameLen = 0x24;
+        static void FixCareerName(byte[] src, byte[] o)
+        {
+            foreach (int[] sp in NodeSpans(src, 4))
+            {
+                if (sp[1] != CareerNameLen) continue;
+                int d = sp[0];
+                Copy(src, d, o, d, 4);
+                bool nul = false;
+                for (int i = d + 4; i < d + CareerNameLen; i++)
+                {
+                    if (src[i] == 0) nul = true;
+                    o[i] = nul ? (byte)0 : src[i];
+                }
+            }
+        }
+
         // convert_packed_entry / fix_cardb_packed
         static void FixCarDbPacked(byte[] src, byte[] o)
         {
@@ -982,6 +1004,7 @@ namespace NfsPs
             {
                 FixNodeFlags(src, o);
                 if (rec.Id == CustomRacedayId) FixCustomRacedayStrings(src, o);
+                else if (rec.Id == FeCareerId) FixCareerName(src, o);
             }
             rec.Payload = o;
         }

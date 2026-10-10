@@ -24,12 +24,12 @@ PAIR_360 = ROOT / "docs/re/pair/CAREER_02_360_fresh"
 
 # (source path, golden md5)
 CASES = [
-    (ROOT / "Extracted/Career/CAREER_01", "0cce08c3c9a502b9275657d62166e932"),
-    (PAIR_360, "00f9d4427e18486eef546be07a5b2744"),
-    (ROOT / "Extracted/Career/CAREER_03", "1c71bb3f1425a7c6a60d02f96798e7ff"),
+    (ROOT / "Extracted/Career/CAREER_01", "1074f3f138d265e4a41f885badd8bb87"),
+    (PAIR_360, "3da9f4c0a5a2b7d5c55863d49de4852c"),
+    (ROOT / "Extracted/Career/CAREER_03", "7e9cc08492c4971153cab398e854d5c6"),
     (ROOT / "Extracted/Alias/ALIAS_360", "5d8ab470357fc03e6f7ccc2571d95fe1"),
-    (ROOT / "docs/re/c1_latest/CAREER_01_360", "e5ddeef1cf4314ff9929743f69062e9d"),
-    (ROOT / "docs/re/pair_raceday/CAREER_02_360", "a7b6ae96d15222948b31fdb27a7b8fda"),
+    (ROOT / "docs/re/c1_latest/CAREER_01_360", "3629c8559ee06e5e0b13fba02400ddd3"),
+    (ROOT / "docs/re/pair_raceday/CAREER_02_360", "ec77c9309356db48faeae8e66f840176"),
     # anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
     (ROOT / "docs/re/alias_anon/ALIAS_360", "e2b29e6eb34771b96a57b1ee394f1f74"),
 ]

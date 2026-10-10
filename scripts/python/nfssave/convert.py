@@ -225,6 +225,23 @@ def fix_custom_raceday_strings(src: bytes, out: bytearray) -> None:
             out[d:d + ln] = src[d:d + ln]
 
 
+FECAREER_ID = 0x885B4DDC
+CAREER_NAME_LEN = 0x24
+
+
+def fix_career_name(src: bytes, out: bytearray) -> None:
+    """FECareer's one 36-byte node is the career-slot name: [4 junk][32
+    chars, NUL]. The PC names the save file after it (CAREER_<name>). The
+    360 pads "01\\0" with 0xAA heap fill, which defeats the string heuristic;
+    the u32 swap then saved every converted career as CAREER_<0xAA>. Copy
+    the chars naturally and zero after the NUL, like a native PC career."""
+    for d, ln in node_spans(src):
+        if ln == CAREER_NAME_LEN:
+            out[d:d + 4] = src[d:d + 4]
+            chars = src[d + 4:d + ln].split(b"\0", 1)[0]
+            out[d + 4:d + ln] = chars + bytes(ln - 4 - len(chars))
+
+
 CARDB_PACKED = (0x7C980, 0x90660)   # region holding 8-byte packed entries
 PACKED_FILL = bytes((0x2A, 0xAA))     # 360 uninitialized 14/16-bit field (0xAAAA masked)
 
@@ -453,6 +470,8 @@ def apply_struct_fixes(rec, src: bytes, warnings: list) -> None:
         fix_node_flags(src, out)
         if rec.id == CUSTOM_RACEDAY_ID:
             fix_custom_raceday_strings(src, out)
+        elif rec.id == FECAREER_ID:
+            fix_career_name(src, out)
     rec.payload = bytes(out)
 
 

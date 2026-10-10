@@ -148,7 +148,7 @@ def test_backup_failure_leaves_existing_untouched(tmp_path, monkeypatch, capsys)
 
 # --- CLI redesign (docs/scripts-cli.md) --------------------------------------
 
-PAIR_MD5 = "00f9d4427e18486eef546be07a5b2744"
+PAIR_MD5 = "3da9f4c0a5a2b7d5c55863d49de4852c"
 
 
 def _md5(p: Path) -> str:

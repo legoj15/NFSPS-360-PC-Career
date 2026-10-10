@@ -279,6 +279,26 @@ pub fn fix_custom_raceday_strings(src: &[u8], out: &mut [u8]) {
     }
 }
 
+pub const FECAREER_ID: u32 = 0x885B_4DDC;
+pub const CAREER_NAME_LEN: usize = 0x24;
+
+/// FECareer's one 36-byte node is the career-slot name: [4 junk][32 chars,
+/// NUL]. The PC names the save file after it (CAREER_<name>). The 360 pads
+/// "01\0" with 0xAA heap fill, which defeats the string heuristic; the u32
+/// swap then saved every converted career as CAREER_<0xAA>. Copy the chars
+/// naturally and zero after the NUL, like a native PC career.
+pub fn fix_career_name(src: &[u8], out: &mut [u8]) {
+    for (d, ln) in node_spans(src, 4) {
+        if ln == CAREER_NAME_LEN {
+            copy_nat(src, out, d, d + 4);
+            let chars = &src[d + 4..d + ln];
+            let n = chars.iter().position(|&b| b == 0).unwrap_or(chars.len());
+            out[d + 4..d + 4 + n].copy_from_slice(&chars[..n]);
+            out[d + 4 + n..d + ln].fill(0);
+        }
+    }
+}
+
 /// region holding 8-byte packed entries
 pub const CARDB_PACKED: (usize, usize) = (0x7C980, 0x90660);
 /// 360 uninitialized 14/16-bit field (0xAAAA masked)
@@ -632,6 +652,8 @@ pub fn apply_struct_fixes(rec: &mut Record, src: &[u8], warnings: &mut Vec<Strin
         fix_node_flags(src, &mut out);
         if rec.id == CUSTOM_RACEDAY_ID {
             fix_custom_raceday_strings(src, &mut out);
+        } else if rec.id == FECAREER_ID {
+            fix_career_name(src, &mut out);
         }
     }
     rec.payload = out;
