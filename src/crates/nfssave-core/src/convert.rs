@@ -733,11 +733,17 @@ pub fn is_node_flag(word: &[u8]) -> bool {
     word.len() >= 4 && (word[1..4] == [0xFF; 3] || word[1..4] == [0; 3])
 }
 
-/// Chunks whose PC layout is a strict prefix of the 360 one: PC-framed
-/// payload size of the native PC savable. VideoSettings: the 360 adds two
-/// trailing 8-byte nodes (0.5, 1.0) after the last PC node (native PC
-/// alias: 0x74 B).
-pub const PC_PAYLOAD_SIZES: [(u32, usize); 1] = [(0xC3EC_4947, 0x74)];
+// VideoSettings keeps the 360's two extra trailing 8-byte nodes (0.5, 1.0):
+// the PC loads them fine (in-game 2026-10-09). Trimming to the native 0x74
+// was tried and only ever appeared in failing runs, so it was dropped.
+
+pub const PC_CONTROLLER_ID: u32 = 0x3915_6567;
+/// Native PC default bindings (game-created default profile, keyboard:
+/// arrows, LCtrl, Space, ...); the 360 has no such chunk. A size-0 filler
+/// loaded, but the PC dropped the profile mid-session for a default
+/// 'Player' (in-game 2026-10-09).
+pub const PC_CONTROLLER_DEFAULT: &[u8] =
+    include_bytes!("../../../../scripts/python/nfssave/pc_controller_default.bin");
 
 /// Re-frame a converted record for PC-native emission.
 ///
@@ -758,9 +764,6 @@ pub fn to_pc_record(rec: &mut Record, last: [u8; 4]) {
         };
         p.extend_from_slice(&last);
         rec.payload = p;
-    }
-    if let Some(&(_, size)) = PC_PAYLOAD_SIZES.iter().find(|(id, _)| *id == rec.id) {
-        rec.payload.truncate(size);
     }
 }
 
@@ -980,10 +983,11 @@ pub fn convert_tree(
         pre
     };
     // positional pairing: the PC loader walks savable[i] against record[i];
-    // a chunk the 360 never writes must hold its slot with a size-0 filler
-    // or every later pairing desyncs (PCControllerSettings sits between
-    // AudioSettings and PlayerSettings0 in the PC registration order)
-    if report.kind == "alias" && !pc.records.iter().any(|r| r.id == 0x3915_6567) {
+    // a chunk the 360 never writes must hold its slot or every later pairing
+    // desyncs (PCControllerSettings sits between AudioSettings and
+    // PlayerSettings0 in the PC registration order). It gets the native
+    // default bindings: an empty one made the PC drop the profile mid-session.
+    if report.kind == "alias" && !pc.records.iter().any(|r| r.id == PC_CONTROLLER_ID) {
         let ps0 = pc
             .records
             .iter()
@@ -993,9 +997,9 @@ pub fn convert_tree(
             ps0,
             Record {
                 flags: 0x0000_0001,
-                id: 0x3915_6567,
-                size: 0,
-                payload: Vec::new(),
+                id: PC_CONTROLLER_ID,
+                size: PC_CONTROLLER_DEFAULT.len() as u32,
+                payload: PC_CONTROLLER_DEFAULT.to_vec(),
                 tail: Vec::new(),
             },
         );

@@ -56,11 +56,11 @@ $cases = @(
     @('Extracted\Career\CAREER_01', '4afedb367a0fe2c8dee178e4ed3daca1', 'CAREER_01'),
     @('docs\re\pair\CAREER_02_360_fresh', '3da9f4c0a5a2b7d5c55863d49de4852c', 'CAREER_02'),
     @('Extracted\Career\CAREER_03', '77e5b3e95f3734b5460a986a9b74a92b', 'CAREER_03'),
-    @('Extracted\Alias\ALIAS_360', '5d8ab470357fc03e6f7ccc2571d95fe1', 'ALIAS_JOSHUA S 10'),
+    @('Extracted\Alias\ALIAS_360', 'a5a24e0f79571d2b5f819a76704a6b89', 'ALIAS_JOSHUA S 10'),
     @('docs\re\c1_latest\CAREER_01_360', '5b7d3fcb229ba2ec135d68de121bb0ff', 'CAREER_01'),
     @('docs\re\pair_raceday\CAREER_02_360', 'ec77c9309356db48faeae8e66f840176', 'CAREER_02'),
     # anonymized copy of the personal alias save (docs\re\alias_anon\README.md)
-    @('docs\re\alias_anon\ALIAS_360', 'e2b29e6eb34771b96a57b1ee394f1f74', 'ALIAS_ANONYMOUS 1')
+    @('docs\re\alias_anon\ALIAS_360', '377651916f0e1bd488561b7481a66da1', 'ALIAS_ANONYMOUS 1')
 )
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion) ($hostExe)"
@@ -506,6 +506,12 @@ try {
         if ($got -ne $c[2]) { $fails += "flag $($c[0].ToString('x8')) data $($c[1].ToString('x8')): $got" }
     }
     if (-not $fails) { Pass 'u8 node rule like Python' } else { Fail 'u8 node rule like Python' ($fails -join '; ') }
+
+    # --- unit: embedded PCControllerSettings defaults == the shared data file
+    $pcd = [NfsPs.Save].GetField('PcControllerDefault', [System.Reflection.BindingFlags]'NonPublic,Public,Static').GetValue($null)
+    $want = [System.IO.File]::ReadAllBytes((Join-Path $here '..\..\python\nfssave\pc_controller_default.bin'))
+    if ((Hx $pcd) -eq (Hx $want)) { Pass 'PCControllerSettings defaults match the data file' }
+    else { Fail 'PCControllerSettings defaults match the data file' "len $($pcd.Length) vs $($want.Length)" }
 }
 finally {
     foreach ($t in $tmpRoots) { Remove-Item -Recurse -Force $t -ErrorAction SilentlyContinue }

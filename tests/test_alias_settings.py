@@ -78,10 +78,30 @@ class AliasSettingsTests(unittest.TestCase):
         want = {r.id: len(r.payload) for r in native.records}
         self.assertEqual({r.id for r in pc.records}, set(want))
         for r in pc.records:
-            if r.id == PC_CONTROLLER:
-                continue                  # PC-only, size-0 positional filler
             with self.subTest(chunk=hex(r.id)):
-                self.assertEqual(len(r.payload), want[r.id])
+                if r.id == VIDEO_SETTINGS:
+                    # keeps the 360's two extra trailing nodes (0xB4): the PC
+                    # loads them fine (in-game 2026-10-09); the trimmed 0x74
+                    # was only ever part of failing test runs
+                    self.assertEqual(len(r.payload), 0xB4)
+                else:
+                    self.assertEqual(len(r.payload), want[r.id])
+
+    def test_pc_controller_gets_native_defaults(self):
+        # A size-0 PCControllerSettings loaded, then the PC dropped the
+        # profile mid-session for a default 'Player' (ALIAS_Player +
+        # "too many aliases"); native default bindings fixed it in-game.
+        _, pc = convert_alias()
+        got = next(r.payload for r in pc.records if r.id == PC_CONTROLLER)
+        default = (ROOT / "scripts/python/nfssave/pc_controller_default.bin").read_bytes()
+        self.assertEqual(got, default)
+        native = Tree.parse(MC02.parse(NATIVE_PC.read_bytes()).tree, big=False)
+        oracle = next(r.payload for r in native.records if r.id == PC_CONTROLLER)
+        # same bindings as the repo oracle; only the flag words' junk bytes differ
+        flags = {o + 12 for o in range(0, len(oracle), 16)}
+        for o in range(0, len(oracle), 4):
+            if o not in flags:
+                self.assertEqual(got[o:o + 4], oracle[o:o + 4], f"word {o:#x}")
 
     def test_u32_node_after_zero_is_not_mistaken_for_u8(self):
         # [0][len=1][flag][00 00 00 04] - a word whose pad bytes are not zero

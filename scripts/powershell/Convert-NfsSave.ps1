@@ -1060,9 +1060,38 @@ namespace NfsPs
             return w;
         }
 
-        // PC_PAYLOAD_SIZES: VideoSettings drops two 360-only trailing nodes
-        const uint VideoSettingsId = 0xC3EC4947;
-        const int VideoSettingsPcSize = 0x74;
+        // VideoSettings keeps the 360's two extra trailing nodes: the PC loads them fine
+        // (in-game 2026-10-09); the trim to 0x74 only ever appeared in failing runs.
+
+        // PC_CONTROLLER_DEFAULT (scripts/python/nfssave/pc_controller_default.bin): native
+        // PC default bindings; the 360 has no such chunk. A size-0 filler loaded, but the
+        // PC dropped the profile mid-session for a default 'Player' (in-game 2026-10-09).
+        const uint PcControllerId = 0x39156567;
+        static readonly byte[] PcControllerDefault = Convert.FromBase64String(
+            "AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////GQAAAAAAAAAEAAAAAP///wEAAAAAAAAA"
+            + "BAAAAAD////IAAAAAAAAAAQAAAAA////AQAAAAAAAAAEAAAAAP///x4AAAAAAAAABAAAAAD///8BAAAAAAAAAAQAAAAA////"
+            + "0AAAAAAAAAAEAAAAAP///wEAAAAAAAAABAAAAAD///8sAAAAAAAAAAQAAAAA////AQAAAAAAAAAEAAAAAP///8sAAAAAAAAA"
+            + "BAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wEAAAAAAAAABAAAAAD////NAAAAAAAAAAQAAAAA////"
+            + "AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8BAAAAAAAAAAQAAAAA////UgAAAAAAAAAEAAAAAP///wAAAAAAAAAA"
+            + "BAAAAAD///8AAAAAAAAAAAQAAAAA////AQAAAAAAAAAEAAAAAP///zEAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////"
+            + "AAAAAAAAAAAEAAAAAP///wEAAAAAAAAABAAAAAD///8dAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAA"
+            + "BAAAAAD///8BAAAAAAAAAAQAAAAA////KgAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////"
+            + "AQAAAAAAAAAEAAAAAP///zkAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAA"
+            + "BAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////"
+            + "AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAA"
+            + "BAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////"
+            + "AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAA"
+            + "BAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////"
+            + "AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAA"
+            + "BAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////"
+            + "AQAAAAAAAAAEAAAAAP///xMAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wEAAAAAAAAA"
+            + "BAAAAAD///8FAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8BAAAAAAAAAAQAAAAA////"
+            + "BAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////AQAAAAAAAAAEAAAAAP///wMAAAAAAAAA"
+            + "BAAAAAD///8AAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wEAAAAAAAAABAAAAAD///8CAAAAAAAAAAQAAAAA////"
+            + "AAAAAAAAAAAEAAAAAP///wAAAAAAAAAABAAAAAD///8BAAAAAAAAAAQAAAAA////LgAAAAAAAAAEAAAAAP///wAAAAAAAAAA"
+            + "BAAAAAD///8AAAAAAAAAAAQAAAAA////AQAAAAAAAAAEAAAAAP///zAAAAAAAAAABAAAAAD///8AAAAAAAAAAAQAAAAA////"
+            + "AAAAAAAAAAAEAAAAAP///wEAAAAAAAAABAAAAAD///9YAAAAAAAAAAQAAAAA////AAAAAAAAAAAEAAAAAP///wAAAAAAAAAA"
+            + "BAAAAAD///8AAAAA");
 
         // _to_pc_record: [id][size][flags=1][content + last word], same total size.
         // The last word is the record's final value, which the 360 stores in the NEXT
@@ -1079,8 +1108,6 @@ namespace NfsPs
                 Buffer.BlockCopy(last, 0, n, n.Length - 4, 4);
                 rec.Payload = n;
             }
-            if (rec.Id == VideoSettingsId && rec.Payload.Length > VideoSettingsPcSize)
-                rec.Payload = Slice(rec.Payload, 0, VideoSettingsPcSize);
         }
 
         // tail_word: PC byte order for a record's final word, taken from the 360 word
@@ -1167,17 +1194,18 @@ namespace NfsPs
             Wr32(pre, PcHeadStructSize, TreeMagic, false);
             Wr32(pre, PcHeadStructSize + 8, 1, false);
             pc.Pre = pre;
-            // positional pairing: PCControllerSettings holds its slot with a size-0 filler
+            // positional pairing: PCControllerSettings holds its slot, with the native
+            // default bindings (an empty one made the PC drop the profile mid-session)
             if (rep.Kind == "alias")
             {
                 bool has = false;
-                foreach (Rec r in pc.Records) if (r.Id == 0x39156567) has = true;
+                foreach (Rec r in pc.Records) if (r.Id == PcControllerId) has = true;
                 if (!has)
                 {
                     int ps0 = pc.Records.Count;
                     for (int k = 0; k < pc.Records.Count; k++) if (pc.Records[k].Id == 0x8B7D0AAD) { ps0 = k; break; }
                     Rec f = new Rec();
-                    f.Type = 1; f.Id = 0x39156567; f.Payload = new byte[0];
+                    f.Type = 1; f.Id = PcControllerId; f.Payload = (byte[])PcControllerDefault.Clone();
                     pc.Records.Insert(ps0, f);
                     pc.Count = (uint)pc.Records.Count;
                 }

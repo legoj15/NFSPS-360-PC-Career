@@ -559,15 +559,17 @@ def _to_pc_record(rec, last: bytes = bytes(4)) -> None:
     rec.type = 0x00000001
     if rec.payload:
         rec.payload = rec.payload[4:] + last
-    size = PC_PAYLOAD_SIZES.get(rec.id)
-    if size is not None and len(rec.payload) > size:
-        rec.payload = rec.payload[:size]
 
 
-# chunks whose PC layout is a strict prefix of the 360 one: PC-framed payload
-# size of the native PC savable. VideoSettings: the 360 adds two trailing
-# 8-byte nodes (0.5, 1.0) after the last PC node (native PC alias: 0x74 B).
-PC_PAYLOAD_SIZES = {0xC3EC4947: 0x74}
+# VideoSettings keeps the 360's two extra trailing 8-byte nodes (0.5, 1.0):
+# the PC loads them fine (in-game 2026-10-09). Trimming to the native 0x74
+# was tried and only ever appeared in failing runs, so it was dropped.
+
+PC_CONTROLLER_ID = 0x39156567
+# native PC default bindings (game-created default profile, keyboard: arrows,
+# LCtrl, Space, ...); the 360 has no such chunk. A size-0 filler loaded, but
+# the PC dropped the profile mid-session for a default 'Player' (in-game).
+PC_CONTROLLER_DEFAULT = (Path(__file__).parent / "pc_controller_default.bin").read_bytes()
 
 
 def validate_twin(src: Tree, twin: Tree, warnings: list) -> None:
@@ -665,14 +667,16 @@ def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = No
     pc.pre_records = (b"\0" * PC_HEAD_STRUCT_SIZE
                       + struct.pack("<III", TREE_MAGIC, 0, 0x00000001))
     # positional pairing: the PC loader walks savable[i] against record[i];
-    # a chunk the 360 never writes must hold its slot with a size-0 filler
-    # or every later pairing desyncs (PCControllerSettings sits between
-    # AudioSettings and PlayerSettings0 in the PC registration order)
-    if report.kind == "alias" and not any(r.id == 0x39156567 for r in pc.records):
+    # a chunk the 360 never writes must hold its slot or every later pairing
+    # desyncs (PCControllerSettings sits between AudioSettings and
+    # PlayerSettings0 in the PC registration order). It gets the native
+    # default bindings: an empty one made the PC drop the profile mid-session.
+    if report.kind == "alias" and not any(r.id == PC_CONTROLLER_ID for r in pc.records):
         ps0 = next((k for k, r in enumerate(pc.records) if r.id == 0x8B7D0AAD),
                    len(pc.records))
         from .tree import Record
-        pc.records.insert(ps0, Record(0x00000001, 0x39156567, 0, b""))
+        pc.records.insert(ps0, Record(0x00000001, PC_CONTROLLER_ID,
+                                      len(PC_CONTROLLER_DEFAULT), PC_CONTROLLER_DEFAULT))
         pc.count = len(pc.records)
     report.chunk_list = [CHUNK_NAMES.get(r.id, hex(r.id)) for r in pc.records]
     return pc

@@ -14,6 +14,7 @@ use nfssave_core::tree::Tree;
 use nfssave_core::{MC02, read_container};
 
 const PC_CONTROLLER: u32 = 0x3915_6567;
+const VIDEO_SETTINGS: u32 = 0xC3EC_4947;
 
 fn be(p: &[u8], o: usize) -> u32 {
     u32::from_be_bytes(p[o..o + 4].try_into().unwrap())
@@ -84,9 +85,22 @@ fn chunk_sizes_match_native_pc() {
     let got: std::collections::HashSet<u32> = pc.records.iter().map(|r| r.id).collect();
     let native_ids: std::collections::HashSet<u32> = want.keys().copied().collect();
     assert_eq!(got, native_ids);
-    for r in pc.records.iter().filter(|r| r.id != PC_CONTROLLER) {
-        assert_eq!(r.payload.len(), want[&r.id], "chunk {:#x}", r.id);
+    for r in &pc.records {
+        // VideoSettings keeps the 360's two extra trailing nodes (0xB4), which
+        // the PC loads fine (in-game 2026-10-09)
+        let want_len = if r.id == VIDEO_SETTINGS { 0xB4 } else { want[&r.id] };
+        assert_eq!(r.payload.len(), want_len, "chunk {:#x}", r.id);
     }
+}
+
+/// A size-0 PCControllerSettings made the PC drop the profile mid-session
+/// for a default 'Player'; native default bindings fixed it in-game.
+#[test]
+fn pc_controller_gets_native_defaults() {
+    let (_, pc) = convert_alias();
+    let got = &pc.records.iter().find(|r| r.id == PC_CONTROLLER).unwrap().payload;
+    let default = fs::read(repo_root().join("scripts/python/nfssave/pc_controller_default.bin")).unwrap();
+    assert_eq!(got, &default);
 }
 
 fn swapped(src: &[u8]) -> Vec<u8> {

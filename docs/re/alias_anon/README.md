@@ -9,9 +9,10 @@ Regenerate (needs the personal save):
     python docs/re/anonymize_alias.py Extracted/Alias/ALIAS_360 docs/re/alias_anon/ALIAS_360 "ANONYMOUS 1"
 
 The output is byte-deterministic. Converted output (md5
-`4056c0e2a577f9facdd412c1c6e91db3`) differs from the personal golden
-(`5f04f3ff...`) only in the MC02 CRC words, the extra-blob name, the PC tree
-hash and the UserProfile name (verified 2026-10-06).
+`377651916f0e1bd488561b7481a66da1`) differs from the personal golden
+(`a5a24e0f...`, byte-identical to the alias verified in-game on 2026-10-09)
+only in the MC02 CRC words, the extra-blob name, the PC tree hash and the
+UserProfile name.
 
 Changed vs the source: player name in file table, CON display name, MC02 extra
 blob and UserProfile; CON certificate body, console id, profile id and device
@@ -20,4 +21,4 @@ and the 360 tree hash are stale — the converter verifies none of them, but a
 console will not load this package.
 
 Covers alias-only converter paths: 64-byte extra blob, PCControllerSettings
-size-0 filler, alias fieldmap rules.
+native default bindings, alias fieldmap rules.
