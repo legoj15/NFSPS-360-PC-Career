@@ -12,7 +12,6 @@ pub mod mc02;
 pub mod payload_rules;
 pub mod tree;
 pub mod treehash;
-pub mod typemap;
 
 pub use container360::{Container360, parse_container, read_container};
 pub use crc::crc32_ea;
