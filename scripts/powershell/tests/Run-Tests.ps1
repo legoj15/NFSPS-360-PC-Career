@@ -441,6 +441,13 @@ try {
     try { [void][NfsPs.Save].GetMethod('ParseTree', $bf).Invoke($null, [object[]]@($blob, $true)) } catch { $threw = $_.Exception.InnerException.Message }
     if ($threw -match 'too short for the used-size word') { Pass 'tree magic without used word refused like Python' }
     else { Fail 'tree magic without used word refused like Python' "threw '$threw'" }
+    foreach ($v in @(@(0x10, 'tree blob \(0x10 B\) too short for the chunk-count word'), @(0x20, 'tree magic 0x59F2D89B not found'))) {
+        [byte[]]$blob = New-Object byte[] $v[0]
+        $threw = $null
+        try { [void][NfsPs.Save].GetMethod('ParseTree', $bf).Invoke($null, [object[]]@($blob, $true)) } catch { $threw = $_.Exception.InnerException.Message }
+        if ($threw -match $v[1]) { Pass "short tree blob ($($v[0]) B) refused like Python" }
+        else { Fail "short tree blob ($($v[0]) B) refused like Python" "threw '$threw'" }
+    }
     [byte[]]$hdr = New-Object byte[] 0x1C
     foreach ($w in @(@(0, 0x4D433032), @(4, 0x1C), @(12, 2147483648))) { [Array]::Copy([BitConverter]::GetBytes([uint32]$w[1]), 0, $hdr, $w[0], 4) }
     $threw = $null

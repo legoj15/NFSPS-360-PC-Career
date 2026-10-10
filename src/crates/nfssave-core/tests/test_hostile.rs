@@ -38,3 +38,22 @@ fn huge_tree_size_is_refused() {
         "{e}"
     );
 }
+
+#[test]
+fn blob_without_count_word_is_refused() {
+    let e = Tree::parse(&[0u8; 0x10], true).err().expect("must refuse");
+    assert!(
+        e.to_string()
+            .contains("tree blob (0x10 B) too short for the chunk-count word"),
+        "{e}"
+    );
+}
+
+#[test]
+fn short_blob_without_magic_is_refused() {
+    let e = Tree::parse(&[0u8; 0x20], true).err().expect("must refuse");
+    assert!(
+        e.to_string().contains("tree magic 0x59F2D89B not found"),
+        "{e}"
+    );
+}

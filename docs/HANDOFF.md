@@ -1,5 +1,50 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-10)
 
+## 2026-10-10 — outside review of the 2026-10-04/05 core + 5a0402c (gap closed)
+- Scope: CURRENT code descended from 062aa43..1723bee (STFS reader, node
+  flag words, CARDB/blueprint fixes, GameplayData race-day block + MD5) and
+  5a0402c (app export name). Reviewers: Qwen 27B (shop26, 36 min, approve),
+  GLM-5.3-flash (opencode, 17 min), Haiku `reviewer` (8 min, FAIL verdict).
+  All three: STFS math, flag words, CARDB, race-day, MD5 and 5a0402c's
+  export_name byte/decision-identical across ports. No golden md5 moved.
+- Fixed (tests first, all three ports):
+  - 7f1b310 file-table block length: PS refused < 0x40, Python/Rust read
+    only 0x38 (Haiku + GLM agreed). Now < 0x38 everywhere, one message;
+    Python raised struct.error there, now ValueError.
+  - 7c35c1d (GLM) Tree.parse with the magic in the last word: Rust PANICKED
+    (aborts the headless batch / strands the GUI); now one refusal. MC02
+    tree_size > 16 MiB refused in parse (was zero-padded before the CRC
+    check: ~2 GiB alloc, Rust abort, PS negative int).
+- Verdicts on the rest:
+  - REJECTED (Haiku, stale): "backup uses an unvalidated CON name before the
+    name check" + "duplicate guard before unsafe-name" - batch.rs runs
+    check_save_name first (ad24aa1). Haiku: "level-1 STFS term over-counts"
+    - it is the level-2 table, matches Velocity's formula and the tests.
+    Haiku: pad-shift comment wrong - it is right (freed word = zeroed end).
+  - REJECTED (shop26 + Haiku): casefold vs to_lowercase vs ToLowerInvariant
+    - CON names decode to ASCII + U+FFFD, so the folds cannot differ.
+  - KNOWN (all three): app backs up before the corruption check (#10a,
+    user call); write_pc_save remove-before-rename (#10 leftover).
+  - DOCUMENTED, no change: app accepts raw MC02 (rust-app.md:67).
+  - LOW, no change: post-write self-check failure is exit 1 in PS but a
+    warning in Python/Rust; unreachable (CRCs freshly computed).
+  - OPEN, user call (GLM): app backup base is always the parent of the
+    output folder; the scripts keep plain-mode (`--out D`) backups inside D
+    ("never write outside the folder the user chose", scripts-cli.md). The
+    app's headless `--out D` writes `<parent of D>\SaveConverter backups`.
+  - Fixed in the follow-up commit (shop26 spot-check low): Python/PS
+    Tree.parse on a blob < 0x14, or one that ends before any magic, raised
+    struct.error / IndexOutOfRange; now Rust's two clean refusals.
+- Final state: pytest 107 + 9 skipped, cargo workspace green + fmt clean,
+  Run-Tests.ps1 56/56 (3 skipped: no Extracted/ in the worktree) on 5.1 and 7.
+- Delegation log: reviewer (Haiku) core review -> 10 findings, 1 real
+  (file table), 3 stale/wrong (complaint logged). opencode triad shop26 +
+  glm-flash -> shop26 approve, 0 new; glm-flash 2 real (hostile tree) + 1
+  agreed + 1 open user call. Fixes by orchestrator (serial, tightly scoped),
+  0 escalations. shop26 spot check of 7f1b310..7c35c1d (16 min): approve,
+  boundaries and messages identical, 16 MiB cap clear of real saves (career
+  tree 0xB6800, alias 0x5000); 1 low (short blobs, fixed as above).
+
 ## 2026-10-10 — post-1.1.0 backlog pass (user triaged each item)
 - Done: 1302160 workspace `cargo fmt` (fmt --check now required, see
   docs/rust-app.md); 338afa9 removed unused typemaps.json/typemap.rs/

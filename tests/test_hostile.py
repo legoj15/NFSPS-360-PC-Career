@@ -31,6 +31,14 @@ class HostileInputTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "too short for the used-size word"):
             Tree.parse(magic_at_end(), big=True)
 
+    def test_blob_without_count_word_is_refused(self):
+        with self.assertRaisesRegex(ValueError, r"tree blob \(0x10 B\) too short for the chunk-count word"):
+            Tree.parse(bytes(0x10), big=True)
+
+    def test_short_blob_without_magic_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "tree magic 0x59F2D89B not found"):
+            Tree.parse(bytes(0x20), big=True)
+
     def test_huge_tree_size_is_refused(self):
         with self.assertRaisesRegex(ValueError, "tree size 0x80000000 exceeds"):
             MC02.parse(huge_tree_size())

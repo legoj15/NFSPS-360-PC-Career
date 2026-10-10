@@ -62,11 +62,15 @@ class Tree:
     @staticmethod
     def parse(tree: bytes, big: bool) -> "Tree":
         e = ">" if big else "<"
+        if len(tree) < 0x14:
+            raise ValueError(f"tree blob ({len(tree):#x} B) too short for the chunk-count word")
         count = struct.unpack_from(e + "I", tree, 0x10)[0]
         rec_start = REC_START_360 if big else REC_START_PC
-        # locate magic between 0x14 and rec_start
+        # locate magic between 0x14 and rec_start (stops at the buffer end)
         magic_off = None
         for off in range(0x14, rec_start - 4, 4):
+            if off + 4 > len(tree):
+                break
             if struct.unpack_from(e + "I", tree, off)[0] == TREE_MAGIC:
                 magic_off = off
                 break

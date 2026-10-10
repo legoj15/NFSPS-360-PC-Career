@@ -361,10 +361,12 @@ namespace NfsPs
 
         static Tree ParseTree(byte[] tree, bool big)
         {
+            if (tree.Length < 0x14)
+                throw new InvalidOperationException("tree blob (" + Hex(tree.Length) + " B) too short for the chunk-count word");
             uint count = Rd32(tree, 0x10, big);
             int recStart = big ? RecStart360 : RecStartPc;
             int magicOff = -1;
-            for (int off = 0x14; off < recStart - 4; off += 4)
+            for (int off = 0x14; off < recStart - 4 && off + 4 <= tree.Length; off += 4)
                 if (Rd32(tree, off, big) == TreeMagic) { magicOff = off; break; }
             if (magicOff < 0) throw new InvalidOperationException("tree magic 0x59F2D89B not found");
             if (magicOff + 8 > tree.Length)
