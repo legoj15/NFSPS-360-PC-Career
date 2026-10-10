@@ -42,6 +42,15 @@
   (size 0, as in main). Strays moved to SAVE/SaveConverter backups/
   2026-10-09_strays2/. Idea: converter could warn when the target folder
   already holds another ALIAS_* or a CAREER_ with a non-ASCII name.
+- CORRECTION: strays came back at 20:55 with a clean folder -> the MERGED
+  alias (5d8ab470) is REJECTED by the PC (falls back to 'Player'); the
+  branch's fixes were never actually loaded in-game. vs dc305ef (loads):
+  only (a) ~40 u8 node words 00000001 -> 01000000 and (b) VideoSettings
+  0xB4 -> 0x74 (used 0x3210 -> 0x31D0). Post-record area same shape.
+  Bisect in progress: installed v1 = merged minus the VideoSettings trim
+  (md5 4f5cb16f..., PC_PAYLOAD_SIZES cleared). Merged alias + strays in
+  SAVE/SaveConverter backups/2026-10-09_strays3/. If v1 loads -> drop
+  the trim; else the u8 rule is what the PC rejects.
 
 ## 2026-10-09 — PS short-record clamping (GLM review follow-up)
 - Convert-NfsSave.ps1 C#: FixCarDbParts / FixBlueprintSet / ConvertDecal now
