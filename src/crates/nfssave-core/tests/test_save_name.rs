@@ -42,7 +42,7 @@ fn convert_one_reports_an_unsafe_name_before_corruption() {
     // flip a byte inside the extra blob (MC02 header is 0x1C bytes)
     let mc = bytes.windows(4).position(|w| w == b"MC02").unwrap();
     bytes[mc + 0x1C + 2] ^= 0xFF;
-    let tmp = std::env::temp_dir().join("nfssave_name_before_crc");
+    let tmp = std::env::temp_dir().join(format!("nfssave-name-before-crc-{}", std::process::id()));
     let Err(e) = convert_one(&bytes, "bad", &tmp) else {
         panic!("converted an unsafe-named, corrupt save")
     };

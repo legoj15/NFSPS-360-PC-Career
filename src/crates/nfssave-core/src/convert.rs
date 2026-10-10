@@ -1028,7 +1028,7 @@ pub fn convert_payload(mc02_be: &MC02, report: Option<&mut ConversionReport>) ->
 
 /// Refuse a save name that would escape or collapse its folder (path
 /// separators, drive colon, `.`/`..`). Not a full Windows-name validator:
-/// game save names are fixed ASCII (CAREER_nn / ALIAS_*). Windows drops
+/// game save names are simple (CAREER_nn / ALIAS_*). Windows drops
 /// trailing dots/spaces, so "..." or "  " would collapse onto the output
 /// root itself. Same rule and message as the Python and PowerShell ports.
 pub fn check_save_name(name: &str) -> Result<()> {

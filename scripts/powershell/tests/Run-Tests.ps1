@@ -153,6 +153,11 @@ try {
             $both[$mc + 0x1C + 2] = $both[$mc + 0x1C + 2] -bxor 0xFF
             $bothSrc = Join-Path $badDir 'both'
             [System.IO.File]::WriteAllBytes($bothSrc, $both)
+            # an existing save at the path the unsafe name maps to: a backup
+            # before the name check would copy it into SaveConverter backups
+            $seed = Join-Path $badOut 'CAREER\02\CAREER'
+            New-Item -ItemType Directory -Force -Path $seed | Out-Null
+            [System.IO.File]::WriteAllBytes((Join-Path $seed '02'), [byte[]](1, 2, 3))
             $rb = Invoke-Converter @($bothSrc, '-OutRoot', $badOut)
             # control: the same corruption with a safe name does report the CRC
             $ok = [byte[]]$both.Clone()
@@ -160,7 +165,9 @@ try {
             $okSrc = Join-Path $badDir 'corrupt'
             [System.IO.File]::WriteAllBytes($okSrc, $ok)
             $rc = Invoke-Converter @($okSrc, '-OutRoot', $badOut)
-            $noBackup = -not (Test-Path -LiteralPath (Join-Path $badDir 'SaveConverter backups'))
+            # plain-mode -OutRoot: backups live inside it (Convert-NfsSave.ps1 B = R)
+            $noBackup = -not (Test-Path -LiteralPath (Join-Path $badOut 'SaveConverter backups'))
+            Remove-Item -Recurse -Force (Join-Path $badOut 'CAREER')
             if ($rb.Code -eq 1 -and $rb.Text -match "unsafe save name 'CAREER/02'" -and $rb.Text -notmatch 'extra-blob CRC' -and $rc.Text -match 'extra-blob CRC' -and $noBackup) { Pass 'unsafe name beats corruption' }
             else { Fail 'unsafe name beats corruption' "exit $($rb.Code): $($rb.Text) | control: $($rc.Text)" }
         }
@@ -173,7 +180,7 @@ try {
         $rdd = Invoke-Converter @($dotsSrc, '-OutRoot', $badOut, '-DryRun')
         $rdr = Invoke-Converter @($dotsSrc, '-OutRoot', $badOut)
         $wroteNothing = -not (Test-Path -LiteralPath $badOut) -or @(Get-ChildItem -Recurse -File $badOut).Count -eq 0
-        if ($rdd.Code -eq 1 -and $rdr.Code -eq 1 -and $rdd.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $rdr.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $wroteNothing -and -not (Test-Path -LiteralPath (Join-Path $badDir 'SaveConverter backups'))) { Pass 'dots-only name refused' }
+        if ($rdd.Code -eq 1 -and $rdr.Code -eq 1 -and $rdd.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $rdr.Text -match "unsafe save name '\.\.\.\.\.\.\.\.\.'" -and $wroteNothing -and -not (Test-Path -LiteralPath (Join-Path $badOut 'SaveConverter backups'))) { Pass 'dots-only name refused' }
         else { Fail 'dots-only name refused' "dry $($rdd.Code), real $($rdr.Code), wroteNothing=$wroteNothing" }
     }
 
