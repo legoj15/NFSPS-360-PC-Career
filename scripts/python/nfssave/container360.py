@@ -66,6 +66,9 @@ def parse_container(data: bytes, label: str = "container") -> Container360:
 
     table_block = int.from_bytes(data[0x37E:0x381], "little")
     entry = block_at(table_block)[:0x40]
+    # every field read below sits in the entry's first 0x38 bytes
+    if len(entry) < 0x38:
+        raise ValueError(f"{label}: STFS file table block truncated ({len(entry):#x} B)")
     nul = entry.find(b"\0", 0, 0x28)
     name = entry[:nul if nul != -1 else 0x28].decode("ascii", errors="replace")
     if not name:

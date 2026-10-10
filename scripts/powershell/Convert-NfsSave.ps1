@@ -236,7 +236,8 @@ namespace NfsPs
             int shift = (data[0x37B] & 1) != 0 ? 0 : 1;
             long tableBlock = data[0x37E] | ((long)data[0x37F] << 8) | ((long)data[0x380] << 16);
             byte[] entry = ReadBlock(data, tableBlock, first, shift, label);
-            if (entry.Length < 0x40) throw new InvalidOperationException(label + ": short STFS file table");
+            // every field read below sits in the entry's first 0x38 bytes (Python/Rust)
+            if (entry.Length < 0x38) throw new InvalidOperationException(label + ": STFS file table block truncated (" + Hex(entry.Length) + " B)");
             int nul = Array.IndexOf(entry, (byte)0, 0, 0x28);
             int nameLen = nul != -1 ? nul : 0x28;
             StringBuilder sb = new StringBuilder();

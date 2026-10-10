@@ -413,6 +413,26 @@ try {
     if (-not $threw -and ($rec.Payload -join ',') -eq '9,8,7,6') { Pass 'short record payload framed like Python' }
     else { Fail 'short record payload framed like Python' "threw '$threw', payload $($rec.Payload -join ',')" }
 
+    # --- unit: file-table block cut to 0x3C / 0x30 bytes, entry emptied
+    #     (same fixture as test_container.py / test_container.rs short_table):
+    #     every field read sits in the first 0x38 bytes, so 0x3C parses and
+    #     0x30 is refused, like Python and Rust.
+    $offM = [NfsPs.Save].GetMethod('StfsBlockOffset', [System.Reflection.BindingFlags]'NonPublic,Public,Static')
+    $all = [System.IO.File]::ReadAllBytes($pair)
+    $hdr = ([long]$all[0x340] -shl 24) -bor ([long]$all[0x341] -shl 16) -bor ([long]$all[0x342] -shl 8) -bor [long]$all[0x343]
+    $first = ($hdr + 0xFFF) -band (-bnot [long]0xFFF)
+    $tblock = [long]$all[0x37E] -bor ([long]$all[0x37F] -shl 8) -bor ([long]$all[0x380] -shl 16)
+    $toff = [long]$offM.Invoke($null, [object[]]@($tblock, $first, [int]$(if ($all[0x37B] -band 1) { 0 } else { 1 })))
+    foreach ($i in 0x29, 0x2A, 0x2B, 0x34, 0x35, 0x36, 0x37) { $all[$toff + $i] = 0 }
+    $threw = $null
+    try { $c = [NfsPs.Save]::ParseContainer($all[0..($toff + 0x3C - 1)], 't') } catch { $threw = $_.Exception.InnerException.Message; if (-not $threw) { $threw = $_.Exception.Message } }
+    if (-not $threw -and $c.Name -eq 'CAREER_02' -and $c.Payload.Length -eq 0) { Pass 'file table block of 0x3C bytes parses like Python' }
+    else { Fail 'file table block of 0x3C bytes parses like Python' "threw '$threw'" }
+    $threw = $null
+    try { [void][NfsPs.Save]::ParseContainer($all[0..($toff + 0x30 - 1)], 't') } catch { $threw = "$($_.Exception.InnerException.Message) $($_.Exception.Message)" }
+    if ($threw -match 'STFS file table block truncated') { Pass 'file table block of 0x30 bytes refused like Python' }
+    else { Fail 'file table block of 0x30 bytes refused like Python' "threw '$threw'" }
+
     # --- unit: RehashGameplay on a payload shorter than the digest slot
     #     (vector from test_short_records.rs rehash_grows_tiny_gameplay_payload:
     #     Python's bytearray slice assignment grows it to 0x24 = md5 of empty)

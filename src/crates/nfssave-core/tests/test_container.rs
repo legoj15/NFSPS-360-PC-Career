@@ -78,3 +78,35 @@ fn career_payloads_complete() {
         "at least the tracked career oracle must be present"
     );
 }
+
+/// The pair CON cut `len` bytes into its file-table block, with the entry's
+/// block count and size zeroed (an empty file). Same fixture as
+/// tests/test_container.py and Run-Tests.ps1.
+fn short_table(len: usize) -> Vec<u8> {
+    let mut data = std::fs::read(root().join("docs/re/pair/CAREER_02_360_fresh")).unwrap();
+    let header = u32::from_be_bytes(data[0x340..0x344].try_into().unwrap()) as usize;
+    let first_table = (header + 0xFFF) & !0xFFF;
+    let block = data[0x37E] as usize | (data[0x37F] as usize) << 8 | (data[0x380] as usize) << 16;
+    let shift = if data[0x37B] & 1 != 0 { 0 } else { 1 };
+    let off = stfs_block_offset(block, first_table, shift);
+    data[off + 0x29..off + 0x2C].fill(0);
+    data[off + 0x34..off + 0x38].fill(0);
+    data.truncate(off + len);
+    data
+}
+
+#[test]
+fn table_block_of_0x3c_bytes_parses() {
+    let c = nfssave_core::container360::parse_container(&short_table(0x3C), "t").unwrap();
+    assert_eq!(c.name, "CAREER_02");
+    assert!(c.payload.is_empty());
+}
+
+#[test]
+fn table_block_of_0x30_bytes_is_refused() {
+    let e = nfssave_core::container360::parse_container(&short_table(0x30), "t").unwrap_err();
+    assert!(
+        e.to_string().contains("STFS file table block truncated"),
+        "{e}"
+    );
+}

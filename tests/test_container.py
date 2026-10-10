@@ -51,5 +51,34 @@ class CareerPayloadTests(unittest.TestCase):
                 self.assertEqual([r.id for r in tree.records][-3:], CAREER_TAIL)
 
 
+def short_table(length: int) -> bytes:
+    """The pair CON cut `length` bytes into its file-table block, with the
+    entry's block count and size zeroed (an empty file). Same fixture in
+    test_container.rs and Run-Tests.ps1."""
+    data =bytearray((ROOT / "docs/re/pair/CAREER_02_360_fresh").read_bytes())
+    first_table = (int.from_bytes(data[0x340:0x344], "big") + 0xFFF) & ~0xFFF
+    block = int.from_bytes(data[0x37E:0x381], "little")
+    off = stfs_block_offset(block, first_table, 0 if data[0x37B] & 1 else 1)
+    data[off + 0x29:off + 0x2C] = bytes(3)
+    data[off + 0x34:off + 0x38] = bytes(4)
+    return bytes(data[:off + length])
+
+
+class ShortFileTableTests(unittest.TestCase):
+    """Every field read sits in the entry's first 0x38 bytes: a table block
+    of 0x38..0x3F bytes parses, a shorter one is refused with ValueError
+    (all three ports)."""
+
+    def test_table_block_of_0x3c_bytes_parses(self):
+        from nfssave.container360 import parse_container
+        c = parse_container(short_table(0x3C), "t")
+        self.assertEqual((c.name, c.payload), ("CAREER_02", b""))
+
+    def test_table_block_of_0x30_bytes_is_refused(self):
+        from nfssave.container360 import parse_container
+        with self.assertRaisesRegex(ValueError, "STFS file table block truncated"):
+            parse_container(short_table(0x30), "t")
+
+
 if __name__ == "__main__":
     unittest.main()
