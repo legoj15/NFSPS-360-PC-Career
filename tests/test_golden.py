@@ -24,11 +24,11 @@ PAIR_360 = ROOT / "docs/re/pair/CAREER_02_360_fresh"
 
 # (source path, golden md5)
 CASES = [
-    (ROOT / "Extracted/Career/CAREER_01", "1074f3f138d265e4a41f885badd8bb87"),
+    (ROOT / "Extracted/Career/CAREER_01", "4afedb367a0fe2c8dee178e4ed3daca1"),
     (PAIR_360, "3da9f4c0a5a2b7d5c55863d49de4852c"),
-    (ROOT / "Extracted/Career/CAREER_03", "7e9cc08492c4971153cab398e854d5c6"),
+    (ROOT / "Extracted/Career/CAREER_03", "77e5b3e95f3734b5460a986a9b74a92b"),
     (ROOT / "Extracted/Alias/ALIAS_360", "5d8ab470357fc03e6f7ccc2571d95fe1"),
-    (ROOT / "docs/re/c1_latest/CAREER_01_360", "3629c8559ee06e5e0b13fba02400ddd3"),
+    (ROOT / "docs/re/c1_latest/CAREER_01_360", "5b7d3fcb229ba2ec135d68de121bb0ff"),
     (ROOT / "docs/re/pair_raceday/CAREER_02_360", "ec77c9309356db48faeae8e66f840176"),
     # anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
     (ROOT / "docs/re/alias_anon/ALIAS_360", "e2b29e6eb34771b96a57b1ee394f1f74"),

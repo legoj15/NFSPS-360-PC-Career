@@ -25,7 +25,7 @@ fn cases() -> Vec<(PathBuf, &'static str)> {
     vec![
         (
             r.join("Extracted/Career/CAREER_01"),
-            "1074f3f138d265e4a41f885badd8bb87",
+            "4afedb367a0fe2c8dee178e4ed3daca1",
         ),
         (
             r.join("docs/re/pair/CAREER_02_360_fresh"),
@@ -33,7 +33,7 @@ fn cases() -> Vec<(PathBuf, &'static str)> {
         ),
         (
             r.join("Extracted/Career/CAREER_03"),
-            "7e9cc08492c4971153cab398e854d5c6",
+            "77e5b3e95f3734b5460a986a9b74a92b",
         ),
         (
             r.join("Extracted/Alias/ALIAS_360"),
@@ -41,7 +41,7 @@ fn cases() -> Vec<(PathBuf, &'static str)> {
         ),
         (
             r.join("docs/re/c1_latest/CAREER_01_360"),
-            "3629c8559ee06e5e0b13fba02400ddd3",
+            "5b7d3fcb229ba2ec135d68de121bb0ff",
         ),
         (
             r.join("docs/re/pair_raceday/CAREER_02_360"),

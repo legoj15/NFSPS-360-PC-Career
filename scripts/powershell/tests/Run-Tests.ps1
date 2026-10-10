@@ -53,11 +53,11 @@ function New-TempDir {
 # (source, golden md5, container name). Output lands under the STFS
 # file-table name, not the source file name - the game looks saves up by it.
 $cases = @(
-    @('Extracted\Career\CAREER_01', '1074f3f138d265e4a41f885badd8bb87', 'CAREER_01'),
+    @('Extracted\Career\CAREER_01', '4afedb367a0fe2c8dee178e4ed3daca1', 'CAREER_01'),
     @('docs\re\pair\CAREER_02_360_fresh', '3da9f4c0a5a2b7d5c55863d49de4852c', 'CAREER_02'),
-    @('Extracted\Career\CAREER_03', '7e9cc08492c4971153cab398e854d5c6', 'CAREER_03'),
+    @('Extracted\Career\CAREER_03', '77e5b3e95f3734b5460a986a9b74a92b', 'CAREER_03'),
     @('Extracted\Alias\ALIAS_360', '5d8ab470357fc03e6f7ccc2571d95fe1', 'ALIAS_JOSHUA S 10'),
-    @('docs\re\c1_latest\CAREER_01_360', '3629c8559ee06e5e0b13fba02400ddd3', 'CAREER_01'),
+    @('docs\re\c1_latest\CAREER_01_360', '5b7d3fcb229ba2ec135d68de121bb0ff', 'CAREER_01'),
     @('docs\re\pair_raceday\CAREER_02_360', 'ec77c9309356db48faeae8e66f840176', 'CAREER_02'),
     # anonymized copy of the personal alias save (docs\re\alias_anon\README.md)
     @('docs\re\alias_anon\ALIAS_360', 'e2b29e6eb34771b96a57b1ee394f1f74', 'ALIAS_ANONYMOUS 1')
@@ -457,7 +457,7 @@ try {
     else {
         $got = $null
         try { $got = Get-BytesMd5 (Convert-Mc02 $cardb) } catch { $got = "threw: $($_.Exception.Message)" }
-        if ($got -eq 'e04462c88c1160001769b6cf97c8ee61') { Pass 'short CARDB record converts like Python' }
+        if ($got -eq 'c4713f6bb58e63b393afc8cfa35bec58') { Pass 'short CARDB record converts like Python' }
         else { Fail 'short CARDB record converts like Python' "got $got" }
     }
 

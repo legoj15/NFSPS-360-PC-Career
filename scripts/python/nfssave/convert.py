@@ -145,6 +145,13 @@ def convert_extra(extra_be: bytes) -> bytes:
 
 
 RAW_BLOB_IDS = (GAMEPLAY_ID, 0x47A07113)  # memcpy structs, not property nodes
+# node streams of u32/float values only (no strings): swap every word, then
+# fix_node_flags. RaceData (race results: track keys, times) had a fieldmap
+# from fresh careers whose empty slots fell back to the string heuristic,
+# leaving times like 0x42724630 (60.57 s, "BrF0") big-endian - the PC race
+# HUD then lost its speedometer/leaderboard and the camera reset (in-game).
+RACEDATA_ID = 0x51A41B14
+NUMERIC_IDS = (RACEDATA_ID,)
 CARDB_ID = 0x47A07113
 CARDB_RECORDS = (0x2680, 0x1870, 80)     # PC payload offset, stride, count
 CARDB_PART_SLOTS = (0x3C, 0x186)         # u16 installed-part arrays per car
@@ -611,6 +618,9 @@ def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = No
             # fields are u32/float except the fixes in fix_raceday_block
             rec.payload = swap_u32s(rec.payload)
             mode = "gameplay"
+        elif rec.id in NUMERIC_IDS:
+            rec.payload = swap_u32s(rec.payload)
+            mode = "numeric"
         else:
             mode = convert_record(report.kind, rec, report.warnings)
         apply_struct_fixes(rec, src, report.warnings)

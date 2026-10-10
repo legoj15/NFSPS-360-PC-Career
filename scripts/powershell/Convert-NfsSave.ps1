@@ -106,6 +106,9 @@ namespace NfsPs
         const uint GameplayId = 0x3B309E09;
         const int GameplayPcSize = 0x10014;
         const uint CarDbId = 0x47A07113;
+        // RaceData: u32/float only; the fieldmap's empty slots fell back to the string
+        // heuristic and left race times big-endian (PC race HUD lost its speedometer)
+        const uint RaceDataId = 0x51A41B14;
         const int PcHeadStructSize = 0x1AC;
 
         static readonly Dictionary<uint, string> ChunkNames = MakeNames();
@@ -1139,6 +1142,12 @@ namespace NfsPs
                 {
                     rec.Payload = SwapU32s(rec.Payload);
                     mode = "gameplay";
+                }
+                else if (rec.Id == RaceDataId)
+                {
+                    // NUMERIC_IDS: u32/float node stream, no strings (fix_node_flags follows)
+                    rec.Payload = SwapU32s(rec.Payload);
+                    mode = "numeric";
                 }
                 else mode = ConvertRecord(rep.Kind, rec, rep.Warnings, rules);
                 ApplyStructFixes(rec, src, rep.Warnings);

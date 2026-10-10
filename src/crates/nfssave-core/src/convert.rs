@@ -185,6 +185,13 @@ pub fn convert_extra(extra_be: &[u8]) -> Result<Vec<u8>> {
 
 /// memcpy structs, not property nodes
 pub const RAW_BLOB_IDS: [u32; 2] = [GAMEPLAY_ID, 0x47A0_7113];
+/// Node streams of u32/float values only (no strings): swap every word,
+/// then `fix_node_flags`. RaceData (race results: track keys, times) had a
+/// fieldmap from fresh careers whose empty slots fell back to the string
+/// heuristic, leaving times like 0x42724630 (60.57 s, "BrF0") big-endian -
+/// the PC race HUD then lost its speedometer/leaderboard (in-game).
+pub const RACEDATA_ID: u32 = 0x51A4_1B14;
+pub const NUMERIC_IDS: [u32; 1] = [RACEDATA_ID];
 pub const CARDB_ID: u32 = 0x47A0_7113;
 /// PC payload offset, stride, count
 pub const CARDB_RECORDS: (usize, usize, usize) = (0x2680, 0x1870, 80);
@@ -881,6 +888,16 @@ pub fn convert_tree(
             }
             rec.payload = swap_u32s(&rec.payload);
             "gameplay"
+        } else if NUMERIC_IDS.contains(&rec.id) {
+            if rec.payload.len() % 4 != 0 {
+                return Err(format_err(format!(
+                    "{} chunk size {:#x} is not word-aligned - the source file is corrupted",
+                    chunk_name(rec.id),
+                    rec.payload.len()
+                )));
+            }
+            rec.payload = swap_u32s(&rec.payload);
+            "numeric"
         } else {
             convert_record(&kind, rec, Some(&mut report.warnings))
         };
