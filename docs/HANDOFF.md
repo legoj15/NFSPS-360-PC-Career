@@ -1,4 +1,31 @@
-# Handoff — NFSPS 360 -> PC converter (updated 2026-10-09)
+# Handoff — NFSPS 360 -> PC converter (updated 2026-10-10)
+
+## 2026-10-10 — post-1.1.0 backlog pass (user triaged each item)
+- Done: 1302160 workspace `cargo fmt` (fmt --check now required, see
+  docs/rust-app.md); 338afa9 removed unused typemaps.json/typemap.rs/
+  typemap.py, unreferenced RE blobs, duplicate CAREER_02 sample; untracked
+  out/ deleted; 3f9331d --twin path deleted (PoC, user decision; gap
+  fixtures kept in tests/gapfix.py + nfssave-core tests/common); 75e9029
+  Python dry run refuses unsafe save names like a real run and PS.
+- Closed: no-console double-click verified by the user; CAREER_01 race-day
+  block verified in-game; dry-run missing-folder nit already fixed.
+- Done: eaf7a15 internal-gap spill + final-record post spill fixed in all
+  three ports (Tree.gap_at; tests on an internally re-anchored fixture).
+- Handed off: docs/backlog-research.md (unproven fields, AudioSettings
+  filler, 11 race-day keys). Spun-off task: outside review of the
+  2026-10-04/05 core commits (also cover 5a0402c, never reviewed).
+- Parked: FATX scanner on real media (wait for a user report);
+  scalar_tail zero-pad rule (no sample).
+- App leftovers (#10), not yet triaged by the user: backup kept when a
+  conversion is refused; manual pick read twice (once on the UI thread);
+  write_pc_save remove-then-rename gap (std::fs::rename already replaces
+  on Windows, so the remove is unnecessary); Python write_pc_save writes in
+  place with no temp file.
+- Delegation log: scout (Haiku) backlog facts -> ok (one stale claim
+  caught: dry-run folder nit). impl (Sonnet medium) twin removal + dry run
+  -> ok first try, 0 escalations. Review triad shop26+glm-flash + Haiku
+  reviewer on 1302160..75e9029 -> Haiku pass w/ nits; triad pending. impl
+  (Sonnet medium) gap bugs -> ok first try, 0 escalations; review pending.
 
 ## 2026-10-09 — twin-recovered records convert like the main loop
 - convert_tree's per-record work (normalize, GameplayData/NUMERIC_IDS swap,
@@ -366,8 +393,7 @@ Final state (committed together):
   `DISPLAY_NAME_OFFSET/LEN` now mean 0x411 (locale-0 slot, unparsed).
   Oracles hold "Career 01"/"Career 02"/"ANONYMOUS 1" at 0x411, pinned in
   tests/stfs_oracle.rs. SPEC.md §7 corrected. No behaviour change.
-- Pre-existing `cargo fmt --check` drift in fatx/nfssave-core files
-  (real_scan.rs, aligned.rs, device.rs, ...) - left untouched.
+- `cargo fmt --check` drift: fixed workspace-wide 2026-10-10 (1302160).
 - Delegation log: shop26 Qwen 27B review -> approve, 1 low (SPEC §7
   "identical bytes" preamble), fixed.
 
@@ -436,7 +462,8 @@ Final state (committed together):
   (nfssave.convert back_up_existing, same layout as app/batch.rs). The
   known-folder lookup had a wrong FOLDERID_Documents GUID and always fell
   back to %USERPROFILE%\Documents - the hardcoded path hid it; fixed + test.
-  Remaining nit: --dry-run still requires the output folder to exist.
+  (The "--dry-run requires the output folder" nit is gone: test_cli.py and
+  Run-Tests.ps1 both pin a dry run into a missing folder, exit 0.)
   Review py-cli-fixes (shop26 Qwen 27B + glm-flash low, 1cee3e4..853dc0d):
   11 low; fixed as follow-up: --flash --all duplicate-name refusal,
   backup failure -> clean "left it untouched" exit 1, absolute() parity,
@@ -450,8 +477,8 @@ Final state (committed together):
 - Verified: `cargo test --release --test subsystem` failed before (CUI=3),
   passes after; redirected --help/--bogus/--convert give output + exit codes
   0/2/1; unredirected run in a fresh conhost prints into that console.
-  NOT verified by hand: double-click shows no console (expected by PE field).
-- dist/NFSPS-SaveConverter.exe is the OLD console build until rebuilt/copied.
+  VERIFIED by the user 2026-10-10: double-clicking dist/ (v1.1.0 build)
+  shows no console.
 - Review (shop26 Qwen3.8-27B + glm-flash, 13:26, 7e8b21c..5484387; also
   closes the pending 5a0402c review): no defects in 5a0402c. Rejected: Qwen
   high "PE32+ Subsystem is at 64" (wrong: PE32+ drops BaseOfData but widens
@@ -521,8 +548,7 @@ Final state (committed together):
   thread and again at convert; write_pc_save accepts names safe_name would
   clean; no test for the FATX-mode combined sort (needs scan_drives to take
   roots).
-- Debt: the workspace is not rustfmt-clean (cargo fmt touches 9 untouched
-  files); deliberately not mixed into this change.
+- Debt (CLOSED 2026-10-10, 1302160): workspace rustfmt drift.
 - Delegation log: opencode review triad shop26+glm-flash (round 1) ->
   ok, 1 medium shared finding confirmed + fixed; round 2 -> 1 shared medium
   (cross-run overwrite -> backup-then-replace, user decision) + lows fixed;
@@ -538,16 +564,10 @@ Fix chain (all in scripts/python/nfssave/convert.py unless noted): STFS block ma
 3 blueprint sets; packed-table 'none' links; paint/decal/vinyl/colour layout
 per set; GameplayData plain u32 + race-day block (variable length, 360 pad
 at 0x314, record headers u16 pairs) + MD5 recompute.
-Remaining (none blocking):
-1. Unverified-but-harmless: per-set ints +0x224..0x240, set words
-   +0x448/+0x568, float block +0x738.., record tail +0x171C..0x1870,
-   per-car 0x40 entries at 0x7C980 (byte0 00 vs ff on PC).
-2. Debt: twin code path (validate_twin, Tree._reafter_gap, load_twin,
-   --twin); positional node-chunk fieldmaps (superseded by node grammar +
-   flag fix); unused scripts/python/nfssave/typemaps.json + docs/re/typemap.py; duplicate
-   sample copies; stale out/; tree head/post not 0xAA like native (ignored
-   by the loader).
-3. Opencode third-party review not run (waived by the user this session).
+Remaining: moved to docs/backlog-research.md (unproven fields) and the
+2026-10-10 section at the top (twin path, typemaps, samples, out/ removed;
+outside review of these commits spun off as its own task). Tree head/post
+not 0xAA like native: ignored by the loader, not pursued.
 Delegation log: no agents spawned this session (all orchestrator work).
 
 ---
@@ -678,8 +698,8 @@ Delegation log: no agents spawned this session (all orchestrator work).
 - Race-day block is variable length (CAREER_02 0x3B90 B state 1, latest
   CAREER_01 0xB2D0 B state 3); end found via the following [0][0x11] list.
   Block records: [u32 kind 0x000?1x10][u16][u16] + float matrices.
-  Only the CAREER_02 layout is oracle-verified; CAREER_01's longer block
-  uses the same rules unverified.
+  CAREER_02's layout is oracle-verified; CAREER_01's longer block is
+  verified in-game (Race Day resumes and works after conversion, 2026-10-09).
 - GameplayData now plain u32 swap (+fixes); the positional fresh-pair map
   for it is no longer used.
 - Installed: CAREER_01 = latest 360 copy (docs/re/c1_latest), CAREER_02 =
