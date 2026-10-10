@@ -30,12 +30,11 @@ implement the same command line. Behaviour changes go in both, with tests in
   an unsafe STFS save name (empty, `.`, `..`, containing `\`, `/`, `:`, or
   empty once trailing dots and spaces are stripped, e.g. `...`) fails with
   `unsafe save name '<name>'` and exit 1 in both modes. The same rule and
-  message apply in the Python, PowerShell and Rust ports. The scripts check,
+  message apply in the Python, PowerShell and Rust ports. Every port checks,
   per save: name, then duplicate name in the batch, then corruption
-  (extra-blob CRC), then backup and conversion. The Windows app checks name
-  and duplicate first too, but backs up an existing save before the
-  corruption check (the copy is left behind when the save is then refused;
-  tracked in docs/HANDOFF.md). An unsafe name never causes a backup.
+  (extra-blob CRC), then backup and write. A refused save never causes a
+  backup. Every port writes `<NAME>.tmp` and renames it over the target, so
+  an interrupted write leaves the previous save in place.
 
 ## Output folder
 

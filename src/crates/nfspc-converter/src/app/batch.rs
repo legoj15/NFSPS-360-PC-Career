@@ -10,10 +10,8 @@ use std::path::{Path, PathBuf, absolute};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use fatx::DiscoveredSave;
-use nfssave_core::convert::{
-    ConversionReport, check_save_name, convert_one, convert_payload, write_pc_save,
-};
-use nfssave_core::{Error, MC02, parse_container};
+use nfssave_core::convert::{PreparedSave, check_save_name, prepare_mc02, prepare_one};
+use nfssave_core::{Error, parse_container};
 
 use super::sources::{is_con_bytes, is_mc02_bytes};
 
@@ -253,9 +251,23 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
             });
             continue;
         }
+        // Everything that can refuse the source (corruption, conversion)
+        // runs before the backup, so a refused save leaves no backup copy.
+        let prepared = match prepare_input(&input) {
+            Ok(p) => p,
+            Err(e) => {
+                results.push(SaveResult {
+                    status: SaveStatus::Refused {
+                        reason: e.to_string(),
+                    },
+                    label: input.label,
+                });
+                continue;
+            }
+        };
         // A same-named save already in the folder (from an earlier run, or
-        // the user's native PC career) is copied aside first; the copy is
-        // left in place, so a failed conversion leaves the game untouched.
+        // the user's native PC career) is copied aside before the write; the
+        // copy is left in place, so a failed write leaves the game untouched.
         let backup = match back_up_existing(out_root, &name, &stamp) {
             Ok(b) => b,
             Err(e) => {
@@ -274,8 +286,14 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
         let backup_note = backup
             .as_ref()
             .map(|b| format!("previous {name} backed up to {}", b.display()));
-        let status = match convert_input(&input, out_root) {
-            Ok((chunks, mut warnings, target)) => {
+        let status = match prepared.write(out_root) {
+            Ok(outcome) => {
+                let target = outcome.target;
+                let chunks = outcome.report.records;
+                let mut warnings = outcome.report.warnings;
+                for prob in &outcome.self_check {
+                    warnings.push(format!("post-write self-check: {prob}"));
+                }
                 any_converted = true;
                 claimed.insert(windows_name_key(&name), input.label.clone());
                 if let Some(note) = backup_note {
@@ -322,55 +340,14 @@ fn export_name(input: &SaveInput) -> String {
     input.name.clone()
 }
 
-fn convert_input(
-    input: &SaveInput,
-    out_root: &Path,
-) -> Result<(usize, Vec<String>, PathBuf), Error> {
+/// Convert in memory: CON containers export under their file-table name, a
+/// bare MC02 payload under the input's name.
+fn prepare_input(input: &SaveInput) -> Result<PreparedSave, Error> {
     if is_con_bytes(&input.bytes) {
-        let outcome = convert_one(&input.bytes, &input.label, out_root)?;
-        let mut warnings = outcome.report.warnings;
-        for prob in &outcome.self_check {
-            warnings.push(format!("post-write self-check: {prob}"));
-        }
-        Ok((outcome.report.records, warnings, outcome.target))
+        prepare_one(&input.bytes, &input.label)
     } else {
-        convert_raw_mc02(input, out_root)
+        prepare_mc02(&input.bytes, &input.label, input.name.clone())
     }
-}
-
-/// Same contract as `convert_one` for a bare MC02 payload (no CON wrapper,
-/// so the export name comes from the input).
-fn convert_raw_mc02(
-    input: &SaveInput,
-    out_root: &Path,
-) -> Result<(usize, Vec<String>, PathBuf), Error> {
-    let label = &input.label;
-    let mc02 = MC02::parse(&input.bytes)?;
-    let bad = mc02.check();
-    if bad.iter().any(|p| p == "extra CRC mismatch") {
-        return Err(Error::Format(format!(
-            "{label}: extra-blob CRC mismatch - the source file is corrupted; \
-             refusing to convert"
-        )));
-    }
-    let mut report = ConversionReport {
-        source: label.clone(),
-        ..Default::default()
-    };
-    for prob in &bad {
-        report
-            .warnings
-            .push(format!("{prob} (CRCs are recomputed on write)"));
-    }
-    let pc = convert_payload(&mc02, Some(&mut report))?;
-    let target = write_pc_save(&pc, &input.name, out_root)?;
-    let self_check = MC02::parse(&fs::read(&target)?)?.check();
-    for prob in &self_check {
-        report
-            .warnings
-            .push(format!("post-write self-check: {prob}"));
-    }
-    Ok((report.records, report.warnings, target))
 }
 
 #[cfg(test)]

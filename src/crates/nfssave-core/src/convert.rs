@@ -1049,8 +1049,9 @@ pub fn check_save_name(name: &str) -> Result<()> {
 /// so an interrupted write (window close, full disk, unplugged destination)
 /// can never leave a truncated file silently replacing a good export; the
 /// previous export survives and the leftover `.tmp` is removed on failure.
-/// `std::fs::rename` refuses to replace an existing file on Windows, so an
-/// existing target is removed first (a brief non-atomic gap).
+/// `std::fs::rename` replaces an existing target in one step on Windows too
+/// (`MoveFileExW` + `MOVEFILE_REPLACE_EXISTING`), so the previous export is
+/// never deleted ahead of the swap.
 pub fn write_pc_save(mc02_pc: &MC02, name: &str, save_root: &Path) -> Result<PathBuf> {
     check_save_name(name)?;
     let folder = save_root.join(name);
@@ -1064,9 +1065,6 @@ pub fn write_pc_save(mc02_pc: &MC02, name: &str, save_root: &Path) -> Result<Pat
         f.write_all(&bytes)?;
         f.sync_all()?;
         drop(f);
-        if target.exists() {
-            fs::remove_file(&target)?;
-        }
         fs::rename(&tmp, &target)
     };
     if let Err(e) = write() {
@@ -1084,14 +1082,44 @@ pub struct ConvertOutcome {
     pub self_check: Vec<String>,
 }
 
-/// The app-facing pipeline (mirrors `convert_one` in scripts/python/convert.py):
-/// 360 CON container bytes -> payload -> MC02 parse -> validate (refuse on
-/// extra-blob CRC mismatch) -> convert to PC payload -> write
-/// `<out_root>/<NAME>/<NAME>` -> re-parse the written file and self-check.
-pub fn convert_one(src_bytes: &[u8], label: &str, out_root: &Path) -> Result<ConvertOutcome> {
+/// A converted save that has not touched disk yet: everything that can refuse
+/// a source (name, corruption, conversion) has already run, so a caller can
+/// back up the existing save between [`prepare_one`] and [`PreparedSave::write`]
+/// without leaving a copy behind for a refused save.
+pub struct PreparedSave {
+    /// Export name: `<out_root>/<name>/<name>`.
+    pub name: String,
+    pub pc: MC02,
+    pub report: ConversionReport,
+}
+
+impl PreparedSave {
+    /// Write `<out_root>/<NAME>/<NAME>`, then re-parse the written file and
+    /// self-check it.
+    pub fn write(self, out_root: &Path) -> Result<ConvertOutcome> {
+        let target = write_pc_save(&self.pc, &self.name, out_root)?;
+        let self_check = MC02::parse(&fs::read(&target)?)?.check();
+        Ok(ConvertOutcome {
+            target,
+            report: self.report,
+            self_check,
+        })
+    }
+}
+
+/// 360 CON container bytes -> payload -> [`prepare_mc02`] under the
+/// container's file-table name (checked before corruption, like Python).
+pub fn prepare_one(src_bytes: &[u8], label: &str) -> Result<PreparedSave> {
     let cont = parse_container(src_bytes, label)?;
-    check_save_name(&cont.name)?; // name before corruption, like Python
-    let mc02 = MC02::parse(&cont.payload)?;
+    check_save_name(&cont.name)?;
+    prepare_mc02(&cont.payload, label, cont.name)
+}
+
+/// MC02 parse -> validate (refuse on extra-blob CRC mismatch) -> convert to
+/// the PC payload, exported as `name`.
+pub fn prepare_mc02(payload: &[u8], label: &str, name: String) -> Result<PreparedSave> {
+    check_save_name(&name)?;
+    let mc02 = MC02::parse(payload)?;
     let bad = mc02.check();
     if bad.iter().any(|p| p == "extra CRC mismatch") {
         return Err(Error::Format(format!(
@@ -1109,13 +1137,13 @@ pub fn convert_one(src_bytes: &[u8], label: &str, out_root: &Path) -> Result<Con
             .push(format!("{prob} (CRCs are recomputed on write)"));
     }
     let pc = convert_payload(&mc02, Some(&mut report))?;
-    let target = write_pc_save(&pc, &cont.name, out_root)?;
-    let self_check = MC02::parse(&fs::read(&target)?)?.check();
-    Ok(ConvertOutcome {
-        target,
-        report,
-        self_check,
-    })
+    Ok(PreparedSave { name, pc, report })
+}
+
+/// The app-facing pipeline (mirrors `convert_one` in scripts/python/convert.py):
+/// [`prepare_one`] then [`PreparedSave::write`].
+pub fn convert_one(src_bytes: &[u8], label: &str, out_root: &Path) -> Result<ConvertOutcome> {
+    prepare_one(src_bytes, label)?.write(out_root)
 }
 
 #[cfg(test)]

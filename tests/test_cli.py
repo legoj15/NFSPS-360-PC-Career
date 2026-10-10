@@ -146,6 +146,36 @@ def test_backup_failure_leaves_existing_untouched(tmp_path, monkeypatch, capsys)
     assert "left it untouched" in capsys.readouterr().err
 
 
+class _Bytes:
+    def __init__(self, data: bytes):
+        self.data = data
+
+    def to_bytes(self) -> bytes:
+        return self.data
+
+
+def test_write_pc_save_replaces_via_tmp(tmp_path):
+    old = _seed(tmp_path, "CAREER_01", b"old")
+    assert lib.write_pc_save(_Bytes(b"new"), "CAREER_01", tmp_path) == old
+    assert old.read_bytes() == b"new"
+    assert sorted(p.name for p in old.parent.iterdir()) == ["CAREER_01"]
+
+
+def test_interrupted_write_keeps_the_previous_save(tmp_path, monkeypatch):
+    """The bytes land in <target>.tmp and are swapped in by one rename (app
+    write_pc_save parity), so a failure before the swap never leaves a
+    truncated save in place of the previous one, nor a stray .tmp."""
+    old = _seed(tmp_path, "CAREER_01", b"old")
+
+    def boom(*a, **k):
+        raise OSError("disk unplugged")
+    monkeypatch.setattr(lib.os, "replace", boom)
+    with pytest.raises(OSError, match="unplugged"):
+        lib.write_pc_save(_Bytes(b"new"), "CAREER_01", tmp_path)
+    assert old.read_bytes() == b"old"
+    assert sorted(p.name for p in old.parent.iterdir()) == ["CAREER_01"]
+
+
 # --- CLI redesign (docs/scripts-cli.md) --------------------------------------
 
 PAIR_MD5 = "3da9f4c0a5a2b7d5c55863d49de4852c"
