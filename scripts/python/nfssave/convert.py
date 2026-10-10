@@ -180,16 +180,27 @@ def fix_node_flags(src: bytes, out: bytearray) -> None:
     PC then drops that node and everything after it - custom race days
     lost their event lists and the Race Day menu crashed (nfs.exe 0x7F6480).
     """
+    # data offsets of the nodes on the property chain (node_spans walk):
+    # their [0][len] headers are real, unlike matches inside numeric data
+    chain = {d for d, ln in node_spans(src) if ln == 1}
     for o in range(8, len(src) - 3, 4):
         zero, ln = struct.unpack_from(">II", src, o - 8)
+        if o - 4 in chain:
+            continue      # [flag 0][u8 node data 00 00 00 08] is not a header
         if zero == 0 and 1 <= ln <= 0x400:
             out[o - 4:o] = src[o - 4:o][::-1]
             out[o:o + 4] = src[o:o + 4]
             # one-byte node: the value is the first data byte on both
-            # platforms ([u8][0 0 0]); a u32 swap reads back as 0 on PC
-            # (every alias on/off option). Nonzero pad, or a flag word that is
-            # not [u8][FF FF FF | 00 00 00], = not a u8 node.
-            if ln == 1 and src[o + 5:o + 8] == b"\0\0\0" and is_node_flag(src[o:o + 4]):
+            # platforms ([u8][3 pad]); a u32 swap reads back as 0 on PC
+            # (every alias on/off option). The 360 pad (and flag) bytes can
+            # hold heap junk (01 00 13 10), so a node on the chain keeps its
+            # first byte whatever the pad. Off the chain a [0][1] match may be
+            # numeric data ([0][1][flag][00 00 00 04] in SPEECH DATA): there a
+            # nonzero pad, or a flag word that is not [u8][FF FF FF | 00 00 00],
+            # = not a u8 node.
+            if ln == 1 and o + 4 in chain and o + 8 <= len(src):
+                out[o + 4:o + 8] = src[o + 4:o + 8]
+            elif ln == 1 and src[o + 5:o + 8] == b"\0\0\0" and is_node_flag(src[o:o + 4]):
                 out[o + 4:o + 8] = src[o + 4:o + 8]
 
 

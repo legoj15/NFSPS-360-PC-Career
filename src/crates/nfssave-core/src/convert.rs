@@ -219,7 +219,17 @@ pub const CARDB_TABLE_SLOT: usize = 20;
 /// PC then drops that node and everything after it - custom race days
 /// lost their event lists and the Race Day menu crashed (nfs.exe 0x7F6480).
 pub fn fix_node_flags(src: &[u8], out: &mut [u8]) {
+    // data offsets of the one-byte nodes on the property chain (node_spans
+    // walk): their [0][len] headers are real, unlike matches inside numeric data
+    let chain: std::collections::HashSet<usize> = node_spans(src, 4)
+        .into_iter()
+        .filter(|&(_, ln)| ln == 1)
+        .map(|(d, _)| d)
+        .collect();
     for o in (8..src.len().saturating_sub(3)).step_by(4) {
+        if chain.contains(&(o - 4)) {
+            continue; // [flag 0][u8 node data 00 00 00 08] is not a header
+        }
         let zero = u32::from_be_bytes(src[o - 8..o - 4].try_into().unwrap());
         let ln = u32::from_be_bytes(src[o - 4..o].try_into().unwrap());
         if zero == 0 && (1..=0x400).contains(&ln) {
@@ -228,10 +238,19 @@ pub fn fix_node_flags(src: &[u8], out: &mut [u8]) {
             }
             out[o..o + 4].copy_from_slice(&src[o..o + 4]);
             // one-byte node: the value is the first data byte on both
-            // platforms ([u8][0 0 0]); a u32 swap reads back as 0 on PC
-            // (every alias on/off option). Nonzero pad, or a flag word that
-            // is not [u8][FF FF FF | 00 00 00], = not a u8 node.
-            if ln == 1 && py_slice(src, o + 5, o + 8) == [0, 0, 0] && is_node_flag(&src[o..o + 4]) {
+            // platforms ([u8][3 pad]); a u32 swap reads back as 0 on PC
+            // (every alias on/off option). The 360 pad (and flag) bytes can
+            // hold heap junk (01 00 13 10), so a node on the chain keeps its
+            // first byte whatever the pad. Off the chain a [0][1] match may
+            // be numeric data ([0][1][flag][00 00 00 04] in SPEECH DATA):
+            // there a nonzero pad, or a flag word that is not
+            // [u8][FF FF FF | 00 00 00], = not a u8 node.
+            if ln == 1 && chain.contains(&(o + 4)) && o + 8 <= src.len() {
+                out[o + 4..o + 8].copy_from_slice(&src[o + 4..o + 8]);
+            } else if ln == 1
+                && py_slice(src, o + 5, o + 8) == [0, 0, 0]
+                && is_node_flag(&src[o..o + 4])
+            {
                 copy_nat(src, out, o + 4, o + 8);
             }
         }

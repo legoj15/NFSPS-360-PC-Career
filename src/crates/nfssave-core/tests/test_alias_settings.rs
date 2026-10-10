@@ -169,3 +169,17 @@ fn u8_node_stays_natural() {
     fix_node_flags(&src, &mut out);
     assert_eq!(&out[12..16], &[1, 0, 0, 0]);
 }
+
+/// [marker][first value][0][len 1][flag 00001b10][01 00 00 5d]: a real node
+/// on the property chain with 360 heap junk in its pad and flag bytes; the
+/// value is the first byte (the PC read 0x5d before).
+#[test]
+fn on_chain_u8_with_junk_pad_keeps_first_byte() {
+    let src: Vec<u8> = [0x0100_0000u32, 7, 0, 1, 0x0000_1B10, 0x0100_005D]
+        .iter()
+        .flat_map(|w| w.to_be_bytes())
+        .collect();
+    let mut out = swapped(&src);
+    fix_node_flags(&src, &mut out);
+    assert_eq!(out[20], 1);
+}

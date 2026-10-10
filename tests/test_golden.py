@@ -32,6 +32,8 @@ CASES = [
     (ROOT / "docs/re/pair_raceday/CAREER_02_360", "ec77c9309356db48faeae8e66f840176"),
     # anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
     (ROOT / "docs/re/alias_anon/ALIAS_360", "377651916f0e1bd488561b7481a66da1"),
+    # junk-padded one-byte nodes (docs/re/alias_anon_junkpad/README.md)
+    (ROOT / "docs/re/alias_anon_junkpad/ALIAS_360", "43a94087bf77b4a88991ce411e99cf15"),
 ]
 
 PERSONAL = ROOT / "Extracted"

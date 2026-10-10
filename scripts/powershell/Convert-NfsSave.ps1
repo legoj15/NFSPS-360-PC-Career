@@ -728,15 +728,25 @@ namespace NfsPs
         // their event lists, Race Day menu crash at nfs.exe 0x7F6480)
         static void FixNodeFlags(byte[] src, byte[] o)
         {
+            // data offsets of the one-byte nodes on the property chain (NodeSpans walk):
+            // their [0][len] headers are real, unlike matches inside numeric data
+            HashSet<int> chain = new HashSet<int>();
+            foreach (int[] sp in NodeSpans(src, 4)) if (sp[1] == 1) chain.Add(sp[0]);
             for (int p = 8; p < src.Length - 3; p += 4)
             {
+                if (chain.Contains(p - 4)) continue;   // [flag 0][u8 node data 00 00 00 08] is not a header
                 uint zero = Rd32(src, p - 8, true), ln = Rd32(src, p - 4, true);
                 if (zero == 0 && ln >= 1 && ln <= 0x400)
                 {
                     for (int i = 0; i < 4; i++) o[p - 4 + i] = src[p - 1 - i];
                     Copy(src, p, o, p, 4);
-                    // one-byte node [u8][0 0 0]: value stays natural (a u32 swap reads 0 on PC)
-                    if (ln == 1 && p + 8 <= src.Length && src[p + 5] == 0 && src[p + 6] == 0 && src[p + 7] == 0
+                    // one-byte node [u8][3 pad]: the value is the first byte (a u32 swap reads 0
+                    // on PC). The 360 pad/flag bytes can hold heap junk (01 00 13 10), so a node
+                    // on the chain keeps its first byte whatever the pad; off the chain a [0][1]
+                    // match may be numeric data, so there the pad must be zero and the flag valid.
+                    if (ln == 1 && chain.Contains(p + 4) && p + 8 <= src.Length)
+                        Copy(src, p + 4, o, p + 4, 4);
+                    else if (ln == 1 && p + 8 <= src.Length && src[p + 5] == 0 && src[p + 6] == 0 && src[p + 7] == 0
                         && IsNodeFlag(src, p))
                         Copy(src, p + 4, o, p + 4, 4);
                 }

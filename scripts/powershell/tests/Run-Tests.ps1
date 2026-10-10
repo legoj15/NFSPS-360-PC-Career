@@ -60,7 +60,9 @@ $cases = @(
     @('docs\re\c1_latest\CAREER_01_360', '5b7d3fcb229ba2ec135d68de121bb0ff', 'CAREER_01'),
     @('docs\re\pair_raceday\CAREER_02_360', 'ec77c9309356db48faeae8e66f840176', 'CAREER_02'),
     # anonymized copy of the personal alias save (docs\re\alias_anon\README.md)
-    @('docs\re\alias_anon\ALIAS_360', '377651916f0e1bd488561b7481a66da1', 'ALIAS_ANONYMOUS 1')
+    @('docs\re\alias_anon\ALIAS_360', '377651916f0e1bd488561b7481a66da1', 'ALIAS_ANONYMOUS 1'),
+    # junk-padded one-byte nodes (docs\re\alias_anon_junkpad\README.md)
+    @('docs\re\alias_anon_junkpad\ALIAS_360', '43a94087bf77b4a88991ce411e99cf15', 'ALIAS_ANONYMOUS 1')
 )
 
 Write-Host "PowerShell $($PSVersionTable.PSVersion) ($hostExe)"

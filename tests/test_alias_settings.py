@@ -16,7 +16,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "python"))
 
 from nfssave import MC02, read_container
-from nfssave.convert import ConversionReport, scalar_tail, convert_payload, fix_node_flags
+from nfssave.convert import (ConversionReport, scalar_tail, convert_payload, fix_node_flags,
+                             node_spans)
 from nfssave.tree import Tree
 
 ROOT = Path(__file__).parent.parent
@@ -137,6 +138,30 @@ class AliasSettingsTests(unittest.TestCase):
         out = bytearray(b"".join(src[i:i + 4][::-1] for i in range(0, 16, 4)))
         fix_node_flags(src, out)
         self.assertEqual(out[12:16], b"\x01\0\0\0")
+
+    def test_on_chain_u8_with_junk_pad_keeps_first_byte(self):
+        # [marker][first value][0][len 1][flag 00001b10][01 00 00 5d]: a real
+        # node on the property chain; the 360 left heap junk in its pad (and
+        # flag) bytes. The value is the first byte (PC read 0x5d before).
+        src = struct.pack(">IIIIII", 0x01000000, 7, 0, 1, 0x00001B10, 0x0100005D)
+        out = bytearray(b"".join(src[i:i + 4][::-1] for i in range(0, len(src), 4)))
+        fix_node_flags(src, out)
+        self.assertEqual(out[20], 1)
+
+    def test_junk_pad_fixture_keeps_every_u8_value(self):
+        # docs/re/alias_anon_junkpad: the only sample with junk-padded nodes
+        path = ROOT / "docs/re/alias_anon_junkpad/ALIAS_360"
+        mc = MC02.parse(read_container(path).payload)
+        src = Tree.parse(mc.tree, big=True)
+        pc = {r.id: r.payload for r in Tree.parse(convert_payload(mc, ConversionReport()).tree,
+                                                   big=False).records}
+        checked = 0
+        for r in src.records:
+            for d, ln in node_spans(r.payload):
+                if ln == 1:
+                    self.assertEqual(pc[r.id][d - 4], r.payload[d], f"chunk {r.id:#x} at {d - 4:#x}")
+                    checked += 1
+        self.assertGreater(checked, 50)
 
 
 if __name__ == "__main__":

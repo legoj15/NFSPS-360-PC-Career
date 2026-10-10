@@ -140,6 +140,18 @@
   invert on convert; another node -> option order differs, remap. Also
   observed: the game's own re-save trims VideoSettings to 0x74 (so the PC
   accepts both lengths). Game-saved copy: scratchpad ti_saved.
+- 360 RESULT (23:00): user flipped turn indicators On on the 360 and
+  re-saved -> NO value changed in the alias or CAREER_01 (only stats churn
+  and junk pads). The 360 keeps that option outside the save (likely the
+  gamer profile): not convertible; users set it once on PC. CLOSED.
+  Side find, FIXED: on-chain one-byte nodes can carry 360 heap junk in their
+  pad (01 00 13 10) and flag (00001b10) bytes; the old rule (pad must be 0)
+  u32-swapped them (PC read 0x10 / 0x5d). fix_node_flags now keeps the first
+  byte for len-1 nodes on the node_spans chain and skips false [0][len]
+  matches whose len word is such a node's data. Off-chain matches keep the
+  old guard. All prior goldens unchanged; new fixture
+  docs/re/alias_anon_junkpad (anonymized 360 save, golden 43a94087). Not
+  changed (no sample): scalar_tail's u8 rule still requires a zero pad.
 - Final check installed (22:4x): pure converter output for all four files
   (alias a5a24e0f, C01 5b7d3fcb with the real RaceData fix, C02 ec77c930,
   C03 77e5b3e9). Test-6 files in backups/2026-10-09_test6.
