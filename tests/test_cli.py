@@ -403,3 +403,34 @@ def test_named_save_folder_end_to_end(tmp_path, monkeypatch):
     assert _run(monkeypatch, PAIR_360, "--out-root", s) == 0
     backups = list((tmp_path / "SAVE" / lib.BACKUP_DIR).glob("*/CAREER_02/CAREER_02"))
     assert [b.read_bytes() for b in backups] == [b"old"]
+
+
+# --- dry run = same exit code and refusals as a real run ---------------------
+
+def _unsafe_name_save(dst: Path, bad: str = "CAREER/02") -> Path:
+    """Copy of the pair fixture whose STFS file-table name is `bad` (same
+    length as the original, so the container still parses)."""
+    from nfssave import read_container
+    from nfssave.container360 import stfs_block_offset
+    data = bytearray(PAIR_360.read_bytes())
+    old = read_container(PAIR_360).name.encode("ascii")
+    assert len(bad) == len(old)
+    first_table = (int.from_bytes(data[0x340:0x344], "big") + 0xFFF) & ~0xFFF
+    block = int.from_bytes(data[0x37E:0x381], "little")
+    off = stfs_block_offset(block, first_table, 0 if data[0x37B] & 1 else 1)
+    assert bytes(data[off:off + len(old)]) == old
+    data[off:off + len(old)] = bad.encode("ascii")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_bytes(bytes(data))
+    return dst
+
+
+@pytest.mark.skipif(not PAIR_360.is_file(), reason="pair fixture missing")
+@pytest.mark.parametrize("dry", [False, True])
+def test_unsafe_save_name_fails_the_same_in_dry_run(tmp_path, monkeypatch, capsys, dry):
+    src = _unsafe_name_save(tmp_path / "in" / "bad")
+    out = tmp_path / "out"
+    argv = [src, "--out-root", out] + (["--dry-run"] if dry else [])
+    assert _run(monkeypatch, *argv) == 1
+    assert "unsafe save name 'CAREER/02'" in capsys.readouterr().err
+    assert not out.exists() or not any(out.iterdir())

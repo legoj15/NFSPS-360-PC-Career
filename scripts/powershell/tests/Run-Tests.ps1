@@ -117,6 +117,31 @@ try {
     $written = @(Get-ChildItem -Recurse -File $dry).Count
     if ($r.Code -eq 0 -and $written -eq 0) { Pass 'dry run writes nothing' } else { Fail 'dry run writes nothing' "exit $($r.Code), $written files" }
 
+    # --- dry run = same exit code and refusal as a real run: a save whose STFS
+    #     name is unsafe ("CAREER/02", same length) fails both, writes nothing
+    $badDir = New-TempDir; $tmpRoots += $badDir
+    $badBytes = [System.IO.File]::ReadAllBytes($pair)
+    $needle = [System.Text.Encoding]::ASCII.GetBytes('CAREER_02') + [byte]0
+    $at = -1
+    for ($i = 0; $i -le $badBytes.Length - $needle.Length -and $at -lt 0; $i++) {
+        $hit = $true
+        for ($j = 0; $j -lt $needle.Length; $j++) { if ($badBytes[$i + $j] -ne $needle[$j]) { $hit = $false; break } }
+        if ($hit) { $at = $i }
+    }
+    if ($at -lt 0) { Fail 'unsafe name: dry run and real run both refuse' 'STFS name not found in fixture' }
+    else {
+        $badBytes[$at + 6] = [byte][char]'/'
+        $badSrc = Join-Path $badDir 'bad'
+        [System.IO.File]::WriteAllBytes($badSrc, $badBytes)
+        $badOut = Join-Path $badDir 'out'
+        $rd = Invoke-Converter @($badSrc, '-OutRoot', $badOut, '-DryRun')
+        $rr = Invoke-Converter @($badSrc, '-OutRoot', $badOut)
+        $refused = ($rd.Text -match "unsafe save name 'CAREER/02'") -and ($rr.Text -match "unsafe save name 'CAREER/02'")
+        $wroteNothing = -not (Test-Path -LiteralPath $badOut) -or @(Get-ChildItem -Recurse -File $badOut).Count -eq 0
+        if ($rd.Code -eq 1 -and $rr.Code -eq 1 -and $refused -and $wroteNothing) { Pass 'unsafe name: dry run and real run both refuse' }
+        else { Fail 'unsafe name: dry run and real run both refuse' "dry exit $($rd.Code), real exit $($rr.Code), refused=$refused, wroteNothing=$wroteNothing" }
+    }
+
     # --- existing save is backed up before it is replaced (exe convention:
     #     <parent of OutRoot>\SaveConverter backups\<stamp>\<NAME>\<NAME>)
     $bk = New-TempDir; $tmpRoots += $bk

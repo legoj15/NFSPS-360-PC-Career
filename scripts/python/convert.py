@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from nfssave import MC02, read_container
 from nfssave.convert import (convert_payload, ConversionReport, write_pc_save,
-                              back_up_existing, utc_stamp, BACKUP_DIR)
+                              back_up_existing, utc_stamp, BACKUP_DIR,
+                              check_save_name)
 
 SAVE_DIR_NAME = "NFS ProStreet"
 SAVE_PREFIXES = ("career_", "alias_")
@@ -100,6 +101,7 @@ def convert_one(src: Path, args, claimed: dict | None = None) -> None:
     """`claimed` (export name, casefolded -> source) refuses a second save
     with the same name in one batch instead of replacing the first."""
     cont = read_container(src)
+    check_save_name(cont.name)  # a dry run must refuse what a real run refuses
     key = windows_name_key(cont.name)
     if claimed is not None and key in claimed:
         raise ValueError(f"another selected save ({claimed[key]}) is also named "

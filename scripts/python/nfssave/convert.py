@@ -683,9 +683,15 @@ def convert_payload(mc02_be: MC02, report: ConversionReport | None = None) -> MC
     return pc
 
 
-def write_pc_save(mc02_pc: MC02, name: str, save_root: str) -> Path:
+def check_save_name(name: str) -> None:
+    """Refuse a save name that cannot be a plain folder name. Shared by the
+    real write and the dry run, so both report the same refusal."""
     if not name or any(c in name for c in "\\/:") or name in (".", ".."):
         raise ValueError(f"unsafe save name {name!r}")
+
+
+def write_pc_save(mc02_pc: MC02, name: str, save_root: str) -> Path:
+    check_save_name(name)
     root = Path(save_root)
     folder = root / name
     folder.mkdir(parents=True, exist_ok=True)

@@ -26,6 +26,9 @@ implement the same command line. Behaviour changes go in both, with tests in
   dropped, case-insensitive (exe `windows_name_key`); only a save that
   converted (or passed a dry run) claims its name, so a failed save never
   blocks a later good one with the same name.
+- Dry run = the same exit code and refusals as a real run, minus the writing:
+  an unsafe STFS save name (empty, `.`, `..`, or containing `\`, `/`, `:`)
+  fails with `unsafe save name '<name>'` and exit 1 in both modes.
 
 ## Output folder
 
