@@ -21,11 +21,29 @@
   write_pc_save remove-then-rename gap (std::fs::rename already replaces
   on Windows, so the remove is unnecessary); Python write_pc_save writes in
   place with no temp file.
+- Done (review follow-ups): ad24aa1 one save-name rule + order in all
+  ports (name, duplicate, corruption, backup; dots/spaces-only names
+  refused; message `unsafe save name '<n>'`); 8da2803 PS trailing-gap pin;
+  71199fb nfssave-core convert_one checks name before CRC; 68dbe0e PS
+  no-backup assertions fixed (they checked the wrong folder).
+- Known, documented in scripts-cli.md: the Windows app backs up an existing
+  save BEFORE the corruption check (= app leftover #10a below). Fixing it =
+  convert first, back up after, like Python.
+- Final state: pytest 101 passed, cargo workspace green + fmt clean,
+  Run-Tests.ps1 53/53 on 5.1 and pwsh 7.
 - Delegation log: scout (Haiku) backlog facts -> ok (one stale claim
   caught: dry-run folder nit). impl (Sonnet medium) twin removal + dry run
-  -> ok first try, 0 escalations. Review triad shop26+glm-flash + Haiku
-  reviewer on 1302160..75e9029 -> Haiku pass w/ nits; triad pending. impl
-  (Sonnet medium) gap bugs -> ok first try, 0 escalations; review pending.
+  -> ok first try, 0 escalations. impl (Sonnet medium) gap bugs -> ok first
+  try. impl (Sonnet medium) name-rule parity -> ok first try. Reviews:
+  1302160..75e9029 Haiku pass w/ nits + triad (shop26, glm-flash): agreed
+  on refusal order + dead test param (fixed), app backup-before-name
+  (fixed); eaf7a15 Haiku pass (its one nit wrong: convert_to_pc_record is
+  in place), shop26 approve, glm-flash: PS lacked trailing pin (fixed);
+  ad24aa1 Haiku + triad: app backup-before-corruption (documented, user
+  call), library convert_one order (fixed); 71199fb shop26: vacuous PS
+  assertions (fixed). Orchestrator did the 71199fb/68dbe0e follow-ups
+  itself; its own Python replace script mangled a PS backslash path once
+  (caught before commit; memory updated).
 
 ## 2026-10-09 — twin-recovered records convert like the main loop
 - convert_tree's per-record work (normalize, GameplayData/NUMERIC_IDS swap,
