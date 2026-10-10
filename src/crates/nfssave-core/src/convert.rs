@@ -848,6 +848,74 @@ pub fn validate_twin(src: &Tree, twin: &Tree) -> Result<()> {
     Ok(())
 }
 
+/// Each 360 record's final word: it sits in the next record's header slot;
+/// the last record's in the word after the record area (unless that is
+/// noise).
+fn record_spills(tree: &Tree) -> Vec<Vec<u8>> {
+    let mut spills: Vec<Vec<u8>> = tree
+        .records
+        .iter()
+        .skip(1)
+        .map(|r| r.flags.to_be_bytes().to_vec())
+        .collect();
+    spills.push(if tree.gap == 0 {
+        tree.post.iter().take(4).copied().collect()
+    } else {
+        Vec::new()
+    });
+    spills
+}
+
+/// Convert one 360 record to its PC-framed form (in place). Shared by the
+/// main loop and re-save twin recovery so both convert identically.
+fn convert_to_pc_record(
+    rec: &mut Record,
+    spill: &[u8],
+    kind: &str,
+    warnings: &mut Vec<String>,
+) -> Result<()> {
+    normalize_gameplay(rec, warnings);
+    let src = rec.payload.clone();
+    let mode: &str = if rec.id == GAMEPLAY_ID {
+        // variable layout (race-day block) - positional maps do not apply;
+        // fields are u32/float except the fixes in fix_raceday_block.
+        // A record size that is not a multiple of 4 cannot come from a
+        // real save; the Python asserts there - refuse instead.
+        if rec.payload.len() % 4 != 0 {
+            return Err(format_err(format!(
+                "GameplayData chunk size {:#x} is not word-aligned - \
+                 the source file is corrupted",
+                rec.payload.len()
+            )));
+        }
+        rec.payload = swap_u32s(&rec.payload);
+        "gameplay"
+    } else if NUMERIC_IDS.contains(&rec.id) {
+        if rec.payload.len() % 4 != 0 {
+            return Err(format_err(format!(
+                "{} chunk size {:#x} is not word-aligned - the source file is corrupted",
+                chunk_name(rec.id),
+                rec.payload.len()
+            )));
+        }
+        rec.payload = swap_u32s(&rec.payload);
+        "numeric"
+    } else {
+        convert_record(kind, rec, Some(&mut *warnings))
+    };
+    apply_struct_fixes(rec, &src, warnings)?;
+    if mode == "auto" && rec.payload.len() > 0x1000 && rec.id != GAMEPLAY_ID {
+        warnings.push(format!(
+            "chunk {} ({:#x} B) converted in auto mode (no fieldmap)",
+            chunk_name(rec.id),
+            rec.payload.len()
+        ));
+    }
+    to_pc_record(rec, tail_word(rec.id, &src, spill));
+    rehash_gameplay(rec);
+    Ok(())
+}
+
 pub fn convert_tree(
     tree360: &mut Tree,
     report: &mut ConversionReport,
@@ -880,67 +948,19 @@ pub fn convert_tree(
         gap: 0,
     };
     let kind = report.kind.clone();
-    // a 360 record's final word sits in the next record's header slot; the
-    // last record's in the word after the record area (unless that is noise)
-    let mut spills: Vec<Vec<u8>> = tree360
-        .records
-        .iter()
-        .skip(1)
-        .map(|r| r.flags.to_be_bytes().to_vec())
-        .collect();
-    spills.push(if tree360.gap == 0 {
-        tree360.post.iter().take(4).copied().collect()
-    } else {
-        Vec::new()
-    });
+    let spills = record_spills(tree360);
     for (rec, spill) in tree360.records.iter_mut().zip(spills) {
-        normalize_gameplay(rec, &mut report.warnings);
-        let src = rec.payload.clone();
-        let mode: &str = if rec.id == GAMEPLAY_ID {
-            // variable layout (race-day block) - positional maps do not apply;
-            // fields are u32/float except the fixes in fix_raceday_block.
-            // A record size that is not a multiple of 4 cannot come from a
-            // real save; the Python asserts there - refuse instead.
-            if rec.payload.len() % 4 != 0 {
-                return Err(format_err(format!(
-                    "GameplayData chunk size {:#x} is not word-aligned - \
-                     the source file is corrupted",
-                    rec.payload.len()
-                )));
-            }
-            rec.payload = swap_u32s(&rec.payload);
-            "gameplay"
-        } else if NUMERIC_IDS.contains(&rec.id) {
-            if rec.payload.len() % 4 != 0 {
-                return Err(format_err(format!(
-                    "{} chunk size {:#x} is not word-aligned - the source file is corrupted",
-                    chunk_name(rec.id),
-                    rec.payload.len()
-                )));
-            }
-            rec.payload = swap_u32s(&rec.payload);
-            "numeric"
-        } else {
-            convert_record(&kind, rec, Some(&mut report.warnings))
-        };
-        apply_struct_fixes(rec, &src, &mut report.warnings)?;
-        if mode == "auto" && rec.payload.len() > 0x1000 && rec.id != GAMEPLAY_ID {
-            report.warnings.push(format!(
-                "chunk {} ({:#x} B) converted in auto mode (no fieldmap)",
-                chunk_name(rec.id),
-                rec.payload.len()
-            ));
-        }
-        to_pc_record(rec, tail_word(rec.id, &src, &spill));
-        rehash_gameplay(rec);
+        convert_to_pc_record(rec, &spill, &kind, &mut report.warnings)?;
         pc.records.push(rec.clone());
     }
     if let Some(ref mut twin) = twin {
         // console tail damaged: rebuild the sequence in the twin's order,
         // substituting the console records wherever the ids match, so the
         // positional pairing keeps the loader's registration order
+        // trimmed only so validate_twin compares PC sizes; warnings come
+        // from convert_to_pc_record on the records actually recovered
         for trec in twin.records.iter_mut() {
-            normalize_gameplay(trec, &mut report.warnings);
+            normalize_gameplay(trec, &mut Vec::new());
         }
         validate_twin(tree360, twin)?;
         // Python: by_id = {r.id: r for r in pc.records} — duplicate ids
@@ -955,13 +975,16 @@ pub fn convert_tree(
             }
         }
         let mut merged: Vec<Record> = Vec::new();
-        for mut trec in std::mem::take(&mut twin.records) {
+        let twin_spills = record_spills(twin);
+        for (mut trec, spill) in std::mem::take(&mut twin.records)
+            .into_iter()
+            .zip(twin_spills)
+        {
             if let Some(pcrec) = by_id.remove(&trec.id) {
                 merged.push(pcrec);
             } else {
                 let id = trec.id;
-                convert_record(&kind, &mut trec, Some(&mut report.warnings));
-                to_pc_record(&mut trec, [0; 4]);
+                convert_to_pc_record(&mut trec, &spill, &kind, &mut report.warnings)?;
                 report.warnings.push(format!(
                     "record {} recovered from re-save twin (console copy damaged)",
                     chunk_name(id)

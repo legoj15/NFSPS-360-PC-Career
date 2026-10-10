@@ -1,10 +1,13 @@
 //! Re-save twin ("--twin") regression tests.
 //!
-//! Fixtures are built from the tracked oracle by 0xAA-ing the LAST record's
-//! whole span (classic trailing console damage: the record chain stops early,
-//! `gap != 0`, the twin path activates). Every digest below was produced by
-//! the Python reference converter (`scripts/python/nfssave`) on the same
-//! fixtures, run on 2026-10-05 (digests refreshed 2026-10-09 for the race-day progress fix , the career-name fix and the RaceData swap).
+//! Fixtures are built from the tracked oracle by 0xAA-ing every record from
+//! a chosen index to the end (classic trailing console damage: the record
+//! chain stops early, `gap != 0`, the twin path activates). Every digest
+//! below was produced by the Python reference converter
+//! (`scripts/python/nfssave`) on the same fixtures, run on 2026-10-05
+//! (digests refreshed 2026-10-09 for the race-day progress fix, the
+//! career-name fix, the RaceData swap and the shared per-record conversion
+//! of twin-recovered records).
 
 mod common;
 
@@ -29,9 +32,14 @@ fn md5(b: &[u8]) -> String {
 }
 
 /// `(crafted, twin)`: the twin is a pristine rebuild of the (optionally
-/// duplicated) record list; the crafted source has the last record's span
-/// replaced by 0xAA noise so its tree parses with a trailing gap.
+/// duplicated) record list; the crafted source has every record from index
+/// `first_damaged` (default: the last one) replaced by 0xAA noise so its
+/// tree parses with a trailing gap.
 fn build_pair(duplicate_last: bool) -> (Vec<u8>, Vec<u8>) {
+    build_pair_from(duplicate_last, None)
+}
+
+fn build_pair_from(duplicate_last: bool, first_damaged: Option<usize>) -> (Vec<u8>, Vec<u8>) {
     let mc02 = MC02::parse(&read_container(src_path()).unwrap().payload).unwrap();
     let mut tree = Tree::parse(&mc02.tree, true).unwrap();
     if duplicate_last {
@@ -50,11 +58,9 @@ fn build_pair(duplicate_last: bool) -> (Vec<u8>, Vec<u8>) {
     .unwrap();
 
     let mut crafted_tree = tree.build(true, mc02.tree_size as usize).unwrap();
-    let mut off = 0x48usize;
-    for r in &tree.records[..tree.records.len() - 1] {
-        off += 12 + r.payload.len();
-    }
-    let span = 12 + tree.records.last().unwrap().payload.len();
+    let k = first_damaged.unwrap_or(tree.records.len() - 1);
+    let off: usize = 0x48 + tree.records[..k].iter().map(|r| 12 + r.payload.len()).sum::<usize>();
+    let span: usize = tree.records[k..].iter().map(|r| 12 + r.payload.len()).sum();
     crafted_tree[off..off + span].fill(0xAA);
     let crafted = MC02::new(
         Endian::Big,
@@ -86,7 +92,7 @@ fn twin_merge_recovers_damaged_tail_matching_python() {
         Some(&twin),
     )
     .unwrap();
-    assert_eq!(md5(&pc.to_bytes().unwrap()), "7efcaeceedb1b39572b9c50928b4b27c");
+    assert_eq!(md5(&pc.to_bytes().unwrap()), "d9a44137c49978931bfe108ec88d5205");
     assert_eq!(report.records, 9);
     assert!(
         report
@@ -136,12 +142,54 @@ fn twin_merge_duplicate_ids_last_wins_like_python() {
         Some(&twin),
     )
     .unwrap();
-    assert_eq!(md5(&pc.to_bytes().unwrap()), "6a47744236cd2f3b8df1812a234b8cec");
+    assert_eq!(md5(&pc.to_bytes().unwrap()), "9dd796f409943870ea95434b26483a6f");
     assert_eq!(report.records, 10);
     assert_eq!(
-        report.chunk_list.iter().filter(|c| **c == "UnlockSystem").count(),
+        report
+            .chunk_list
+            .iter()
+            .filter(|c| **c == "UnlockSystem")
+            .count(),
         2,
         "duplicate id keeps its twin-order slots: {:?}",
         report.chunk_list
     );
+}
+
+/// Records recovered from the twin go through the same per-record
+/// conversion as the main loop (u32 swap, struct fixes, tail word,
+/// GameplayData MD5). Damage from GameplayData (index 3) on loses
+/// GameplayData, RaceData, FEPlayerCarDB, FECareer, CustomRaceDayMemcard and
+/// UnlockSystem; all six come back from the twin.
+#[test]
+fn twin_recovered_gameplay_racedata_fecareer_match_python() {
+    let (crafted, twin) = build_pair_from(false, Some(3));
+    assert_eq!(md5(&crafted), "080715e8f1b241ca59643667b5c4d5b5", "fixture drift");
+    assert_eq!(md5(&twin), "746363afed1ca5af6c1fabf3130271af", "fixture drift");
+    let mut report = ConversionReport::default();
+    let pc = convert_payload(
+        &MC02::parse(&crafted).unwrap(),
+        Some(&mut report),
+        Some(&twin),
+    )
+    .unwrap();
+    assert_eq!(md5(&pc.to_bytes().unwrap()), "e517abc0e7ea0bd2e470e264e0f8c12f");
+    assert_eq!(report.records, 9);
+    for name in [
+        "GameplayData",
+        "RaceData",
+        "FEPlayerCarDB",
+        "FECareer",
+        "CustomRaceDayMemcard",
+        "UnlockSystem",
+    ] {
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|w| w.contains(&format!("{name} recovered from re-save twin"))),
+            "warnings: {:?}",
+            report.warnings
+        );
+    }
 }

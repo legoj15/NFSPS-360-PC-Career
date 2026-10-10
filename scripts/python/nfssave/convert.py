@@ -603,6 +603,39 @@ def validate_twin(src: Tree, twin: Tree, warnings: list) -> None:
             "it is a different session; pass the correct --twin or drop it")
 
 
+def record_spills(tree: Tree) -> list:
+    """Each 360 record's final word: it sits in the next record's header
+    slot; the last record's in the word after the record area (unless that
+    is noise)."""
+    spills = [struct.pack(">I", r.type) for r in tree.records[1:]]
+    spills.append(tree.post[:4] if not tree.gap else b"")
+    return spills
+
+
+def convert_to_pc_record(rec, spill: bytes, report: ConversionReport) -> None:
+    """Convert one 360 record to its PC-framed form (in place). Shared by
+    the main loop and re-save twin recovery so both convert identically."""
+    normalize_gameplay(rec, report.warnings)
+    src = rec.payload
+    if rec.id == GAMEPLAY_ID:
+        # variable layout (race-day block) - positional maps do not apply;
+        # fields are u32/float except the fixes in fix_raceday_block
+        rec.payload = swap_u32s(rec.payload)
+        mode = "gameplay"
+    elif rec.id in NUMERIC_IDS:
+        rec.payload = swap_u32s(rec.payload)
+        mode = "numeric"
+    else:
+        mode = convert_record(report.kind, rec, report.warnings)
+    apply_struct_fixes(rec, src, report.warnings)
+    if mode == "auto" and len(rec.payload) > 0x1000 and rec.id != GAMEPLAY_ID:
+        report.warnings.append(
+            f"chunk {CHUNK_NAMES.get(rec.id, hex(rec.id))} ({len(rec.payload):#x} B) "
+            "converted in auto mode (no fieldmap)")
+    _to_pc_record(rec, tail_word(rec.id, src, spill))
+    rehash_gameplay(rec)
+
+
 def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = None) -> Tree:
     if tree360.gap:
         report.warnings.append(
@@ -619,46 +652,25 @@ def convert_tree(tree360: Tree, report: ConversionReport, twin: Tree | None = No
         post=convert_payload_auto(tree360.post) if tree360.post else b"",
         used=0,
     )
-    # a 360 record's final word sits in the next record's header slot; the
-    # last record's in the word after the record area (unless that is noise)
-    spills = [struct.pack(">I", r.type) for r in tree360.records[1:]]
-    spills.append(tree360.post[:4] if not tree360.gap else b"")
-    for rec, spill in zip(tree360.records, spills):
-        normalize_gameplay(rec, report.warnings)
-        src = rec.payload
-        if rec.id == GAMEPLAY_ID:
-            # variable layout (race-day block) - positional maps do not apply;
-            # fields are u32/float except the fixes in fix_raceday_block
-            rec.payload = swap_u32s(rec.payload)
-            mode = "gameplay"
-        elif rec.id in NUMERIC_IDS:
-            rec.payload = swap_u32s(rec.payload)
-            mode = "numeric"
-        else:
-            mode = convert_record(report.kind, rec, report.warnings)
-        apply_struct_fixes(rec, src, report.warnings)
-        if mode == "auto" and len(rec.payload) > 0x1000 and rec.id != GAMEPLAY_ID:
-            report.warnings.append(
-                f"chunk {CHUNK_NAMES.get(rec.id, hex(rec.id))} ({len(rec.payload):#x} B) "
-                "converted in auto mode (no fieldmap)")
-        _to_pc_record(rec, tail_word(rec.id, src, spill))
-        rehash_gameplay(rec)
+    for rec, spill in zip(tree360.records, record_spills(tree360)):
+        convert_to_pc_record(rec, spill, report)
         pc.records.append(rec)
     if twin is not None:
         # console tail damaged: rebuild the sequence in the twin's order,
         # substituting the console records wherever the ids match, so the
         # positional pairing keeps the loader's registration order
+        # trimmed only so validate_twin compares PC sizes; warnings come
+        # from convert_to_pc_record on the records actually recovered
         for trec in twin.records:
-            normalize_gameplay(trec, report.warnings)
+            normalize_gameplay(trec, [])
         validate_twin(tree360, twin, report.warnings)
         by_id = {r.id: r for r in pc.records}
         merged = []
-        for trec in twin.records:
+        for trec, spill in zip(twin.records, record_spills(twin)):
             if trec.id in by_id:
                 merged.append(by_id.pop(trec.id))
             else:
-                convert_record(report.kind, trec, report.warnings)
-                _to_pc_record(trec)
+                convert_to_pc_record(trec, spill, report)
                 merged.append(trec)
                 report.warnings.append(
                     f"record {CHUNK_NAMES.get(trec.id, hex(trec.id))} recovered from "

@@ -1,5 +1,35 @@
 # Handoff — NFSPS 360 -> PC converter (updated 2026-10-09)
 
+## 2026-10-09 — twin-recovered records convert like the main loop
+- convert_tree's per-record work (normalize, GameplayData/NUMERIC_IDS swap,
+  convert_record, apply_struct_fixes, auto-mode warning, tail_word,
+  _to_pc_record, rehash_gameplay) is now one helper, convert_to_pc_record,
+  plus record_spills for the spill words; used by the main loop and the
+  --twin merge (Python convert.py, Rust convert.rs). Twin-recovered records
+  previously got only convert_record + zero tail, so a recovered
+  GameplayData/RaceData/FECareer/CRD came out wrong (no swap, no MD5,
+  career name and race-day fixes missing). Recovered records now take their
+  spill from the twin's own chain. PS still has no twin path (documented).
+- Non-twin outputs unchanged (goldens green). Twin digests moved:
+  test_twin.rs last-record 7efcaece -> d9a44137, duplicate 6a477442 ->
+  9dd796f4 (UnlockSystem now gets its real tail word), recomputed with the
+  Python converter (HEAD Python reproduced the old pins first).
+- Tests (written first, failed before the fix): tests/test_twin.py damages
+  every record from GameplayData on and checks each recovered record equals
+  the plain conversion of the twin; test_twin.rs
+  twin_recovered_gameplay_racedata_fecareer_match_python pins the Python
+  digest e517abc0. pytest 81 + 9 skipped, cargo workspace green, PS 44/44.
+- Note: HANDOFF lists the whole twin path as deletion-candidate debt; this
+  fix keeps it correct while it exists, it does not argue for keeping it.
+- Review (opencode shop26 Qwen 27B, 11 min): approve. Acted on: the
+  pre-validate twin normalize now discards its warnings (an untrimmable
+  GameplayData warned twice); Rust test asserts all six recoveries.
+  Open (pre-existing, main loop only): on an INTERNAL gap re-anchored by
+  Tree._reafter_gap, record_spills gives the last pre-gap record the first
+  re-anchored record's header word as spill; it should get b"" like a
+  trailing gap.
+- Delegation log: none (orchestrator; serial, tightly scoped).
+
 ## 2026-10-09 — PS RehashGameplay short-payload parity (closes the DEFERRED low below)
 - RehashGameplay no longer throws on a GameplayData payload < 0x24 B: it
   hashes the clamped tail and grows the buffer to min(len,0x14)+16 like
@@ -155,9 +185,6 @@
 - Final check installed (22:4x): pure converter output for all four files
   (alias a5a24e0f, C01 5b7d3fcb with the real RaceData fix, C02 ec77c930,
   C03 77e5b3e9). Test-6 files in backups/2026-10-09_test6.
-- Follow-up debt: the --twin recovery path (convert.py ~647, rs/ps equiv)
-  skips GameplayData swap, NUMERIC_IDS and apply_struct_fixes for records
-  recovered from the twin (pre-existing).
 - Merge review (opencode: shop26 Qwen 27B approve, glm-flash): no parity
   bugs. Acted on: PS scalar_tail 'len 0' vector (46/46). PENDING after the
   bisect: docs/re/alias_anon/README.md still cites the branch's pre-merge
