@@ -78,6 +78,22 @@
   Player; only UserProfile (+extra) remain converted. Speedometer back ->
   culprit in those 5; still missing -> UserProfile/extra or the career.
   Open thread 2: which settings record/node makes the PC drop the profile.
+- v3 RESULT: identical to v2 (speedometer missing, camera/assists = console).
+  User then made a fresh PC alias TEST2 -> speedometer + leaderboard fine
+  (creating it WIPED the folder: J + CAREER_02/03 gone, CAREER_01 overwritten
+  by TEST2's career; all regenerable; TEST2 pair in backups/2026-10-09_test2).
+  KEY FIND: the game-written CAREER_<0xAA> is NOT fresh - it is the converted
+  career re-saved (custom race days, stats). Cause: FECareer's 36-byte node
+  = career-slot name [4 junk][32 chars]; 360 "01\0"+0xAA fill was u32-swapped
+  to "\xaa\0""10" -> PC names the career CAREER_<0xAA>. Present in every
+  converted career ever (pair_customrd README blamed the alias). FIXED in
+  d58ec2b (fix_career_name, all 3 ports, tests/test_career_name.py).
+  Camera/assists/speedometer follow the CAREER, not the alias.
+- Installed for test 4 (22:2x): fixed careers from c1_latest/CAREER_01_360
+  (3629c855), pair_raceday/CAREER_02_360 (ec77c930), Extracted CAREER_03
+  (7e9cc084) - the same sources the user's installed set hashed to - plus
+  v1 alias (full converted settings, no VideoSettings trim, 4f5cb16f).
+  Watch: CAREER_<0xAA> gone? profile kept? speedometer?
 - Merge review (opencode: shop26 Qwen 27B approve, glm-flash): no parity
   bugs. Acted on: PS scalar_tail 'len 0' vector (46/46). PENDING after the
   bisect: docs/re/alias_anon/README.md still cites the branch's pre-merge
