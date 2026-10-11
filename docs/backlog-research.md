@@ -15,10 +15,10 @@ user is the final check for anything save-visible.
 ## 1. Save fields never proven against a native PC/360 pair
 No matching save pair existed for these, so they are converted by the
 general rules and never compared:
-- Blueprint sets: per-set ints `+0x224..0x240`, set words `+0x448` / `+0x568`,
-  float block from `+0x738`, record tail `+0x171C..0x1870`.
-- Car DB per-car 0x40-byte entries at `0x7C980`: byte 0 is `00` after
-  conversion, `ff` on native PC saves.
+- Blueprint sets: set words `+0x448` / `+0x568`, float block from `+0x738`,
+  record tail `+0x171C..0x1870` (converter-record offsets). The PC
+  initializers now give most field types (FORMAT-NOTES, FEPlayerCarDB
+  struct); the u8 fields are fixed, the rest still rides the u32 swap.
 - One Python setting is written as a range but used as two single
   positions; check it is not a latent off-by-range bug (grep the
   struct-fix offset tables in convert.py).

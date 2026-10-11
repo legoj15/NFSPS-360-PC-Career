@@ -152,6 +152,9 @@ version gate 0x59D0F0 ([arg+8]==1); serializer 0x5AACC0 (root write
 0x5AACF5, record loop 0x5AAD63); load dispatcher 0x5B3DF0/0x5B3E14;
 tree hash fn 0x6D9CE0, verify 0x5AABD0; djb2 0x436680; node writers
 0x59CD30/CD80/CDD0/CCE0; VehicleBinarySavableHelper size check 0x59E444.
+FEPlayerCarDB (global [0xAB0EAC]): default ctor 0x560A08 region, record
+init 0x548F60, blueprint-set init 0x4CD920, free customization record
+0x564910, new career record 0x547A30, career lookup 0x533430.
 360 (recomp): CRC sub_827C75B8; header builder sub_827BCDB8; writer
 sub_827BD2F8 (caller recomp.15:25346); validator sub_827BECE8; loaders
 recomp.121/128/129 (magic lis 19779/ori 12338); collector sub_827BF770
@@ -239,6 +242,53 @@ load on PC — CAREER HUB day 7, $1,345,600, 4 repair markers, correct
 race-day menu. Game exit save wrote no file changes (no dirty state), so
 no native re-save oracle was produced; fresh-native references archived
 at oracle/ instead.
+
+## FEPlayerCarDB struct from nfs.exe (2026-10-11, in-game check pending)
+Symptom (user, 2026-10-11): three challenge race days won on a converted
+CAREER_01, reward car chosen, garage unchanged. The save after play showed
+the game had started the reward entries (car table entries 200/201 written,
+201 with Handle 0xFFFFFFFF = rolled back) but no car got a slot.
+
+Cause (VERIFIED by disassembly + bytes): the blob is a raw memcpy struct;
+`this` = PC payload 0x14 (360 payload 0x18). Global pointer [0xAB0EAC];
+records are at [0xAB0EAC]+0x28B0 = this+0x2670. Layout from the PC
+initializers:
+- this+0x0: car table, 410 x 24 B FECarRecord [Handle u32 (-1 = free)]
+  [FEKey][VehicleKey][u32][FilterBits][u8 Customization +0x14][u8
+  CareerHandle +0x15][u8][pad]. Customization/CareerHandle > 0x50 = none.
+- this+0x2670: 80 customization records x 0x1870. Init 0x548F60: +0 two u16
+  0x3FFF; three blueprint sets at +4 + i*0x7B4 (init 0x4CD920: +8 u16,
+  +0x34 u16 part array, +0x17E u8[12], +0x21C u8[12], +0x228/+0x22C/+0x230
+  u32, +0x234 f32, decals +0x238, vinyls +0x448, +0x56C bytes, +0x730
+  floats); +0x17F8 u8 HANDLE; +0x17FC u32; +0x1854 u8, +0x1855 u8[3];
+  +0x1858 u32; +0x185C u8[3]; +0x186C u8[3].
+- this+0x7C970: 80 career records x 0x40 (init 0x547A30): +0 u8 HANDLE,
+  +2 u8 (=3), +3 u8, +4 u16, +8 f32, +0xC u8, +0x10 u32, +0x14/+0x16 u16,
+  +0x18 f32, +0x1C u32, +0x20..+0x3E u16 x16.
+- this+0x7DD70: packed 8-byte list (fix_cardb_packed); this+0x90680 u8
+  (set 1 by the default ctor 0x560A08, cleared at 0x561175).
+- Free-slot scans: customization 0x564910, career 0x547A30 - first entry
+  whose handle byte is 0xFF, else NULL (the car is silently not created).
+  Lookup by career handle 0x533430 returns NULL for handle 0xFF.
+The blanket u32 swap moved each u8 to byte 3 and put the 360's 0xAA pad
+fill at byte 0, so every handle read 0xAA: 0 free records of 80 in every
+converted career (360 sources: 70-79 free). fix_cardb_bytes keeps the u8
+words above natural and swaps u16 pairs per u16 (the set's u8[12] at +0x17E:
+fix_cardb_parts' part flags cover +0x17E..+0x187, fix_cardb_bytes +0x188).
+Coordinates: fix_cardb_parts' `rec` is 4 bytes BEFORE the struct record, so
+its set-relative offsets are struct set offsets + 8 (part array 0x3C = set
++0x34). Origin anchor: set+0x22C holds the init constant 1 in every native set. The 100% Gamesave PC
+career agrees byte-wise (handles 00..0c / ff in natural order).
+Oracle caveat: docs/re/oracle/native_fresh_CAREER_01 is NOT native (0xAA
+handles, reversed table tails, unconverted 0x2AAA packed fill: an early
+converter output). pair/CAREER_02_pc_native has correct handles but its
+table entries 191-199 and career records 1-10 carry the reversed pattern
+too; trust only bytes a PC code path rewrites.
+Saves converted before the fix and played on PC: docs/re/rebase_fix.py
+merges the fix in without losing PC progress (first used on the author's
+CAREER_01: 0 -> 70 free records; backup in SaveConverter backups/
+2026-10-11_07-34-39_before-cardb-repair). Cars already lost are not
+restored.
 
 ## In-game findings 2026-10-04 .. 2026-10-10
 Moved here from the retired session log. The fixes were verified in-game by

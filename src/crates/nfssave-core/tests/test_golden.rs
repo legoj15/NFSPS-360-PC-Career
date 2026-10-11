@@ -25,15 +25,15 @@ fn cases() -> Vec<(PathBuf, &'static str)> {
     vec![
         (
             r.join("Extracted/Career/CAREER_01"),
-            "4afedb367a0fe2c8dee178e4ed3daca1",
+            "483b148ba0ec0fd9212ed1d76f243843",
         ),
         (
             r.join("docs/re/pair/CAREER_02_360_fresh"),
-            "3da9f4c0a5a2b7d5c55863d49de4852c",
+            "a34dd7c9c006e68e2f6e2cc25e1d3596",
         ),
         (
             r.join("Extracted/Career/CAREER_03"),
-            "77e5b3e95f3734b5460a986a9b74a92b",
+            "9b3484b73e9536c6cf4393a67a2ca174",
         ),
         (
             r.join("Extracted/Alias/ALIAS_360"),
@@ -41,11 +41,11 @@ fn cases() -> Vec<(PathBuf, &'static str)> {
         ),
         (
             r.join("docs/re/c1_latest/CAREER_01_360"),
-            "5b7d3fcb229ba2ec135d68de121bb0ff",
+            "1eec9d5cdc2098b447ef1b271e2f306b",
         ),
         (
             r.join("docs/re/pair_raceday/CAREER_02_360"),
-            "ec77c9309356db48faeae8e66f840176",
+            "f6329db1d6a136b4f599a13dd16abce0",
         ),
         // anonymized copy of the personal alias save (docs/re/alias_anon/README.md)
         (

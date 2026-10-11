@@ -15,7 +15,7 @@ from nfssave.tree import Tree
 
 
 POST_WORD = bytes([0, 0, 0, 7])  # non-zero so the last record's post spill shows
-INTERNAL_GAP_MD5 = "743068fdd49685367041faa4df7c3903"
+INTERNAL_GAP_MD5 = "c37b064c220293ba894eb997a06de25e"
 
 
 class GappedCareerTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class GappedCareerTests(unittest.TestCase):
         report = ConversionReport()
         pc = convert_payload(MC02.parse(gapped), report)
         self.assertEqual(hashlib.md5(pc.to_bytes()).hexdigest(),
-                         "d00a8fdce99bea2068efdfa961451f6d")
+                         "8fb078ca1a7a15228554c3556fb83b5b")
         self.assertEqual(report.records, 8)
         self.assertTrue(any("console record region damaged - missing chunks" in w
                             for w in report.warnings), report.warnings)

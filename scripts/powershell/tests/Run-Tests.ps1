@@ -53,12 +53,12 @@ function New-TempDir {
 # (source, golden md5, container name). Output lands under the STFS
 # file-table name, not the source file name - the game looks saves up by it.
 $cases = @(
-    @('Extracted\Career\CAREER_01', '4afedb367a0fe2c8dee178e4ed3daca1', 'CAREER_01'),
-    @('docs\re\pair\CAREER_02_360_fresh', '3da9f4c0a5a2b7d5c55863d49de4852c', 'CAREER_02'),
-    @('Extracted\Career\CAREER_03', '77e5b3e95f3734b5460a986a9b74a92b', 'CAREER_03'),
+    @('Extracted\Career\CAREER_01', '483b148ba0ec0fd9212ed1d76f243843', 'CAREER_01'),
+    @('docs\re\pair\CAREER_02_360_fresh', 'a34dd7c9c006e68e2f6e2cc25e1d3596', 'CAREER_02'),
+    @('Extracted\Career\CAREER_03', '9b3484b73e9536c6cf4393a67a2ca174', 'CAREER_03'),
     @('Extracted\Alias\ALIAS_360', 'a5a24e0f79571d2b5f819a76704a6b89', 'ALIAS_JOSHUA S 10'),
-    @('docs\re\c1_latest\CAREER_01_360', '5b7d3fcb229ba2ec135d68de121bb0ff', 'CAREER_01'),
-    @('docs\re\pair_raceday\CAREER_02_360', 'ec77c9309356db48faeae8e66f840176', 'CAREER_02'),
+    @('docs\re\c1_latest\CAREER_01_360', '1eec9d5cdc2098b447ef1b271e2f306b', 'CAREER_01'),
+    @('docs\re\pair_raceday\CAREER_02_360', 'f6329db1d6a136b4f599a13dd16abce0', 'CAREER_02'),
     # anonymized copy of the personal alias save (docs\re\alias_anon\README.md)
     @('docs\re\alias_anon\ALIAS_360', '377651916f0e1bd488561b7481a66da1', 'ALIAS_ANONYMOUS 1'),
     # junk-padded one-byte nodes (docs\re\alias_anon_junkpad\README.md)
@@ -194,7 +194,7 @@ try {
     $r = Invoke-Converter @($pair, '-OutRoot', $saveRoot)
     $backups = @(Get-ChildItem -Recurse -File (Join-Path $bk 'SaveConverter backups') -ErrorAction SilentlyContinue)
     $kept = $backups.Count -eq 1 -and $backups[0].Name -eq 'CAREER_02' -and $backups[0].Length -eq 4
-    $replaced = (Get-Md5Hex $old) -eq '3da9f4c0a5a2b7d5c55863d49de4852c'
+    $replaced = (Get-Md5Hex $old) -eq 'a34dd7c9c006e68e2f6e2cc25e1d3596'
     if ($r.Code -eq 0 -and $kept -and $replaced) { Pass 'existing save backed up then replaced' }
     else { Fail 'existing save backed up then replaced' "exit $($r.Code), backups $($backups.Count), replaced $replaced" }
 
@@ -208,7 +208,7 @@ try {
     $flOut = Join-Path $fl 'out'
     $r = Invoke-Converter @('-Usb', $drive, '-OutRoot', $flOut)
     $t = Join-Path $flOut 'CAREER_02\CAREER_02'
-    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '3da9f4c0a5a2b7d5c55863d49de4852c') { Pass 'usb drive walk' }
+    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq 'a34dd7c9c006e68e2f6e2cc25e1d3596') { Pass 'usb drive walk' }
     else { Fail 'usb drive walk' "exit $($r.Code): $($r.Text)" }
 
     # --- -Flash is kept as an alias of -Usb
@@ -257,7 +257,7 @@ try {
     $raceday = Join-Path $repo 'docs\re\pair_raceday\CAREER_02_360'
     $r = Invoke-Converter @($pair, $raceday, '-OutRoot', $dup)
     $t = Join-Path $dup 'CAREER_02\CAREER_02'
-    if ($r.Code -eq 1 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '3da9f4c0a5a2b7d5c55863d49de4852c' -and $r.Text -match 'also named CAREER_02; converting both would overwrite it - convert it separately') { Pass 'duplicate container name refused' }
+    if ($r.Code -eq 1 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq 'a34dd7c9c006e68e2f6e2cc25e1d3596' -and $r.Text -match 'also named CAREER_02; converting both would overwrite it - convert it separately') { Pass 'duplicate container name refused' }
     else { Fail 'duplicate container name refused' "exit $($r.Code): $($r.Text)" }
 
     # --- usb root with no saves fails
@@ -280,7 +280,7 @@ try {
     $r = Invoke-Converter @($fiIn, '-OutRoot', $fiOut)
     $t = Join-Path $fiOut 'CAREER_02\CAREER_02'
     $no99 = -not (Test-Path (Join-Path $fiOut 'CAREER_99'))
-    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '3da9f4c0a5a2b7d5c55863d49de4852c' -and $no99 -and $r.Text -notmatch 'CAREER_99') { Pass 'folder input picks CON saves only' }
+    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq 'a34dd7c9c006e68e2f6e2cc25e1d3596' -and $no99 -and $r.Text -notmatch 'CAREER_99') { Pass 'folder input picks CON saves only' }
     else { Fail 'folder input picks CON saves only' "exit $($r.Code), no99 $no99 : $($r.Text)" }
 
     # --- folder with no saves: exit 1 with a message
@@ -309,7 +309,7 @@ try {
     Copy-Item $pair $anyName
     $r = Invoke-Converter @($anyName, '-OutRoot', (Join-Path $rf 'o3'))
     $t = Join-Path $rf 'o3\CAREER_02\CAREER_02'
-    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '3da9f4c0a5a2b7d5c55863d49de4852c') { Pass 'file input with any name' }
+    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq 'a34dd7c9c006e68e2f6e2cc25e1d3596') { Pass 'file input with any name' }
     else { Fail 'file input with any name' "exit $($r.Code): $($r.Text)" }
 
     $r = Invoke-Converter @($pair, '-OutRoot', $anyName)
@@ -319,7 +319,7 @@ try {
     $cw = New-TempDir; $tmpRoots += $cw
     $r = Invoke-Converter @($pair) $cw
     $t = Join-Path $cw 'CAREER_02\CAREER_02'
-    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq '3da9f4c0a5a2b7d5c55863d49de4852c' -and $r.Text -match 'output folder') { Pass 'default output is the current directory' }
+    if ($r.Code -eq 0 -and (Test-Path $t) -and (Get-Md5Hex $t) -eq 'a34dd7c9c006e68e2f6e2cc25e1d3596' -and $r.Text -match 'output folder') { Pass 'default output is the current directory' }
     else { Fail 'default output is the current directory' "exit $($r.Code): $($r.Text)" }
 
     # --- game folder detection: R\SAVE\NFS ProStreet, R\NFS ProStreet, R named NFS ProStreet
@@ -351,7 +351,7 @@ try {
     $r = Invoke-Converter @($pair, '-OutRoot', $pbR)
     $inside = @(Get-ChildItem -Recurse -File (Join-Path $pbR 'SaveConverter backups') -ErrorAction SilentlyContinue)
     $parentClean = -not (Test-Path (Join-Path $pb 'SaveConverter backups'))
-    if ($r.Code -eq 0 -and $inside.Count -eq 1 -and $inside[0].Length -eq 3 -and $parentClean -and (Get-Md5Hex $pbOld) -eq '3da9f4c0a5a2b7d5c55863d49de4852c') { Pass 'plain mode backs up inside R' }
+    if ($r.Code -eq 0 -and $inside.Count -eq 1 -and $inside[0].Length -eq 3 -and $parentClean -and (Get-Md5Hex $pbOld) -eq 'a34dd7c9c006e68e2f6e2cc25e1d3596') { Pass 'plain mode backs up inside R' }
     else { Fail 'plain mode backs up inside R' "exit $($r.Code), inside $($inside.Count), parentClean $parentClean : $($r.Text)" }
 
     # --- missing -OutRoot is created; not on a dry run
@@ -627,7 +627,7 @@ try {
     else {
         $got = $null
         try { $got = Get-BytesMd5 (Convert-Mc02 $ig) } catch { $got = "threw: $($_.Exception.Message)" }
-        if ($got -eq '743068fdd49685367041faa4df7c3903') { Pass 'internal-gap career converts like Python' }
+        if ($got -eq 'c37b064c220293ba894eb997a06de25e') { Pass 'internal-gap career converts like Python' }
         else { Fail 'internal-gap career converts like Python' "got $got" }
     }
     # --- trailing gap (tests/test_gap.py build_gapped() default): the last
@@ -638,7 +638,7 @@ try {
     else {
         $got = $null
         try { $got = Get-BytesMd5 (Convert-Mc02 $tg) } catch { $got = "threw: $($_.Exception.Message)" }
-        if ($got -eq 'd00a8fdce99bea2068efdfa961451f6d') { Pass 'trailing-gap career converts like Python' }
+        if ($got -eq '8fb078ca1a7a15228554c3556fb83b5b') { Pass 'trailing-gap career converts like Python' }
         else { Fail 'trailing-gap career converts like Python' "got $got" }
     }
 

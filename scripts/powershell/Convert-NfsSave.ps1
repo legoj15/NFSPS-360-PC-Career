@@ -833,7 +833,7 @@ namespace NfsPs
         // convert_packed_entry / fix_cardb_packed
         static void FixCarDbPacked(byte[] src, byte[] o)
         {
-            for (int p = 0x7C980; p < 0x90660; p += 8)
+            for (int p = 0x7DD88; p < 0x90660; p += 8)   // past the career records
             {
                 int e = p + 4;
                 if (e + 8 > src.Length) continue;
@@ -908,6 +908,43 @@ namespace NfsPs
                 int p = 0x14 + k * 24 + 20 + 4;
                 CopyNat(src, o, p, p + 4);
             }
+            FixCarDbBytes(src, o);
+        }
+
+        // fix_cardb_bytes: u8 fields of the car DB stay natural, u16 pairs swap per u16.
+        // PC payload offsets (+4 here for the unframed 360 payload). The record
+        // handles are what broke the game: nfs.exe finds a free customization
+        // record (0x564910) and a free career record (0x547A30) by scanning for
+        // handle 0xFF; after the u32 swap every handle read 0xAA and the PC could
+        // never add a car (reward cars, dealer purchases).
+        static readonly int[] CustomByteWords = new int[] { 0x17F8, 0x1854, 0x185C, 0x186C };
+        static readonly int[] BlueprintSetStarts = new int[] { 4, 4 + 0x7B4, 4 + 0xF68 };
+        static readonly int[] SetByteWords = new int[] { 0x188, 0x21C, 0x220, 0x224 };
+        static readonly int[] CareerByteWords = new int[] { 0x0, 0xC };
+        static readonly int[] CareerU16Words = new int[] { 0x14, 0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C };
+
+        static void FixCarDbBytes(byte[] src, byte[] o)
+        {
+            for (int r = 0; r < 80; r++)
+            {
+                int rec = 0x2684 + r * 0x1870 + 4;          // this+0x2670
+                foreach (int w in CustomByteWords) CopyNat(src, o, rec + w, rec + w + 4);
+                foreach (int s in BlueprintSetStarts)
+                {
+                    Swap16Nat(src, o, rec + s + 0x8, rec + s + 0xA);   // [u16][pad x2]
+                    CopyNat(src, o, rec + s + 0xA, rec + s + 0xC);
+                    foreach (int w in SetByteWords) CopyNat(src, o, rec + s + w, rec + s + w + 4);
+                }
+            }
+            for (int i = 0; i < 80; i++)
+            {
+                int rec = 0x7C984 + i * 0x40 + 4;             // this+0x7C970
+                foreach (int w in CareerByteWords) CopyNat(src, o, rec + w, rec + w + 4);
+                Swap16Nat(src, o, rec + 0x4, rec + 0x6);      // [u16][pad x2]
+                CopyNat(src, o, rec + 0x6, rec + 0x8);
+                foreach (int w in CareerU16Words) Swap16Nat(src, o, rec + w, rec + w + 4);
+            }
+            CopyNat(src, o, 0x90694 + 4, 0x90694 + 8);        // this+0x90680: [u8][pad x3]
         }
 
         static uint U32BeAt(byte[] src, int o) { return Rd32(src, o + 4, true); }   // PC offset -> 360 payload

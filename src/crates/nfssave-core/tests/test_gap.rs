@@ -29,7 +29,7 @@ fn gapped_career_converts_with_gap_warning_matching_python() {
     let pc = convert_payload(&MC02::parse(&gapped).unwrap(), Some(&mut report)).unwrap();
     assert_eq!(
         md5(&pc.to_bytes().unwrap()),
-        "d00a8fdce99bea2068efdfa961451f6d"
+        "8fb078ca1a7a15228554c3556fb83b5b"
     );
     assert_eq!(report.records, 8);
     assert!(
@@ -87,6 +87,6 @@ fn internal_gap_keeps_spills_after_the_damage_matching_python() {
     );
     assert_eq!(
         md5(&pc.to_bytes().unwrap()),
-        "743068fdd49685367041faa4df7c3903"
+        "c37b064c220293ba894eb997a06de25e"
     );
 }

@@ -14,7 +14,7 @@ commit; anything save-visible then needs an in-game check by the user.
 | Port | Command | Notes |
 |---|---|---|
 | Python | `python -m pytest -q tests` from the repo root | `pyproject.toml` only sets `testpaths` and `pythonpath`. Cases that need the gitignored `Extracted/` saves skip. |
-| Rust | from `src/`: `cargo test --workspace`, `cargo fmt --all --check` | fmt is required clean (docs/rust-app.md). Also run `cargo test --release` after touching subsystem or console code. Clippy is not part of any gate and its current state was not checked. |
+| Rust | from `src/`: `cargo test --workspace --no-fail-fast`, `cargo fmt --all --check` | Without `--no-fail-fast` cargo stops at the first failing test binary and a grep for failures can miss it (a broken pin went unnoticed that way on 2026-10-11). fmt is required clean (docs/rust-app.md). Also run `cargo test --release` after touching subsystem or console code. Clippy is not part of any gate and its current state was not checked. |
 | PowerShell | `scripts/powershell/tests/Run-Tests.ps1` with the PowerShell tool, on BOTH Windows PowerShell 5.1 (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File ...`) and pwsh 7 (`pwsh -NoProfile -File ...`) | Black-box: runs the script in a child process of the same host. Exit 0 = all passed. |
 
 Fixture policy: tracked fixtures under `docs/re/` must exist. The golden

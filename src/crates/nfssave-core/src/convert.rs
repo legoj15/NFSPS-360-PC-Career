@@ -324,8 +324,9 @@ pub fn fix_career_name(src: &[u8], out: &mut [u8]) {
     }
 }
 
-/// region holding 8-byte packed entries
-pub const CARDB_PACKED: (usize, usize) = (0x7C980, 0x90660);
+/// region holding 8-byte packed entries (this+0x7DD70 list; starts past the
+/// career records, same 8-byte grid as before)
+pub const CARDB_PACKED: (usize, usize) = (0x7DD88, 0x90660);
 /// 360 uninitialized 14/16-bit field (0xAAAA masked)
 pub const PACKED_FILL: [u8; 2] = [0x2A, 0xAA];
 
@@ -489,6 +490,92 @@ pub fn fix_cardb_parts(src: &[u8], out: &mut [u8]) {
         let o = t0 + k * size + CARDB_TABLE_SLOT + 4;
         copy_nat(src, out, o, o + 4);
     }
+    fix_cardb_bytes(src, out);
+}
+
+// Single-byte fields of the FEPlayerCarDB struct, in PC payload offsets
+// (struct `this` = payload 0x14; layouts from the PC initializers 0x548F60
+// record, 0x4CD920 blueprint set, 0x547A30 career record, 0x560A08 DB).
+// The u32 swap moved each u8 to the far end of its word and put the 360's
+// 0xAA pad fill in its place. The record handles are what broke the game:
+// nfs.exe finds a free customization record (0x564910) and a free career
+// record (0x547A30) by scanning for handle 0xFF; every handle read 0xAA, both
+// scans failed and the PC could never add a car (challenge reward cars and
+// dealer purchases silently dropped, reported 2026-10-11).
+/// this+0x2670: offset, stride, count
+pub const CUSTOM_RECORDS: (usize, usize, usize) = (0x2684, 0x1870, 80);
+/// [u8 handle (0xFF = free)][pad x3], [u8][u8 x3 per set],
+/// [u8 x3 per set][pad], [u8 x3 per set][pad]
+pub const CUSTOM_BYTE_WORDS: [usize; 4] = [0x17F8, 0x1854, 0x185C, 0x186C];
+/// blueprint sets within a record
+pub const BLUEPRINT_SET_STARTS: [usize; 3] = [4, 4 + 0x7B4, 4 + 0xF68];
+/// [u16][pad x2]
+pub const SET_U16_PAD: usize = 0x8;
+/// u8 x2 + pad, then u8[12]
+pub const SET_BYTE_WORDS: [usize; 4] = [0x188, 0x21C, 0x220, 0x224];
+/// this+0x7C970: offset, stride, count
+pub const CAREER_RECORDS: (usize, usize, usize) = (0x7C984, 0x40, 80);
+/// [u8 handle][pad][u8][u8], [u8][pad x3]
+pub const CAREER_BYTE_WORDS: [usize; 2] = [0x0, 0xC];
+/// [u16][pad x2]
+pub const CAREER_U16_PAD: usize = 0x4;
+/// u16 pairs: +0x14 and +0x20..+0x40
+pub const CAREER_U16_WORDS: [usize; 9] = [0x14, 0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C];
+/// this+0x90680: [u8][pad x3]
+pub const CARDB_FLAG: usize = 0x90694;
+
+/// Natural order for the car DB's u8 fields, per-u16 swap for its u16
+/// pairs. Offsets above are PC payload offsets; src/out are the unframed
+/// 360 payload (one extra leading word).
+pub fn fix_cardb_bytes(src: &[u8], out: &mut [u8]) {
+    fn natural(src: &[u8], out: &mut [u8], o: usize) {
+        copy_nat(src, out, o + 4, o + 8);
+    }
+    fn u16s(src: &[u8], out: &mut [u8], o: usize) {
+        put_mapped(src, out, o + 4, o + 8, |w| {
+            // Python: w[1::-1] + w[:1:-1]
+            let mut x = w.to_vec();
+            let mid = x.len().min(2);
+            let (a, b) = x.split_at_mut(mid);
+            a.reverse();
+            b.reverse();
+            x
+        });
+    }
+    fn u16_pad(src: &[u8], out: &mut [u8], o: usize) {
+        put_mapped(src, out, o + 4, o + 8, |w| {
+            // Python: w[1::-1] + w[2:] (u16 swapped, pad natural)
+            let mut x = w.to_vec();
+            let mid = x.len().min(2);
+            x[..mid].reverse();
+            x
+        });
+    }
+    let (base, stride, count) = CUSTOM_RECORDS;
+    for r in 0..count {
+        let rec = base + r * stride;
+        for &o in &CUSTOM_BYTE_WORDS {
+            natural(src, out, rec + o);
+        }
+        for &s in &BLUEPRINT_SET_STARTS {
+            u16_pad(src, out, rec + s + SET_U16_PAD);
+            for &o in &SET_BYTE_WORDS {
+                natural(src, out, rec + s + o);
+            }
+        }
+    }
+    let (base, stride, count) = CAREER_RECORDS;
+    for i in 0..count {
+        let rec = base + i * stride;
+        for &o in &CAREER_BYTE_WORDS {
+            natural(src, out, rec + o);
+        }
+        u16_pad(src, out, rec + CAREER_U16_PAD);
+        for &o in &CAREER_U16_WORDS {
+            u16s(src, out, rec + o);
+        }
+    }
+    natural(src, out, CARDB_FLAG);
 }
 
 /// Two separate [u8][pad x3] words at these offsets (not a range), natural

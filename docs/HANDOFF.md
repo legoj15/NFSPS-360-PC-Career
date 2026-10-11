@@ -1,4 +1,4 @@
-# Handoff — NFSPS 360 -> PC converter (updated 2026-10-10)
+# Handoff — NFSPS 360 -> PC converter (updated 2026-10-11)
 
 State and open work only. History is `git log` (conventional-commit subjects
 name every fix); knowledge lives in the docs below. The 787-line session log
@@ -40,6 +40,18 @@ Read order for a new session: this file, then `docs/decisions.md`, then
   the main checkout with `mklink /J`; without it a few golden cases skip.
   Remove the junction with `rmdir` before the worktree is cleaned up, so a
   recursive delete cannot reach the personal saves).
+- 2026-10-11 fix, NOT yet verified in-game: converted careers could never
+  gain a car (challenge reward cars and dealer purchases silently dropped)
+  because every FEPlayerCarDB record handle read 0xAA, so the game's
+  free-slot scans failed (docs/re/FORMAT-NOTES.md, FEPlayerCarDB struct).
+  `fix_cardb_bytes` in all three ports; career golden pins moved (alias pins
+  unchanged); pytest 155 passed, `cargo test --workspace --no-fail-fast` green,
+  Run-Tests.ps1 67/67 on 5.1 and pwsh 7. The author's played CAREER_01 was
+  repaired in place with docs/re/rebase_fix.py (backup:
+  `SaveConverter backups/2026-10-11_07-34-39_before-cardb-repair`).
+  In-game check wanted: buy any car at the dealer, or win a challenge race
+  day, and see it in the garage. The three reward cars already won are
+  not in the save and were not restored.
 - Not yet seen by the user: the app's new orange stray-save notes
   (`[!] the save folder ...`) under the results list. Tests cover the text,
   not the GUI rendering.
@@ -60,6 +72,12 @@ the gap path" rationale is an unverified guess, see
 `docs/review-false-positives.md`). The internal-gap fixture is built three
 times (`tests/gapfix.py`, `nfssave-core/tests/common`, and
 `New-InternalGapMc02` in `Run-Tests.ps1`); keep them in sync.
+
+Product question (ask the user): converted saves already played on PC keep
+the broken handles until repaired. The app has no repair path;
+`docs/re/rebase_fix.py` needs the 360 source and a git checkout. Options: an
+app "repair" action for PC saves (signature: no 0xFF handle in any
+customization record), or a README note telling players to reconvert.
 
 Loose ends:
 - The release upload command was never written down (docs/dev-workflow.md).

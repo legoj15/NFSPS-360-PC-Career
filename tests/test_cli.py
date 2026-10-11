@@ -196,7 +196,7 @@ def test_interrupted_write_keeps_the_previous_save(tmp_path, monkeypatch):
 
 # --- CLI redesign (docs/scripts-cli.md) --------------------------------------
 
-PAIR_MD5 = "3da9f4c0a5a2b7d5c55863d49de4852c"
+PAIR_MD5 = "a34dd7c9c006e68e2f6e2cc25e1d3596"
 
 
 def _md5(p: Path) -> str:

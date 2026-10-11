@@ -13,7 +13,7 @@ specified by `scripts/python/nfssave/convert.py`, not by these scripts.
 | `pair_raceday/` | CAREER_02 saved mid race day ("Battle Machine", Nevada) on both platforms. `CAREER_02_pc_native` was archived unmodified from the game (no checksum recorded); copy it back to restore the user's native save. Race-day block oracle (state 1, 0x3B90 B). |
 | `pair_customrd/` | PC-written custom race day (`CAREER_aa_after_pc`); CustomRaceDayMemcard oracle. MAC in the GUID anonymized. |
 | `c1_latest/` | Latest 360 CAREER_01 with the long race-day block (state 3, 0xB2D0 B). |
-| `oracle/` | Native fresh PC saves: `native_ALIAS_Player` (used by the alias-settings tests) and `native_fresh_CAREER_01` (unreferenced, unique). The fresh CAREER_02 pair is in `pair/`. |
+| `oracle/` | `native_ALIAS_Player` (native PC, used by the alias-settings tests) and `native_fresh_CAREER_01` (unreferenced; NOT native despite the name: an early converter output, see FORMAT-NOTES FEPlayerCarDB). The fresh CAREER_02 pair is in `pair/`. |
 | `alias_anon/`, `alias_anon_junkpad/` | Anonymized 360 aliases (golden case 7; junk-padded one-byte nodes). READMEs say how they were built. Regenerate with `anonymize_alias.py`. |
 | `fieldmaps/` | Positional field maps from the first fresh pairs. Superseded by the node grammar but still embedded by `payload_rules`; see docs/backlog-research.md before deleting. |
 | `backups/` | Old 2026-10-04 PC save-folder backup and a CAREER_04 diagnostic. Historical; not referenced by tests. |
@@ -34,7 +34,10 @@ specified by `scripts/python/nfssave/convert.py`, not by these scripts.
 
 ## Offline tools (no game or debugger needed)
 - `calls.py` direct call sites in nfs.exe (reads the exe from disk);
-  `rdtable.py` race-day progress table side by side; `graft_alias.py` builds
+  `rdtable.py` race-day progress table side by side; `rebase_fix.py` carries a
+  converter fix into a save already played on PC (three-way byte merge of the
+  old and new conversion of its 360 source; keeps what the game rewrote);
+  `graft_alias.py` builds
   an alias from a base alias plus donor records (rebuilds used size and tree
   hash) for record bisects, e.g. "which converted record makes the PC drop
   the profile"; `anonymize_alias.py` (see `alias_anon/README.md`).

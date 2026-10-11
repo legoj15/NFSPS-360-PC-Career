@@ -190,7 +190,7 @@ fn gameplay_0x2e0_tail_matches_python() {
     let pc = convert_crafted(&data).unwrap();
     assert_eq!(
         md5(&pc.to_bytes().unwrap()),
-        "1496083c02bfdd25f61e9634d175571d"
+        "ca1807d065ee21a5dcdd35a800f206fa"
     );
 }
 
@@ -206,12 +206,12 @@ fn gameplay_zero_state_window_matches_python() {
         (
             0x2DCusize,
             "d90b6f6931545fba07971c4fdb4908d7",
-            "f347163455dff3a21ca685512a0ade4d",
+            "9e9a00225d65abc6e18ba29d8e216074",
         ),
         (
             0x2E0,
             "e4882a46c79271139bb47dd4dcd59a9c",
-            "7d5b602dfe48406571ad987d109e0886",
+            "b51234d69a1967c00bd2e483e9bad87b",
         ),
     ];
     for len in 0x2DC..0x2E4 {

@@ -261,7 +261,7 @@ def fix_career_name(src: bytes, out: bytearray) -> None:
             out[d + 4:d + ln] = chars + bytes(ln - 4 - len(chars))
 
 
-CARDB_PACKED = (0x7C980, 0x90660)   # region holding 8-byte packed entries
+CARDB_PACKED = (0x7DD88, 0x90660)   # 8-byte packed entries (this+0x7DD70 list), past the career records
 PACKED_FILL = bytes((0x2A, 0xAA))     # 360 uninitialized 14/16-bit field (0xAAAA masked)
 
 
@@ -354,6 +354,69 @@ def fix_cardb_parts(src: bytes, out: bytearray) -> None:
     for k in range(n):
         o = t0 + k * size + CARDB_TABLE_SLOT + 4
         out[o:o + 4] = src[o:o + 4]
+    fix_cardb_bytes(src, out)
+
+
+# Single-byte fields of the FEPlayerCarDB struct, in PC payload offsets
+# (struct `this` = payload 0x14; layouts from the PC initializers 0x548F60
+# record, 0x4CD920 blueprint set, 0x547A30 career record, 0x560A08 DB).
+# The u32 swap moved each u8 to the far end of its word and put the 360's
+# 0xAA pad fill in its place. The record handles are what broke the game:
+# nfs.exe finds a free customization record (0x564910) and a free career
+# record (0x547A30) by scanning for handle 0xFF; every handle read 0xAA, both
+# scans failed and the PC could never add a car (challenge reward cars and
+# dealer purchases silently dropped, reported 2026-10-11).
+CUSTOM_RECORDS = (0x2684, 0x1870, 80)   # this+0x2670
+CUSTOM_BYTE_WORDS = (
+    0x17F8,   # [u8 handle (0xFF = free)][pad x3]
+    0x1854,   # [u8][u8 x3, one per blueprint set]
+    0x185C,   # [u8 x3, one per set][pad]
+    0x186C,   # [u8 x3, one per set][pad]; fix_cardb_parts' word at its own `rec`
+              # (4 bytes before the struct record) is this word of the previous record
+)
+BLUEPRINT_SET_STARTS = (4, 4 + 0x7B4, 4 + 0xF68)   # within a record
+SET_U16_PAD = 0x8         # [u16][pad x2]
+SET_BYTE_WORDS = (0x188, 0x21C, 0x220, 0x224)   # u8 x2 + pad, then u8[12]
+CAREER_RECORDS = (0x7C984, 0x40, 80)    # this+0x7C970
+CAREER_BYTE_WORDS = (0x0, 0xC)          # [u8 handle][pad][u8][u8], [u8][pad x3]
+CAREER_U16_PAD = 0x4                    # [u16][pad x2]
+CAREER_U16_WORDS = (0x14,) + tuple(range(0x20, 0x40, 4))   # u16 pairs
+CARDB_FLAG = 0x90694                    # this+0x90680: [u8][pad x3]
+
+
+def fix_cardb_bytes(src: bytes, out: bytearray) -> None:
+    """Natural order for the car DB's u8 fields, per-u16 swap for its u16
+    pairs. Offsets above are PC payload offsets; src/out are the unframed
+    360 payload (one extra leading word)."""
+    def natural(o: int) -> None:
+        out[o + 4:o + 8] = src[o + 4:o + 8]
+
+    def u16s(o: int) -> None:
+        w = src[o + 4:o + 8]
+        out[o + 4:o + 8] = w[1::-1] + w[:1:-1]
+
+    def u16_pad(o: int) -> None:
+        w = src[o + 4:o + 8]
+        out[o + 4:o + 8] = w[1::-1] + w[2:]
+
+    base, stride, count = CUSTOM_RECORDS
+    for r in range(count):
+        rec = base + r * stride
+        for o in CUSTOM_BYTE_WORDS:
+            natural(rec + o)
+        for s in BLUEPRINT_SET_STARTS:
+            u16_pad(rec + s + SET_U16_PAD)
+            for o in SET_BYTE_WORDS:
+                natural(rec + s + o)
+    base, stride, count = CAREER_RECORDS
+    for i in range(count):
+        rec = base + i * stride
+        for o in CAREER_BYTE_WORDS:
+            natural(rec + o)
+        u16_pad(rec + CAREER_U16_PAD)
+        for o in CAREER_U16_WORDS:
+            u16s(rec + o)
+    natural(CARDB_FLAG)
 
 
 # two separate [u8][pad x3] words at these offsets (not a range), natural
