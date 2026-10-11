@@ -117,7 +117,7 @@ def main(rev, src_path, played_path, out_path):
         raise SystemExit(f"self-check failed: {problems}")
     with open(out_path, "wb") as f:
         f.write(data)
-    print(out_path, hashlib.md5(data).hexdigest(), f"({total_applied} bytes applied)")
+    print(out_path, hashlib.md5(data).hexdigest(), f"({total_applied} words applied)")
 
 
 if __name__ == "__main__":

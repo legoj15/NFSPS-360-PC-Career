@@ -243,7 +243,7 @@ race-day menu. Game exit save wrote no file changes (no dirty state), so
 no native re-save oracle was produced; fresh-native references archived
 at oracle/ instead.
 
-## FEPlayerCarDB struct from nfs.exe (2026-10-11, in-game check pending)
+## FEPlayerCarDB struct from nfs.exe (2026-10-11, verified in-game: dealer purchase; v1.2.0)
 Symptom (user, 2026-10-11): three challenge race days won on a converted
 CAREER_01, reward car chosen, garage unchanged. The save after play showed
 the game had started the reward entries (car table entries 200/201 written,
