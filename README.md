@@ -14,7 +14,7 @@ Instructions assume you are using the [community repack with the update and DLC]
 
 ## Windows app (easiest way)
 
-1. Download and launch [`NFSPS-SaveConverter.exe`](https://github.com/legoj15/NFSPS-360-PC-Career/releases/download/v1.1.0/NFSPS-SaveConverter.exe) from [GitHub Releases](https://github.com/legoj15/NFSPS-360-PC-Career/releases).
+1. Download and launch [`NFSPS-SaveConverter.exe`](https://github.com/legoj15/NFSPS-360-PC-Career/releases/download/v1.1.1/NFSPS-SaveConverter.exe) from [GitHub Releases](https://github.com/legoj15/NFSPS-360-PC-Career/releases).
 	- If Windows shows "**Windows protected your PC**", click **More info**, then
    **Run anyway**. That screen appears because the program is new, not because
    something is wrong (and certificates cost money)

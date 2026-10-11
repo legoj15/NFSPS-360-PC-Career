@@ -958,7 +958,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "fatx"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "log",
  "tempfile",
@@ -1761,7 +1761,7 @@ dependencies = [
 
 [[package]]
 name = "nfspc-converter"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "eframe",
  "env_logger",
@@ -1775,7 +1775,7 @@ dependencies = [
 
 [[package]]
 name = "nfssave-core"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "md-5",
  "num-bigint",

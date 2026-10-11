@@ -45,9 +45,9 @@ slashes. Do not edit Rust or PowerShell sources with Python replace scripts
 3. Copy `src/target/release/NFSPS-SaveConverter.exe` to
    `dist/NFSPS-SaveConverter.exe`. `dist/` is gitignored, so the GitHub
    release asset is the only public copy.
-4. Tag `vX.Y.Z` and attach the exe to a GitHub release (v1.0.0 and v1.1.0
-   exist; the upload command was never written down, so note it here the
-   next time). The exe is unsigned: SmartScreen shows "Windows protected your
+4. Tag `vX.Y.Z` and attach the exe to a GitHub release (v1.0.0, v1.1.0, v1.1.1
+   exist). Command: `gh release create vX.Y.Z dist/NFSPS-SaveConverter.exe
+   --title X.Y.Z --notes-file <notes.md>`. The exe is unsigned: SmartScreen shows "Windows protected your
    PC" on first run (the README explains More info, then Run anyway).
 5. Smoke test the dist exe: double-click shows no console window (verified on
    the v1.1.0 build); `NFSPS-SaveConverter.exe --convert <save> --out <dir>`

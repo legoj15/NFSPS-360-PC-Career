@@ -149,5 +149,5 @@ only so cargo's test harnesses stay unelevated (`build.rs:51-54`), and
   UNVERIFIED and is never required for detection (`SPEC.md` §5.4).
 - No code signing → SmartScreen "Windows protected your PC" on first run
   (README documents the More info → Run anyway path).
-- Releases are published from the `origin` GitHub repo (v1.0.0, v1.1.0);
+- Releases are published from the `origin` GitHub repo (v1.0.0, v1.1.0, v1.1.1);
   the build-and-ship steps are in `docs/dev-workflow.md`.
