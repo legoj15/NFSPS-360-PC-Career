@@ -21,7 +21,7 @@ Read order for a new session: this file, then `docs/decisions.md`, then
 | Who was delegated what, ladder observations | `docs/delegation-log.md` |
 
 ## State
-- Release: v1.2.0 published on GitHub 2026-10-11 (exe built to `dist/`,
+- Release: v1.2.1 published on GitHub 2026-10-11 (exe built to `dist/`,
   gitignored). All work is on `main`.
 - Verified in-game by the user (October 2026): careers resume at their saved
   point including a race day in progress; the garage loads every car (DLC
@@ -40,9 +40,12 @@ Read order for a new session: this file, then `docs/decisions.md`, then
   raw FATX scanner has never run on real media (parked).
 - Three ports (Python reference, Rust core used by the app, PowerShell
   script) are byte-exact; golden md5 pins are in each suite. Last full run,
-  2026-10-11 (car-DB fix, career pins moved): pytest 156 passed;
-  `cargo test --workspace --no-fail-fast` green and `cargo fmt --all --check`
-  clean; Run-Tests.ps1 67/67 on Windows PowerShell 5.1 and on pwsh 7
+  2026-10-11 (debt rectification: car-DB entry guards in all three ports,
+  named PowerShell C# offsets, save-name vectors single-sourced into
+  tests/save_name_vectors.txt, stray_save_notes moved to nfssave-core):
+  pytest 157 passed; `cargo test --workspace --no-fail-fast` green and
+  `cargo fmt --all --check` clean; Run-Tests.ps1 68/68 on Windows
+  PowerShell 5.1 and on pwsh 7
   (nothing skipped: `Extracted/` is present, junctioned into worktrees from
   the main checkout with `mklink /J`; without it a few golden cases skip.
   Remove the junction with `rmdir` before the worktree is cleaned up, so a
@@ -64,9 +67,6 @@ times (`tests/gapfix.py`, `nfssave-core/tests/common`, and
 
 Not yet tried in-game: winning a challenge race day after the fix
 (the dealer purchase uses the same free-slot scans).
-
-Loose ends:
-- The release upload command was never written down (docs/dev-workflow.md).
 
 Research and parked (details in `docs/backlog-research.md`): unproven
 car/blueprint fields; AudioSettings node 8 holds 360 heap fill; meaning of
