@@ -50,7 +50,7 @@ agents; `impl` = Sonnet medium. "Orchestrator" = the session model itself.
 | 2026-10-11 | Reward cars missing: root cause (nfs.exe car-DB allocators), fix in 3 ports, rebase_fix tool | orchestrator | tests green; in-game check pending | none |
 | 2026-10-11 | car-DB fix review | Haiku reviewer | 1 real high (Rust short-record pins stale, hidden by cargo fail-fast) fixed; career +4 pad swap fixed; rebase byte-tear fixed; 1 rejected (record origin) | none |
 | 2026-10-11 | car-DB fix review | shop26 + glm-flash | shop26 hit the 256K context limit mid-review, no findings; glm-flash 2 highs + 1 medium REJECTED (set origin, proven by init constant), lows fixed (packed scan range, rebase_fix git paths/messages), test-tautology medium fixed with a native anchor | none |
-| 2026-10-11 | v1.2.0 post-merge review | glm-5.3 (dgx deferred) | glm-5.3: 2 lows (words-vs-bytes label, stale heading), both fixed; no code defects. dgx Qwen Flash still running past 50 min, collect on delivery | none |
+| 2026-10-11 | v1.2.0 post-merge review | glm-5.3 (dgx deferred) | glm-5.3: 2 lows (words-vs-bytes label, stale heading), both fixed; no code defects. dgx Qwen Flash ran 90 min and died on its 262K context limit (whole files read), no findings; re-run narrowed to line ranges (postmerge-1.2.0-dgx-narrow-20261011-070354-e4e9) | none |
 
 ## Ladder observations (so far)
 - `impl` (Sonnet medium): 7 dispatches (PS port, PS CLI, race-day Rust + PS
@@ -64,5 +64,6 @@ agents; `impl` = Sonnet medium. "Orchestrator" = the session model itself.
 - shop26 (Qwen 27B): slowest lane (6-45 min when it finishes); three times it timed out
   or errored with no findings (2026-10-09). When it does return, it is the
   most reliable approver.
+- Qwen lanes (shop26 27B, dgx Flash) on this repo: both 2026-10-11 reviews hit the 262K context limit after reading whole convert.py / convert.rs / Convert-NfsSave.ps1 and filed nothing. Give them line ranges, not files or a full diff.
 - glm-flash: best at hostile-input and parity edge cases (found the Rust
   panic and the 2 GiB allocation); its "high" findings still need probing.

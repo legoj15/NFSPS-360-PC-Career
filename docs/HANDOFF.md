@@ -68,9 +68,10 @@ the gap path" rationale is an unverified guess, see
 times (`tests/gapfix.py`, `nfssave-core/tests/common`, and
 `New-InternalGapMc02` in `Run-Tests.ps1`); keep them in sync.
 
-Pending: the dgx (Qwen Flash) post-merge review of 17568c5..v1.2.0 (run
-postmerge-1.2.0-dgx-20261011-052137-8eb9, deferred; glm-5.3 already done,
-its two lows fixed); verify and act on its findings as follow-up commits. Not yet tried in-game: winning a challenge race day after the fix
+Pending: the dgx (Qwen Flash) post-merge review of 17568c5..v1.2.0. The first
+run died on its context limit with no findings; the narrowed re-run is
+postmerge-1.2.0-dgx-narrow-20261011-070354-e4e9 (glm-5.3 already done, its
+two lows fixed); verify and act on its findings as follow-up commits. Not yet tried in-game: winning a challenge race day after the fix
 (the dealer purchase uses the same free-slot scans).
 
 Loose ends:
