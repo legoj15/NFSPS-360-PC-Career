@@ -52,6 +52,12 @@ Read order for a new session: this file, then `docs/decisions.md`, then
   not the GUI rendering.
 
 ## Open work
+Debt (dgx post-merge review of v1.2.0, notes, no defect): the car-DB fixes
+rely on len(src) == len(out) (a Python slice write would resize instead of
+clamp if that ever broke; an entry assert in all three ports would pin it),
+and the PowerShell C# writes every car-DB offset as a bare literal instead of
+named constants like Python/Rust.
+
 Debt: the save-name rule, device list, backup-folder name and stray-note
 wording are hand-copied across the three ports and their suites; the
 app's `stray_save_notes` could move next to `check_save_name` in
@@ -68,10 +74,7 @@ the gap path" rationale is an unverified guess, see
 times (`tests/gapfix.py`, `nfssave-core/tests/common`, and
 `New-InternalGapMc02` in `Run-Tests.ps1`); keep them in sync.
 
-Pending: the dgx (Qwen Flash) post-merge review of 17568c5..v1.2.0. The first
-run died on its context limit with no findings; the narrowed re-run is
-postmerge-1.2.0-dgx-narrow-20261011-070354-e4e9 (glm-5.3 already done, its
-two lows fixed); verify and act on its findings as follow-up commits. Not yet tried in-game: winning a challenge race day after the fix
+Not yet tried in-game: winning a challenge race day after the fix
 (the dealer purchase uses the same free-slot scans).
 
 Loose ends:
