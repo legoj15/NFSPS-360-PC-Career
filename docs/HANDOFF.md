@@ -73,11 +73,15 @@ the gap path" rationale is an unverified guess, see
 times (`tests/gapfix.py`, `nfssave-core/tests/common`, and
 `New-InternalGapMc02` in `Run-Tests.ps1`); keep them in sync.
 
-Product question (ask the user): converted saves already played on PC keep
-the broken handles until repaired. The app has no repair path;
-`docs/re/rebase_fix.py` needs the 360 source and a git checkout. Options: an
-app "repair" action for PC saves (signature: no 0xFF handle in any
-customization record), or a README note telling players to reconvert.
+NEXT (user decision 2026-10-11): once the user confirms in-game that a new
+car reaches the garage, release this fix as 1.2.0. Steps: merge branch
+`claude/challenge-reward-cars-missing-1b196f` (commit 17568c5 and after) into
+`main`; bump `src/Cargo.toml` (the four `version = ` lines incl.
+`Cargo.lock`), the README download link, and the release lists in
+docs/dev-workflow.md and docs/rust-app.md, as in 37a0d13; build and
+release per docs/dev-workflow.md with notes `docs/release-notes-1.2.0.md`;
+then the post-merge review (dgx / Qwen Flash + glm-5.3). If the test fails,
+do not release: re-check the allocators (FORMAT-NOTES FEPlayerCarDB).
 
 Loose ends:
 - The release upload command was never written down (docs/dev-workflow.md).

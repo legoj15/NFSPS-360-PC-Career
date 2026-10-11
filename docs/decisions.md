@@ -46,6 +46,10 @@ Do not reverse these without asking. Newest last within each group.
   2026-10-06).
 
 ## Removed or settled on purpose
+- No "repair already-converted save" feature for the 2026-10-11 car-DB
+  handle fix (user, 2026-10-11): the author is the only user of the earlier
+  releases. `docs/re/rebase_fix.py` stays as a dev tool. The fix ships as
+  1.2.0 after the author's in-game check.
 - The `--twin` recovery path (second-source repair of damaged tails) was a
   flawed proof of concept and is deleted (3f9331d, 2026-10-10). A genuinely
   gapped career converts without the missing records and the converter warns.
