@@ -37,7 +37,11 @@ slashes. Do not edit Rust or PowerShell sources with Python replace scripts
 
 ## Release
 1. All three suites green; the user has verified save-visible changes in-game.
-2. From `src/`: `cargo build --release`. Profile is `lto`, `strip`,
+2. Bump the version everywhere it is written by hand: `src/Cargo.toml`
+   (`Cargo.lock` follows on build), the `assemblyIdentity` version in
+   `src/crates/nfspc-converter/app.manifest` (missed in 1.1.1), the README
+   download link, and the release lists here and in docs/rust-app.md.
+   From `src/`: `cargo build --release`. Profile is `lto`, `strip`,
    `codegen-units = 1`; `src/.cargo/config.toml` statically links the MSVC
    CRT, so the exe needs no Visual C++ runtime (about 11 MB). The build
    embeds `app.manifest` via rc.exe; without the Windows SDK it warns and
@@ -45,7 +49,7 @@ slashes. Do not edit Rust or PowerShell sources with Python replace scripts
 3. Copy `src/target/release/NFSPS-SaveConverter.exe` to
    `dist/NFSPS-SaveConverter.exe`. `dist/` is gitignored, so the GitHub
    release asset is the only public copy.
-4. Tag `vX.Y.Z` and attach the exe to a GitHub release (v1.0.0, v1.1.0, v1.1.1
+4. Tag `vX.Y.Z` and attach the exe to a GitHub release (v1.0.0, v1.1.0, v1.1.1, v1.2.0
    exist). Command: `gh release create vX.Y.Z dist/NFSPS-SaveConverter.exe
    --title X.Y.Z --notes-file <notes.md>`. The exe is unsigned: SmartScreen shows "Windows protected your
    PC" on first run (the README explains More info, then Run anyway).

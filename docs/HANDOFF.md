@@ -21,37 +21,32 @@ Read order for a new session: this file, then `docs/decisions.md`, then
 | Who was delegated what, ladder observations | `docs/delegation-log.md` |
 
 ## State
-- Release: v1.1.0 published on GitHub (exe built to `dist/`, gitignored). All
-  work is on `main`.
+- Release: v1.2.0 published on GitHub 2026-10-11 (exe built to `dist/`,
+  gitignored). All work is on `main`.
 - Verified in-game by the user (October 2026): careers resume at their saved
   point including a race day in progress; the garage loads every car (DLC
   Veyrons with heavy decals included); main-menu Race Day and custom race
   days; the converted alias loads with its options, speedometer, leaderboard
   and camera, and no stray `ALIAS_Player` / `CAREER_<junk>` files appear;
-  double-click shows no console window; the UAC relaunch for the FATX scan.
+  double-click shows no console window; the UAC relaunch for the FATX scan;
+  (2026-10-11, v1.2.0) a car bought at the dealer reaches the garage of a
+  converted career and survives save, quit and reload. Before that fix every
+  FEPlayerCarDB slot handle read 0xAA and the game's free-slot scans failed
+  (docs/re/FORMAT-NOTES.md, FEPlayerCarDB struct). The author's played
+  CAREER_01 was repaired with docs/re/rebase_fix.py (backup in
+  `SaveConverter backups/2026-10-11_07-34-39_before-cardb-repair`); three
+  reward cars won before the repair were lost and not restored.
 - USB sticks formatted by the console are plain FAT32 (docs/rust-app.md). The
   raw FATX scanner has never run on real media (parked).
 - Three ports (Python reference, Rust core used by the app, PowerShell
   script) are byte-exact; golden md5 pins are in each suite. Last full run,
-  2026-10-10 (open-work batch, converted output unchanged): pytest 147
-  passed; `cargo test --workspace` green and `cargo fmt --all --check`
+  2026-10-11 (car-DB fix, career pins moved): pytest 156 passed;
+  `cargo test --workspace --no-fail-fast` green and `cargo fmt --all --check`
   clean; Run-Tests.ps1 67/67 on Windows PowerShell 5.1 and on pwsh 7
   (nothing skipped: `Extracted/` is present, junctioned into worktrees from
   the main checkout with `mklink /J`; without it a few golden cases skip.
   Remove the junction with `rmdir` before the worktree is cleaned up, so a
   recursive delete cannot reach the personal saves).
-- 2026-10-11 fix, NOT yet verified in-game: converted careers could never
-  gain a car (challenge reward cars and dealer purchases silently dropped)
-  because every FEPlayerCarDB record handle read 0xAA, so the game's
-  free-slot scans failed (docs/re/FORMAT-NOTES.md, FEPlayerCarDB struct).
-  `fix_cardb_bytes` in all three ports; career golden pins moved (alias pins
-  unchanged); pytest 155 passed, `cargo test --workspace --no-fail-fast` green,
-  Run-Tests.ps1 67/67 on 5.1 and pwsh 7. The author's played CAREER_01 was
-  repaired in place with docs/re/rebase_fix.py (backup:
-  `SaveConverter backups/2026-10-11_07-34-39_before-cardb-repair`).
-  In-game check wanted: buy any car at the dealer, or win a challenge race
-  day, and see it in the garage. The three reward cars already won are
-  not in the save and were not restored.
 - Not yet seen by the user: the app's new orange stray-save notes
   (`[!] the save folder ...`) under the results list. Tests cover the text,
   not the GUI rendering.
@@ -73,15 +68,10 @@ the gap path" rationale is an unverified guess, see
 times (`tests/gapfix.py`, `nfssave-core/tests/common`, and
 `New-InternalGapMc02` in `Run-Tests.ps1`); keep them in sync.
 
-NEXT (user decision 2026-10-11): once the user confirms in-game that a new
-car reaches the garage, release this fix as 1.2.0. Steps: merge branch
-`claude/challenge-reward-cars-missing-1b196f` (commit 17568c5 and after) into
-`main`; bump `src/Cargo.toml` (the four `version = ` lines incl.
-`Cargo.lock`), the README download link, and the release lists in
-docs/dev-workflow.md and docs/rust-app.md, as in 37a0d13; build and
-release per docs/dev-workflow.md with notes `docs/release-notes-1.2.0.md`;
-then the post-merge review (dgx / Qwen Flash + glm-5.3). If the test fails,
-do not release: re-check the allocators (FORMAT-NOTES FEPlayerCarDB).
+Pending: the post-merge review of 17568c5..v1.2.0 (dgx / Qwen Flash +
+glm-5.3, CLAUDE.md layout); verify and act on its findings as follow-up
+commits. Not yet tried in-game: winning a challenge race day after the fix
+(the dealer purchase uses the same free-slot scans).
 
 Loose ends:
 - The release upload command was never written down (docs/dev-workflow.md).
