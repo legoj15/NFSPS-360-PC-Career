@@ -831,13 +831,18 @@ namespace NfsPs
         }
 
         // convert_packed_entry / fix_cardb_packed
+        const int CardbPackedLo = 0x7DD88;   // CARDB_PACKED.0: 8-byte entries, past the career records (this+0x7DD70)
+        const int CardbPackedHi = 0x90660;   // CARDB_PACKED.1
+        const byte PackedFillHi = 0x2A;      // PACKED_FILL hi: 360 uninit 14/16-bit field (0xAAAA masked)
+        const byte PackedFillLo = 0xAA;      // PACKED_FILL lo
         static void FixCarDbPacked(byte[] src, byte[] o)
         {
-            for (int p = 0x7DD88; p < 0x90660; p += 8)   // past the career records
+            if (src.Length != o.Length) throw new ArgumentException("FEPlayerCarDB fixes require src and out of equal length (got 0x" + src.Length.ToString("x") + " and 0x" + o.Length.ToString("x") + ")");
+            for (int p = CardbPackedLo; p < CardbPackedHi; p += 8)
             {
                 int e = p + 4;
                 if (e + 8 > src.Length) continue;
-                if (src[e] == 0x2A && src[e + 1] == 0xAA && src[e + 6] == 0x2A && src[e + 7] == 0xAA)
+                if (src[e] == PackedFillHi && src[e + 1] == PackedFillLo && src[e + 6] == PackedFillHi && src[e + 7] == PackedFillLo)
                 {
                     uint w1 = Rd32(src, e, true), w2 = Rd32(src, e + 4, true);
                     w1 = (w1 & 0xC000FFFFu) | (0x3FFFu << 16);
@@ -876,36 +881,49 @@ namespace NfsPs
             Swap16Nat(src, o, at + 10, at + step);
         }
 
-        // fix_blueprint_set: one customization set at 360 payload offset s
+        // fix_blueprint_set: one customization set at 360 payload offset s.
+        // Per-set offsets verified vs native PC saves (BP_* in Python/Rust).
+        const int BpPaintOff = 0x194, BpPaintStep = 12, BpPaintCount = 12;     // 12 x [paint: u16,u16][f32][f32]
+        const int BpDecalsOff = 0x240, BpDecalsStep = 26, BpDecalsCount = 20;  // 20 x 26 B decal slots
+        const int BpVinylsOff = 0x450, BpVinylsStep = 14, BpVinylsCount = 20;  // 20 x 14 B vinyl slots
+        const int BpColoursLo = 0x574, BpColoursHi = 0x628;                    // u8[20][9] vinyl colour bytes, natural
         static void FixBlueprintSet(byte[] src, byte[] o, int s)
         {
-            for (int k = 0; k < 12; k++) { int p = s + 0x194 + k * 12; Swap16Nat(src, o, p, p + 4); }
-            for (int k = 0; k < 20; k++) ConvertDecal(src, o, s + 0x240 + k * 26, 26);
-            for (int k = 0; k < 20; k++) ConvertDecal(src, o, s + 0x450 + k * 14, 14);
-            CopyNat(src, o, s + 0x574, s + 0x628);
+            for (int k = 0; k < BpPaintCount; k++) { int p = s + BpPaintOff + k * BpPaintStep; Swap16Nat(src, o, p, p + 4); }
+            for (int k = 0; k < BpDecalsCount; k++) ConvertDecal(src, o, s + BpDecalsOff + k * BpDecalsStep, BpDecalsStep);
+            for (int k = 0; k < BpVinylsCount; k++) ConvertDecal(src, o, s + BpVinylsOff + k * BpVinylsStep, BpVinylsStep);
+            CopyNat(src, o, s + BpColoursLo, s + BpColoursHi);
         }
 
         static readonly int[] BlueprintSets = new int[] { 0x0, 0x7B4, 0xF68 };
 
         // fix_cardb_parts: u16 part slots, u8 flags, blueprint sets and the car table
+        const int CardbRecordsBase = 0x2680;   // CARDB_RECORDS.0: offset, stride, count (this+0x2670)
+        const int CardbRecordsStride = 0x1870; // CARDB_RECORDS.1
+        const int CardbRecordsCount = 80;      // CARDB_RECORDS.2
+        const int CardbPartSlotsLo = 0x3C, CardbPartSlotsHi = 0x186;   // CARDB_PART_SLOTS: u16 installed-part arrays per car
+        const int CardbPartFlagsLo = 0x186, CardbPartFlagsHi = 0x190;  // CARDB_PART_FLAGS: u8 fields right after the array
+        const int CardbTableBase = 0x14, CardbTableSize = 24, CardbTableCount = 410;  // CARDB_TABLE: car table offset, entry size, count
+        const int CardbTableSlot = 20;         // CARDB_TABLE_SLOT: entry word [u8][u8][u8][pad]
         static void FixCarDbParts(byte[] src, byte[] o)
         {
-            for (int r = 0; r < 80; r++)
+            if (src.Length != o.Length) throw new ArgumentException("FEPlayerCarDB fixes require src and out of equal length (got 0x" + src.Length.ToString("x") + " and 0x" + o.Length.ToString("x") + ")");
+            for (int r = 0; r < CardbRecordsCount; r++)
             {
-                int rec = 0x2680 + r * 0x1870 + 4;
+                int rec = CardbRecordsBase + r * CardbRecordsStride + 4;
                 CopyNat(src, o, rec, rec + 4);
                 Swap16Nat(src, o, rec + 4, rec + 8);   // two u16s
                 foreach (int bp in BlueprintSets)
                 {
                     int rec0 = rec + bp;
-                    Swap16Nat(src, o, rec0 + 0x3C, rec0 + 0x186);
-                    CopyNat(src, o, rec0 + 0x186, rec0 + 0x190);
+                    Swap16Nat(src, o, rec0 + CardbPartSlotsLo, rec0 + CardbPartSlotsHi);
+                    CopyNat(src, o, rec0 + CardbPartFlagsLo, rec0 + CardbPartFlagsHi);
                     FixBlueprintSet(src, o, rec0);
                 }
             }
-            for (int k = 0; k < 410; k++)
+            for (int k = 0; k < CardbTableCount; k++)
             {
-                int p = 0x14 + k * 24 + 20 + 4;
+                int p = CardbTableBase + k * CardbTableSize + CardbTableSlot + 4;
                 CopyNat(src, o, p, p + 4);
             }
             FixCarDbBytes(src, o);
@@ -923,28 +941,38 @@ namespace NfsPs
         static readonly int[] CareerByteWords = new int[] { 0x0, 0xC };
         static readonly int[] CareerU16Words = new int[] { 0x14, 0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C };
 
+        const int CustomRecordsBase = 0x2684;   // CUSTOM_RECORDS.0: CardbRecordsBase + 4 (unframed 360 payload)
+        const int CustomRecordsStride = 0x1870; // CUSTOM_RECORDS.1
+        const int CustomRecordsCount = 80;      // CUSTOM_RECORDS.2
+        const int SetU16Pad = 0x8;              // SET_U16_PAD: [u16][pad x2] at set+8
+        const int CareerRecordsBase = 0x7C984;  // CAREER_RECORDS.0: offset, stride, count (this+0x7C970)
+        const int CareerRecordsStride = 0x40;   // CAREER_RECORDS.1
+        const int CareerRecordsCount = 80;      // CAREER_RECORDS.2
+        const int CareerU16Pad = 0x4;           // CAREER_U16_PAD: [u16][pad x2] at career record +4
+        const int CardbFlag = 0x90694;          // CARDB_FLAG (this+0x90680): [u8][pad x3]
+
         static void FixCarDbBytes(byte[] src, byte[] o)
         {
-            for (int r = 0; r < 80; r++)
+            for (int r = 0; r < CustomRecordsCount; r++)
             {
-                int rec = 0x2684 + r * 0x1870 + 4;          // this+0x2670
+                int rec = CustomRecordsBase + r * CustomRecordsStride + 4;   // this+0x2670
                 foreach (int w in CustomByteWords) CopyNat(src, o, rec + w, rec + w + 4);
                 foreach (int s in BlueprintSetStarts)
                 {
-                    Swap16Nat(src, o, rec + s + 0x8, rec + s + 0xA);   // [u16][pad x2]
-                    CopyNat(src, o, rec + s + 0xA, rec + s + 0xC);
+                    Swap16Nat(src, o, rec + s + SetU16Pad, rec + s + SetU16Pad + 2);   // [u16][pad x2]
+                    CopyNat(src, o, rec + s + SetU16Pad + 2, rec + s + SetU16Pad + 4);
                     foreach (int w in SetByteWords) CopyNat(src, o, rec + s + w, rec + s + w + 4);
                 }
             }
-            for (int i = 0; i < 80; i++)
+            for (int i = 0; i < CareerRecordsCount; i++)
             {
-                int rec = 0x7C984 + i * 0x40 + 4;             // this+0x7C970
+                int rec = CareerRecordsBase + i * CareerRecordsStride + 4;   // this+0x7C970
                 foreach (int w in CareerByteWords) CopyNat(src, o, rec + w, rec + w + 4);
-                Swap16Nat(src, o, rec + 0x4, rec + 0x6);      // [u16][pad x2]
-                CopyNat(src, o, rec + 0x6, rec + 0x8);
+                Swap16Nat(src, o, rec + CareerU16Pad, rec + CareerU16Pad + 2);   // [u16][pad x2]
+                CopyNat(src, o, rec + CareerU16Pad + 2, rec + CareerU16Pad + 4);
                 foreach (int w in CareerU16Words) Swap16Nat(src, o, rec + w, rec + w + 4);
             }
-            CopyNat(src, o, 0x90694 + 4, 0x90694 + 8);        // this+0x90680: [u8][pad x3]
+            CopyNat(src, o, CardbFlag + 4, CardbFlag + 8);   // this+0x90680: [u8][pad x3]
         }
 
         static uint U32BeAt(byte[] src, int o) { return Rd32(src, o + 4, true); }   // PC offset -> 360 payload

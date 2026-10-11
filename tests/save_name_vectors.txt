@@ -1,0 +1,47 @@
+# Save-name rule vectors shared by the three suites: tests/test_cli.py,
+# src/crates/nfssave-core/tests/test_save_name.rs and
+# scripts/powershell/tests/Run-Tests.ps1 (rule: docs/scripts-cli.md).
+# One vector per line: '<bad|ok>	<name>'; the name is everything after
+# the first tab and may be empty. '#' comments and blank lines are
+# ignored; readers trim a trailing '\r' so CRLF checkouts stay safe.
+# UTF-8 without BOM - the Python and Rust readers do not strip one.
+# 28 bad / 11 ok at creation; no loader asserts a count.
+bad	
+bad	...
+bad	  
+bad	. .
+bad	.
+bad	..
+bad	a/b
+bad	a\b
+bad	C:x
+bad	SaveConverter backups
+bad	saveconverter BACKUPS
+bad	SaveConverter backups. 
+bad	CAREER*
+bad	A?
+bad	A"B
+bad	A<B
+bad	A>B
+bad	A|B
+bad	AB
+bad	A
+bad	CON
+bad	nul
+bad	Com1
+bad	LPT9
+bad	AUX.txt
+bad	PRN .x
+bad	COM¹
+bad	lpt³
+ok	CAREER_01
+ok	A.
+ok	a b
+ok	.x
+ok	ALIAS_JOSHUA S 10
+ok	CONSOLE
+ok	COM10
+ok	NULL
+ok	CAREER_��
+ok	SaveConverter backups2
+ok	LPT

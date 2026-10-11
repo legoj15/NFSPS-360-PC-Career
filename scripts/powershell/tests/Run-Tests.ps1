@@ -493,6 +493,18 @@ try {
     if (-not $threw -and $idOk -and $got -eq $want) { Pass 'CARDB fixes clamp on a 0x100-byte payload like Python' }
     else { Fail 'CARDB fixes clamp on a 0x100-byte payload like Python' "threw '$threw', identity $idOk, swapped $got" }
 
+    # --- unit: the CARDB fixes refuse a mismatched out length (same guard as
+    #     Python convert.py / Rust convert.rs: internal invariant - out is a
+    #     clone of src in every caller; Python would silently resize instead)
+    $guardBad = @()
+    foreach ($g in @(@($fixParts, 0xF8), @($fixPacked, 0x108))) {
+        $threw = $null
+        # [byte[]]::new, not New-Object: the PSObject wrapper breaks Invoke (see ConvertExtra unit)
+        try { [void]$g[0].Invoke($null, [object[]]@($src, [byte[]]::new($g[1]))) } catch { $threw = $_.Exception.InnerException.Message }
+        if ($threw -notmatch 'equal length') { $guardBad += "out 0x$($g[1].ToString('x')): threw '$threw'" }
+    }
+    if (-not $guardBad) { Pass 'CARDB fixes refuse mismatched src/out lengths' } else { Fail 'CARDB fixes refuse mismatched src/out lengths' ($guardBad -join '; ') }
+
     # --- unit: ConvertExtra on a 64-byte alias extra whose name has no NUL
     #     (same vector as tests/test_extra.py; golden aliases all terminate it)
     $x = [byte[]]::new(64)   # New-Object would hand Invoke a PSObject wrapper
@@ -678,21 +690,36 @@ try {
     }
     if (-not $fails) { Pass 'u8 node rule like Python' } else { Fail 'u8 node rule like Python' ($fails -join '; ') }
 
-    # --- unit: Test-SaveName (same vectors as tests/test_cli.py, test_save_name.rs)
+    # --- unit: Test-SaveName (vectors from the shared tests/save_name_vectors.txt,
+    #     one '<bad|ok>\t<name>' line per name - the same file tests/test_cli.py
+    #     and test_save_name.rs load; '#' comments and blank lines are ignored,
+    #     ReadAllLines strips the line terminators so LF/CRLF both parse, and the
+    #     explicit UTF-8 keeps the non-ASCII vectors correct on 5.1; malformed
+    #     lines fail the suite, like the Python and Rust readers)
     $tsn = $ast.EndBlock.Statements | Where-Object { $_ -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -eq 'Test-SaveName' }
     Invoke-Expression $tsn.Extent.Text
+    $vectorsPath = Join-Path $repo 'tests\save_name_vectors.txt'
     $wrong = @()
-    foreach ($bad in @('', '...', '  ', '. .', '.', '..', 'a/b', 'a\b', 'C:x',
-            'SaveConverter backups', 'saveconverter BACKUPS', 'SaveConverter backups. ',
-            'CAREER*', 'A?', 'A"B', 'A<B', 'A>B', 'A|B', "A$([char]1)B", "A$([char]0x1f)",
-            'CON', 'nul', 'Com1', 'LPT9', 'AUX.txt', 'PRN .x', "COM$([char]0xB9)", "lpt$([char]0xB3)")) {
-        $msg = $null
-        try { Test-SaveName $bad } catch { $msg = $_.Exception.Message }
-        if ($msg -ne "unsafe save name '$bad'") { $wrong += "accepted '$bad'" }
-    }
-    foreach ($good in @('CAREER_01', 'A.', 'a b', '.x', 'ALIAS_JOSHUA S 10', 'CONSOLE', 'COM10', 'NULL',
-            "CAREER_$([char]0xFFFD)$([char]0xFFFD)", 'SaveConverter backups2', 'LPT')) {
-        try { Test-SaveName $good } catch { $wrong += "refused '$good'" }
+    if (-not (Test-Path $vectorsPath)) { $wrong += "missing shared vector file: $vectorsPath" }
+    else {
+        $badNames = @(); $goodNames = @()
+        foreach ($line in [System.IO.File]::ReadAllLines($vectorsPath, [System.Text.Encoding]::UTF8)) {
+            if ($line -eq '' -or $line.StartsWith('#')) { continue }
+            $tab = $line.IndexOf("`t")
+            if ($tab -lt 1) { $wrong += "malformed vector line (expected '<bad|ok>`t<name>'): $line"; continue }
+            $verdict = $line.Substring(0, $tab)
+            if ($verdict -eq 'bad') { $badNames += $line.Substring($tab + 1) }
+            elseif ($verdict -eq 'ok') { $goodNames += $line.Substring($tab + 1) }
+            else { $wrong += "unknown verdict '$verdict' in vector line: $line" }
+        }
+        foreach ($bad in $badNames) {
+            $msg = $null
+            try { Test-SaveName $bad } catch { $msg = $_.Exception.Message }
+            if ($msg -ne "unsafe save name '$bad'") { $wrong += "accepted '$bad'" }
+        }
+        foreach ($good in $goodNames) {
+            try { Test-SaveName $good } catch { $wrong += "refused '$good'" }
+        }
     }
     if (-not $wrong) { Pass 'save-name rule like Python' } else { Fail 'save-name rule like Python' ($wrong -join '; ') }
 

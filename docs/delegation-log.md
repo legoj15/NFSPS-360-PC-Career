@@ -52,6 +52,7 @@ agents; `impl` = Sonnet medium. "Orchestrator" = the session model itself.
 | 2026-10-11 | car-DB fix review | shop26 + glm-flash | shop26 hit the 256K context limit mid-review, no findings; glm-flash 2 highs + 1 medium REJECTED (set origin, proven by init constant), lows fixed (packed scan range, rebase_fix git paths/messages), test-tautology medium fixed with a native anchor | none |
 | 2026-10-11 | v1.2.0 post-merge review | glm-5.3 (dgx deferred) | glm-5.3: 2 lows (words-vs-bytes label, stale heading), both fixed; no code defects. dgx Qwen Flash ran 90 min and died on its 262K context limit (whole files read), no findings; re-run narrowed to line ranges (postmerge-1.2.0-dgx-narrow-20261011-070354-e4e9) | none |
 | 2026-10-11 | v1.2.0 post-merge review, narrowed re-run | dgx (Qwen Flash) | finished in 26 min on line ranges: no port divergence, 2 notes recorded as debt (length invariant, PS bare literals) | none |
+| 2026-10-11 | debt rectification (car-DB length guard + named PS constants, single-sourced save-name vectors, stray_save_notes to nfssave-core), 3 ports | workflow: survey, plan + critique, three porters, independent review, docs | code debt removed in all three ports (review-verified); review caught the missing docs close-out (Debt paragraphs, decisions entry, stale PowerShell-suite note), fixed in the docs pass | none |
 
 ## Ladder observations (so far)
 - `impl` (Sonnet medium): 7 dispatches (PS port, PS CLI, race-day Rust + PS

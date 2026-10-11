@@ -88,6 +88,26 @@ fn cardb_fixes_clamp_on_short_payload() {
     );
 }
 
+/// The CARDB struct fixes write `out[a:b]` from `src[a:b]` clamped to
+/// `src.len()`; the pipeline only ever calls them with `out` a same-length
+/// clone of the payload (see `copy_nat`). A mismatched pair is an internal
+/// bug and must fail loudly instead of silently desyncing the writes.
+#[test]
+#[should_panic(expected = "FEPlayerCarDB fixes require src and out of equal length")]
+fn fix_cardb_parts_refuses_a_shorter_out() {
+    let src: Vec<u8> = (0..=255u8).collect();
+    let mut out = vec![0u8; src.len() - 1];
+    fix_cardb_parts(&src, &mut out);
+}
+
+#[test]
+#[should_panic(expected = "FEPlayerCarDB fixes require src and out of equal length")]
+fn fix_cardb_packed_refuses_a_longer_out() {
+    let src: Vec<u8> = (0..=255u8).collect();
+    let mut out = vec![0u8; src.len() + 1];
+    fix_cardb_packed(&src, &mut out);
+}
+
 /// F3: a 0x1000-byte GameplayData record runs the whole per-record pipeline
 /// with clamped rehash/raceday handling. Digest and payload md5 are the
 /// Python's (its output length stays 4096; it warns about the missing

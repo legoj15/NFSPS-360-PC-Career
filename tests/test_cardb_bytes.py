@@ -174,6 +174,18 @@ class CarDbSyntheticWords(unittest.TestCase):
         self.assertEqual(out[car:car + 4].hex(), "341200aa")
         self.assertEqual(out[bp:bp + 4].hex(), "341200aa")
 
+    def test_wrong_length_out_is_refused(self):
+        """A bytearray slice-assign past out's end appends (resizes) instead
+        of failing, so the equal-length contract is refused up front (same
+        guard in nfssave-core convert.rs and Convert-NfsSave.ps1)."""
+        from nfssave.convert import fix_cardb_parts, fix_cardb_packed
+        src = bytes(range(0x100))
+        for out in (bytearray(0x80), bytearray(0x200)):
+            for fix in (fix_cardb_parts, fix_cardb_packed):
+                with self.subTest(fix=fix.__name__, out=f"0x{len(out):x}"):
+                    with self.assertRaisesRegex(ValueError, "equal length"):
+                        fix(src, out)
+
 
 if __name__ == "__main__":
     unittest.main()

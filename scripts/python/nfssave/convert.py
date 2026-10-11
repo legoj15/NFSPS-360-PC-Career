@@ -283,6 +283,11 @@ def convert_packed_entry(e: bytes) -> bytes:
 
 
 def fix_cardb_packed(src: bytes, out: bytearray) -> None:
+    if len(src) != len(out):
+        # a bytearray slice-assign resizes instead of clamping - the entry
+        # write below must never see mismatched lengths
+        raise ValueError(f"FEPlayerCarDB fixes require src and out of equal length "
+                         f"(got {len(src):#x} and {len(out):#x})")
     lo, hi = CARDB_PACKED
     for o in range(lo, hi, 8):
         e = src[o + 4:o + 12]
@@ -335,6 +340,11 @@ def fix_cardb_parts(src: bytes, out: bytearray) -> None:
     offsets; the 360 payload (still unframed here) has one extra leading
     word.
     """
+    if len(src) != len(out):
+        # same contract as fix_cardb_packed: a wrong-length out would be
+        # silently resized by the slice writes below
+        raise ValueError(f"FEPlayerCarDB fixes require src and out of equal length "
+                         f"(got {len(src):#x} and {len(out):#x})")
     base, stride, count = CARDB_RECORDS
     lo, hi = CARDB_PART_SLOTS
     flo, fhi = CARDB_PART_FLAGS

@@ -485,14 +485,42 @@ def test_unsafe_save_name_fails_the_same_in_dry_run(tmp_path, monkeypatch, capsy
     assert not list(tmp_path.rglob("SaveConverter backups"))
 
 
-@pytest.mark.parametrize("bad", ["", "...", "  ", ". .", ".", "..", "a/b", "a\\b", "C:x"])
+def _save_name_vectors():
+    """tests/save_name_vectors.txt holds the shared rule vectors (one file,
+    three readers: here, test_save_name.rs, Run-Tests.ps1). One
+    '<bad|ok>\t<name>' per line; the name is everything after the first tab
+    and may be empty. A missing or malformed file fails collection - a
+    tracked fixture never skips."""
+    text = (ROOT / "tests" / "save_name_vectors.txt").read_text(encoding="utf-8")
+    bad, ok = [], []
+    for line in text.split("\n"):
+        line = line.rstrip("\r")
+        if not line or line.startswith("#"):
+            continue
+        verdict, name = line.split("\t", 1)
+        if verdict == "bad":
+            bad.append(name)
+        elif verdict == "ok":
+            ok.append(name)
+        else:
+            raise ValueError(f"unknown verdict in save_name_vectors.txt: {line!r}")
+    return bad, ok
+
+
+_BAD_SAVE_NAMES, _OK_SAVE_NAMES = _save_name_vectors()
+
+
+@pytest.mark.parametrize("bad", _BAD_SAVE_NAMES)
 def test_check_save_name_refuses_unsafe(bad):
+    """Dots/whitespace-only names, path separators, drive specs, the backup
+    folder's own name, and the characters or device names Windows rejects
+    (would only fail at write time with an OS error)."""
     with pytest.raises(ValueError, match=re.escape(f"unsafe save name '{bad}'")):
         lib.check_save_name(bad)
 
 
-@pytest.mark.parametrize("good", ["CAREER_01", "A.", "a b", ".x"])
-def test_check_save_name_accepts_plain_names(good):
+@pytest.mark.parametrize("good", _OK_SAVE_NAMES)
+def test_check_save_name_accepts_safe_names(good):
     lib.check_save_name(good)
 
 
@@ -506,29 +534,6 @@ def test_dots_only_name_is_refused_before_anything_else(tmp_path, monkeypatch, c
     assert f"unsafe save name '{'.' * 9}'" in capsys.readouterr().err
     assert not out.exists() or not any(out.iterdir())
     assert not list(tmp_path.rglob("SaveConverter backups"))
-
-
-# --- save names that are not plain Windows folder names ----------------------
-
-@pytest.mark.parametrize("bad", [
-    "SaveConverter backups", "saveconverter BACKUPS", "SaveConverter backups. ",
-    "CAREER*", "A?", 'A"B', "A<B", "A>B", "A|B", "A\x01B", "A\x1f",
-    "CON", "nul", "Com1", "LPT9", "AUX.txt", "PRN .x", "COM¹", "lpt³",
-])
-def test_check_save_name_refuses_non_folder_names(bad):
-    """The backup folder's own name would export inside the backups, and
-    characters or device names Windows rejects would only fail at write time
-    with an OS error (same list in test_save_name.rs and Run-Tests.ps1)."""
-    with pytest.raises(ValueError, match=re.escape(f"unsafe save name '{bad}'")):
-        lib.check_save_name(bad)
-
-
-@pytest.mark.parametrize("good", [
-    "ALIAS_JOSHUA S 10", "CONSOLE", "COM10", "NULL", "CAREER_\ufffd\ufffd",
-    "SaveConverter backups2", "LPT",
-])
-def test_check_save_name_accepts_other_names(good):
-    lib.check_save_name(good)
 
 
 # --- write failures say the previous save survived ---------------------------

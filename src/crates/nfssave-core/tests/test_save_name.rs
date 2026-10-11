@@ -1,12 +1,40 @@
 //! One save-name rule across the Python, Rust and PowerShell ports
-//! (docs/scripts-cli.md): same vectors, same message.
+//! (docs/scripts-cli.md): same vectors, same message. The vectors live in
+//! the shared `tests/save_name_vectors.txt` (see [`shared_vectors`]).
+
+mod common;
 
 use nfssave_core::convert::check_save_name;
 
+/// The shared save-name rule vectors: `tests/save_name_vectors.txt`, one
+/// `<bad|ok>\t<name>` per line. '#' comments and blank lines are ignored,
+/// the name is everything after the first tab (possibly empty), and a
+/// trailing '\r' is trimmed so a CRLF checkout reads the same.
+fn shared_vectors() -> (Vec<String>, Vec<String>) {
+    let text = std::fs::read_to_string(common::repo_root().join("tests/save_name_vectors.txt"))
+        .expect("shared save-name vectors present");
+    let (mut bad, mut ok) = (Vec::new(), Vec::new());
+    for line in text.lines() {
+        let line = line.trim_end_matches('\r');
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (verdict, name) = line
+            .split_once('\t')
+            .unwrap_or_else(|| panic!("save-name vector line {line:?} has no tab"));
+        match verdict {
+            "bad" => bad.push(name.to_string()),
+            "ok" => ok.push(name.to_string()),
+            v => panic!("unknown verdict {v:?} in save_name_vectors.txt"),
+        }
+    }
+    (bad, ok)
+}
+
 #[test]
 fn unsafe_names_are_refused_with_the_shared_message() {
-    for bad in ["", "...", "  ", ". .", ".", "..", "a/b", "a\\b", "C:x"] {
-        let e = check_save_name(bad).unwrap_err().to_string();
+    for bad in shared_vectors().0 {
+        let e = check_save_name(&bad).unwrap_err().to_string();
         assert!(
             e.contains(&format!("unsafe save name '{bad}'")),
             "{bad:?} -> {e}"
@@ -16,54 +44,27 @@ fn unsafe_names_are_refused_with_the_shared_message() {
 
 #[test]
 fn plain_names_are_accepted() {
-    for good in ["CAREER_01", "A.", "a b", ".x"] {
-        check_save_name(good).unwrap();
+    for good in shared_vectors().1 {
+        check_save_name(&good).unwrap();
     }
 }
 
-/// The backup folder's own name would export inside the backups; characters
-/// and device names Windows rejects would only fail at write time with an
-/// OS error. Same vectors as tests/test_cli.py and Run-Tests.ps1.
+/// The whole bad list (path separators, control characters, the backup
+/// folder's own name, Windows device names) is refused with exactly the
+/// shared message. Same vectors as tests/test_cli.py and Run-Tests.ps1 via
+/// tests/save_name_vectors.txt.
 #[test]
 fn non_folder_names_are_refused() {
-    for bad in [
-        "SaveConverter backups",
-        "saveconverter BACKUPS",
-        "SaveConverter backups. ",
-        "CAREER*",
-        "A?",
-        "A\"B",
-        "A<B",
-        "A>B",
-        "A|B",
-        "A\u{1}B",
-        "A\u{1f}",
-        "CON",
-        "nul",
-        "Com1",
-        "LPT9",
-        "AUX.txt",
-        "PRN .x",
-        "COM\u{b9}",
-        "lpt\u{b3}",
-    ] {
-        let e = check_save_name(bad).unwrap_err().to_string();
+    for bad in shared_vectors().0 {
+        let e = check_save_name(&bad).unwrap_err().to_string();
         assert_eq!(e, format!("unsafe save name '{bad}'"), "{bad:?}");
     }
 }
 
 #[test]
 fn other_names_are_accepted() {
-    for good in [
-        "ALIAS_JOSHUA S 10",
-        "CONSOLE",
-        "COM10",
-        "NULL",
-        "CAREER_\u{FFFD}\u{FFFD}",
-        "SaveConverter backups2",
-        "LPT",
-    ] {
-        check_save_name(good).unwrap_or_else(|e| panic!("{good:?}: {e}"));
+    for good in shared_vectors().1 {
+        check_save_name(&good).unwrap_or_else(|e| panic!("{good:?}: {e}"));
     }
 }
 

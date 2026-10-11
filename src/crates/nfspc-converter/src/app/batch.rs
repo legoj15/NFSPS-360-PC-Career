@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf, absolute};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use fatx::DiscoveredSave;
-use nfssave_core::convert::{PreparedSave, check_save_name, prepare_mc02};
+use nfssave_core::convert::{PreparedSave, check_save_name, prepare_mc02, stray_save_notes};
 use nfssave_core::{Error, parse_container};
 
 use super::destination::GAME_FOLDER_NAME;
@@ -397,7 +397,8 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
     let exported_to =
         any_converted.then(|| absolute(out_root).unwrap_or_else(|_| out_root.to_path_buf()));
     let notes = if is_game_folder(&absolute(out_root).unwrap_or_else(|_| out_root.to_path_buf())) {
-        stray_save_notes(out_root, &claimed)
+        let converted_keys: Vec<&str> = claimed.keys().map(String::as_str).collect();
+        stray_save_notes(out_root, &converted_keys)
     } else {
         Vec::new()
     };
@@ -406,52 +407,6 @@ pub fn run_batch(inputs: Vec<SaveInput>, out_root: &Path) -> BatchResult {
         exported_to,
         notes,
     }
-}
-
-const STRAY_ALIAS: &str = "the save folder also holds {} next to the converted alias; a \
-     second alias usually means the game once fell back to a default profile - move the \
-     one you do not play out of the folder";
-const STRAY_CAREER: &str = "the save folder holds {}; a CAREER_ save with a non-ASCII name \
-     is usually left over from the game falling back to a default profile - move it out \
-     unless you made it";
-
-/// Warnings for saves in the game's save folder that usually mean the PC
-/// once fell back to a default profile (docs/re/FORMAT-NOTES.md): another
-/// `ALIAS_*` next to an alias this batch converted, and `CAREER_` saves with a
-/// non-ASCII name. `converted` is keyed by [`windows_name_key`]. A save is a
-/// `<NAME>/<NAME>` file. Same rule and wording as the Python and PowerShell
-/// ports (`stray_save_notes`, `Get-StraySaveNotes`).
-fn stray_save_notes(save_dir: &Path, converted: &HashMap<String, String>) -> Vec<String> {
-    let Ok(rd) = fs::read_dir(save_dir) else {
-        return Vec::new();
-    };
-    let mut names: Vec<String> = rd
-        .flatten()
-        .filter(|e| e.path().join(e.file_name()).is_file())
-        .map(|e| e.file_name().to_string_lossy().into_owned())
-        .collect();
-    names.sort();
-    let has_prefix = |n: &str, p: &str| n.get(..p.len()).is_some_and(|h| h.eq_ignore_ascii_case(p));
-    let mut notes = Vec::new();
-    if converted.keys().any(|k| k.starts_with("alias_")) {
-        let aliases: Vec<&str> = names
-            .iter()
-            .map(String::as_str)
-            .filter(|n| has_prefix(n, "alias_") && !converted.contains_key(&windows_name_key(n)))
-            .collect();
-        if !aliases.is_empty() {
-            notes.push(STRAY_ALIAS.replace("{}", &aliases.join(", ")));
-        }
-    }
-    let odd: Vec<&str> = names
-        .iter()
-        .map(String::as_str)
-        .filter(|n| has_prefix(n, "career_") && !n.is_ascii())
-        .collect();
-    if !odd.is_empty() {
-        notes.push(STRAY_CAREER.replace("{}", &odd.join(", ")));
-    }
-    notes
 }
 
 #[cfg(test)]

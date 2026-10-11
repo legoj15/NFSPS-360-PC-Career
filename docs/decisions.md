@@ -64,6 +64,14 @@ Do not reverse these without asking. Newest last within each group.
   record (`pc_controller_default.bin`) rather than a size-0 filler, and keeps
   the 360 `VideoSettings` length (0xB4); both were verified in-game
   (2026-10-09).
+- The save-name rule, device list, backup-folder name and stray-note wording
+  stay hand-copied in the three ports' code on purpose (2026-10-11): the
+  ports are independent byte-exact implementations in three languages, so
+  those lists cannot be shared source; parity is pinned by tests instead.
+  The test side was single-sourced: `tests/save_name_vectors.txt` (one file
+  read by all three suites) and `stray_save_notes` moved from the app crate
+  into `nfssave-core` next to `check_save_name`. (Debt-rectification
+  workflow of 2026-10-11, not an explicit user sign-off.)
 
 ## Policy
 - `cargo fmt --all --check` must be clean (docs/rust-app.md).

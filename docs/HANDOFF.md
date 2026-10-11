@@ -52,18 +52,6 @@ Read order for a new session: this file, then `docs/decisions.md`, then
   not the GUI rendering.
 
 ## Open work
-Debt (dgx post-merge review of v1.2.0, notes, no defect): the car-DB fixes
-rely on len(src) == len(out) (a Python slice write would resize instead of
-clamp if that ever broke; an entry assert in all three ports would pin it),
-and the PowerShell C# writes every car-DB offset as a bare literal instead of
-named constants like Python/Rust.
-
-Debt: the save-name rule, device list, backup-folder name and stray-note
-wording are hand-copied across the three ports and their suites; the
-app's `stray_save_notes` could move next to `check_save_name` in
-`nfssave-core`, and one shared vector file (like
-`pc_controller_default.bin`) would replace the three copied test lists.
-
 Test gaps: PowerShell post-write self-check failure (unreachable without a
 seam; Python and Rust pin the message); backup at a drive-root output folder; old-format USB scan order;
 the shared backup stamp across one `main()` run; PowerShell "a failed save

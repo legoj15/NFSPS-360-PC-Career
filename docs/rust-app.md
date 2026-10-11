@@ -81,9 +81,10 @@ window-creation failure in the GUI path shows a message box
   An existing export is backed up first to `S/SaveConverter backups/`
   (or beside S when S is named `NFS ProStreet`), the scripts'
   rule (docs/scripts-cli.md "Backups"). Name rule, write-failure and
-  self-check messages, and the stray-save notes (`BatchResult.notes`, printed
-  as `[!] ...` lines; only for a folder named `NFS ProStreet`) match the
-  scripts (docs/scripts-cli.md "Inputs").
+  self-check messages, and the stray-save notes (`nfssave-core`'s
+  `stray_save_notes`, next to `check_save_name`; surfaced by the app as
+  `BatchResult.notes`, printed as `[!] ...` lines; only for a folder named
+  `NFS ProStreet`) match the scripts (docs/scripts-cli.md "Inputs").
 - `SaveInput` parses a CON package once, at construction
   (`from_path` / `from_discovered` / `from_bytes`): it keeps the export name
   (file-table name, else the caller's fallback) and only the MC02 payload.

@@ -15,7 +15,7 @@ commit; anything save-visible then needs an in-game check by the user.
 |---|---|---|
 | Python | `python -m pytest -q tests` from the repo root | `pyproject.toml` only sets `testpaths` and `pythonpath`. Cases that need the gitignored `Extracted/` saves skip. |
 | Rust | from `src/`: `cargo test --workspace --no-fail-fast`, `cargo fmt --all --check` | Without `--no-fail-fast` cargo stops at the first failing test binary and a grep for failures can miss it (a broken pin went unnoticed that way on 2026-10-11). fmt is required clean (docs/rust-app.md). Also run `cargo test --release` after touching subsystem or console code. Clippy is not part of any gate and its current state was not checked. |
-| PowerShell | `scripts/powershell/tests/Run-Tests.ps1` with the PowerShell tool, on BOTH Windows PowerShell 5.1 (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File ...`) and pwsh 7 (`pwsh -NoProfile -File ...`) | Black-box: runs the script in a child process of the same host. Exit 0 = all passed. |
+| PowerShell | `scripts/powershell/tests/Run-Tests.ps1` with the PowerShell tool, on BOTH Windows PowerShell 5.1 (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File ...`) and pwsh 7 (`pwsh -NoProfile -File ...`) | End-to-end cases run the converter in a child process of the same host; unit cases AST-extract functions from the script and run them in-process. Exit 0 = all passed. |
 
 Fixture policy: tracked fixtures under `docs/re/` must exist. The golden
 suites FAIL (not skip) on a missing tracked fixture; only their sources under
@@ -24,7 +24,10 @@ of `tests/test_cli.py`) skip when `docs/re/pair/CAREER_02_360_fresh` is
 missing, so a green run in a checkout without the tracked fixtures proves
 less than it looks. Golden md5 pins live in `tests/test_golden.py`,
 `src/crates/nfssave-core/tests/test_golden.rs` and `Run-Tests.ps1`; keep all
-three identical.
+three identical. The save-name rule vectors are single-sourced the same way:
+`tests/save_name_vectors.txt` is read by `tests/test_cli.py`,
+`nfssave-core/tests/test_save_name.rs` and `Run-Tests.ps1`, and all three
+suites FAIL, not skip, when it is missing.
 
 Test notes: the PowerShell `RehashGameplay` branch for a GameplayData payload
 under 0x24 bytes is unreachable through the conversion pipeline (the race-day
